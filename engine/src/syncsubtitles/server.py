@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from syncsubtitles.episodes import natural_key, pair_files
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
 from syncsubtitles.jobs import get_job, start_job
+from syncsubtitles.outputs import OutputName, plan_outputs
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.render import default_mkv_output, default_subtitle_output
 from syncsubtitles.retime import Segment
@@ -135,6 +136,35 @@ def _default_output(reference: str, target: str, target_index: int | None, subs_
                 fmt = subtitle_format(streams[target_index].codec) or "srt"
         return str(default_subtitle_output(spec, "ass" if fmt == "ssa" else fmt))
     return str(default_mkv_output(reference))
+
+
+class PlanRequest(BaseModel):
+    items: list[tuple[TrackRef, TrackRef]]  # (reference, target), in export order
+    subs_only: bool = False
+    folder: str | None = None
+
+
+def _output_name(reference: TrackRef, target: TrackRef, subs_only: bool) -> OutputName:
+    if not subs_only:
+        source = Path(reference.path)
+        return OutputName(source, f"{source.stem}.mkv", f"{source.stem}.synced.mkv")
+    spec = target.to_spec()
+    source = Path(target.path)
+    if spec.is_external:
+        fmt = "ass" if source.suffix.lower() in (".ass", ".ssa") else "srt"
+        return OutputName(source, source.name, default_subtitle_output(spec, fmt).name)
+    stream = probe_subtitle_streams(target.path)[target.index or 0]
+    fmt = subtitle_format(stream.codec) or "srt"
+    tag = stream.language or f"s{stream.index}"
+    # "Film.fre.srt": the name players load next to "Film.mkv" on their own.
+    return OutputName(source, f"{source.stem}.{tag}.{fmt}", default_subtitle_output(spec, fmt).name)
+
+
+@app.post("/plan-outputs")
+def plan(req: PlanRequest) -> dict[str, list[str]]:
+    """Where a batch's exports go, all decided together (see outputs.py)."""
+    names = [_output_name(reference, target, req.subs_only) for reference, target in req.items]
+    return {"paths": [str(p) for p in plan_outputs(names, req.folder)]}
 
 
 class ExpandRequest(BaseModel):

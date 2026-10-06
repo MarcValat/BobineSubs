@@ -136,3 +136,15 @@ def test_pairs_endpoint():
         {"video": "S01E01.mkv", "subtitle": "1x01.srt", "by": "episode"},
         {"video": "S01E02.mkv", "subtitle": None, "by": None},
     ]
+
+
+def test_plan_outputs_keeps_names_in_another_folder(tmp_path, pair):
+    out = tmp_path / "out"
+    out.mkdir()
+    items = [[{"path": "D:/S/E01.mp4", "index": None}, {"path": str(pair[1]), "index": None}]]
+    body = client.post("/plan-outputs", json={"items": items, "folder": str(out)}).json()
+    assert body["paths"] == [str(out / "E01.mkv")]
+    body = client.post("/plan-outputs", json={"items": items, "folder": str(out), "subs_only": True}).json()
+    assert body["paths"] == [str(out / "episode.fr.srt")]
+    body = client.post("/plan-outputs", json={"items": items}).json()
+    assert Path(body["paths"][0]) == Path("D:/S/E01.synced.mkv")
