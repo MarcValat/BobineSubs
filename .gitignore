@@ -46,3 +46,7 @@ build/
 *.smi
 *.ttml
 engine/tests/fixtures/generated/
+
+# .ts / .mts are also TypeScript: the app's source is code, not video.
+!app/**/*.ts
+!app/**/*.mts
