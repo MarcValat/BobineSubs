@@ -3,10 +3,10 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   type Analysis,
   cancelJob,
-  defaultOutput,
   type FilePair,
   JobCancelled,
   pairFiles,
+  planOutputs,
   probe,
   type ProbeResponse,
   type RenderResult,
@@ -208,13 +208,27 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
   async function exportRows(todo: Row[]) {
     stop.current = false;
     setBusy("render");
+    let outputs: string[] = [];
+    try {
+      outputs = await planOutputs(
+        todo.map((row) => {
+          const a = runsOf(row).analysis.result!;
+          return [a.reference, a.target];
+        }),
+        subsOnly,
+        folder,
+      );
+    } catch (e) {
+      for (const row of todo) updateRuns(row.key, (r) => ({ ...r, render: { status: "error", log: [], error: errorMessage(e) } }));
+      todo = [];
+    }
     for (const [n, row] of todo.entries()) {
       if (stop.current) break;
       setProgress(`Export ${n + 1}/${todo.length} : ${fileName(row.video ?? "")}`);
       const analysis = runsOf(row).analysis.result!;
+      const output = outputs[n];
       updateRuns(row.key, (r) => ({ ...r, render: { status: "running", log: [] } }));
       try {
-        const output = await defaultOutput(analysis.reference.path, analysis.target, subsOnly, folder);
         const result = await runJob<RenderResult>(
           startRender(analysis.reference, analysis.target, analysis.segments, {
             output,
@@ -537,8 +551,8 @@ function BatchRow({
             </button>
             {render.status === "running" && <span className="muted">Export…</span>}
             {render.status === "done" && (
-              <span className="success-text">
-                ✓ Exporté{" "}
+              <span className="success-text" title={render.result!.path}>
+                ✓ {fileName(render.result!.path)}{" "}
                 <button className="link" onClick={() => revealItemInDir(render.result!.path)}>
                   Afficher
                 </button>

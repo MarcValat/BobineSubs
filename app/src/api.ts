@@ -134,6 +134,16 @@ export async function pathExists(path: string): Promise<boolean> {
   return (await (await engineFetch(`/exists?path=${encodeURIComponent(path)}`)).json()).exists;
 }
 
+/** Where a batch's exports go, decided together: the original names in
+ * another folder when free, ".synced" ones otherwise (see engine outputs.py). */
+export async function planOutputs(
+  items: [TrackRef, TrackRef][],
+  subsOnly: boolean,
+  folder: string | null,
+): Promise<string[]> {
+  return (await (await postJson("/plan-outputs", { items, subs_only: subsOnly, folder })).json()).paths;
+}
+
 export async function startAnalyze(reference: TrackRef, target: TrackRef, constant = false): Promise<string> {
   return (await (await postJson("/jobs/analyze", { reference, target, constant })).json()).job_id;
 }
