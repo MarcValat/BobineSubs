@@ -1,5 +1,10 @@
 from syncsubtitles.subformats import ASS, SRT, Cue, decode_subtitle_bytes, format_for_path, parse
 
+
+def shift(by):
+    return lambda cue: (cue.start + by, cue.end + by)
+
+
 SRT_TEXT = """1
 00:00:01,500 --> 00:00:03,000
 Hello
@@ -37,9 +42,9 @@ def test_srt_tolerates_crlf_dot_separator_and_short_fraction():
 
 
 def test_srt_retime_shifts_and_drops_cues_before_zero():
-    doc = parse(SRT_TEXT, SRT).retimed(lambda t: t - 2.0)
+    doc = parse(SRT_TEXT, SRT).retimed(shift(-2.0))
     assert doc.cues == [Cue(0.0, 1.0, "Hello"), Cue(63.0, 65.25, "Two\nlines")]
-    doc = parse(SRT_TEXT, SRT).retimed(lambda t: t - 10.0)
+    doc = parse(SRT_TEXT, SRT).retimed(shift(-10.0))
     assert [c.text for c in doc.cues] == ["Two\nlines"]
     assert doc.to_text().startswith("1\n00:00:55,000")
 
@@ -48,7 +53,7 @@ def test_ass_retime_only_touches_dialogue_timing():
     doc = parse(ASS_TEXT, ASS)
     assert [(c.start, c.end, c.style) for c in doc.cues] == [(1.5, 3.0, "Default"), (65.0, 67.25, "Signs")]
     assert doc.cues[0].text == "Hello, world"
-    out = doc.retimed(lambda t: t + 0.5).to_text()
+    out = doc.retimed(shift(+0.5)).to_text()
     assert "Dialogue: 0,0:00:02.00,0:00:03.50,Default,,0,0,0,,Hello, world" in out
     assert "Dialogue: 0,0:01:05.50,0:01:07.75,Signs,,0,0,0,,{\\an8}Sign" in out
     assert "Comment: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,a note" in out
@@ -56,16 +61,16 @@ def test_ass_retime_only_touches_dialogue_timing():
 
 
 def test_ass_retime_drops_lines_before_zero_and_can_retime_again():
-    doc = parse(ASS_TEXT, ASS).retimed(lambda t: t - 10.0)
+    doc = parse(ASS_TEXT, ASS).retimed(shift(-10.0))
     assert len(doc.cues) == 1
     assert "Hello, world" not in doc.to_text()
-    again = doc.retimed(lambda t: t + 1.0).to_text()
+    again = doc.retimed(shift(+1.0)).to_text()
     assert "Dialogue: 0,0:00:56.00,0:00:58.25,Signs" in again
 
 
 def test_decoding_falls_back_to_cp1252():
     assert decode_subtitle_bytes("Ça été".encode("cp1252")) == "Ça été"
-    assert decode_subtitle_bytes("﻿Ça".encode("utf-8")) == "Ça"
+    assert decode_subtitle_bytes((chr(0xFEFF) + "Ça").encode("utf-8")) == "Ça"
 
 
 def test_format_detection():

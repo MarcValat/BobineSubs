@@ -71,29 +71,30 @@ class SubtitleDocument:
     _lines: list[str] = field(default_factory=list, repr=False)
     _events: list[_AssEvent] = field(default_factory=list, repr=False)
 
-    def retimed(self, mapping: Callable[[float], float]) -> SubtitleDocument:
-        """A copy with every cue's start/end passed through ``mapping``.
+    def retimed(self, mapping: Callable[[Cue], tuple[float, float] | None]) -> SubtitleDocument:
+        """A copy with every cue's (start, end) replaced by ``mapping(cue)``.
 
-        Cues that end up entirely before 0 are dropped; one straddling 0 is
-        cut to start at 0.
+        Cues mapped to ``None`` or entirely before 0 are dropped; one
+        straddling 0 is cut to start at 0.
         """
         if self.fmt == SRT:
             cues = []
             for cue in self.cues:
-                start, end = mapping(cue.start), mapping(cue.end)
-                if end <= 0:
+                mapped = mapping(cue)
+                if mapped is None or mapped[1] <= 0:
                     continue
+                start, end = mapped
                 cues.append(Cue(max(start, 0.0), end, cue.text))
             return SubtitleDocument(SRT, cues)
 
         new_line_for: dict[int, str | None] = {}
         kept: list[tuple[Cue, _AssEvent]] = []
         for cue, event in zip(self.cues, self._events, strict=True):
-            start, end = mapping(cue.start), mapping(cue.end)
-            if end <= 0:
+            mapped = mapping(cue)
+            if mapped is None or mapped[1] <= 0:
                 new_line_for[event.line_index] = None
                 continue
-            start = max(start, 0.0)
+            start, end = max(mapped[0], 0.0), mapped[1]
             values = list(event.values)
             values[event.start_field] = _format_ass_time(start)
             values[event.end_field] = _format_ass_time(end)
