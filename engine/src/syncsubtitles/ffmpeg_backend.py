@@ -8,6 +8,7 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 
+from syncsubtitles.cancellation import Cancelled, current_cancel_event
 from syncsubtitles.models import StreamInfo, SubtitleStreamInfo
 from syncsubtitles.pgs import parse_sup
 from syncsubtitles.vobsub import split_packets, vobsub_cues
@@ -21,8 +22,31 @@ class FFmpegError(RuntimeError):
     """Raised when the ffmpeg binary is missing or a media operation fails."""
 
 
+# How often a running ffmpeg checks for a cancellation.
+_CANCEL_POLL_S = 0.2
+
+
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS)
+    """Run ffmpeg, killing it (raising ``Cancelled``) as soon as the job
+    running it is cancelled."""
+    event = current_cancel_event()
+    if event is None:
+        return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS)
+    if event.is_set():
+        raise Cancelled()
+    with subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS
+    ) as proc:
+        while True:
+            try:
+                out, err = proc.communicate(timeout=_CANCEL_POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                if event.is_set():
+                    proc.kill()
+                    proc.communicate()
+                    raise Cancelled() from None
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
 
 def run_checked(cmd: list[str]) -> bytes:

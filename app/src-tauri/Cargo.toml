@@ -1,0 +1,38 @@
+[package]
+name = "syncsubtitles"
+version = "0.1.0"
+description = "Recale une piste de sous-titres sur les sous-titres de référence d'un MKV"
+authors = ["Marc Valat"]
+edition = "2024"
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the bin's (a Windows
+# issue, see https://github.com/rust-lang/cargo/issues/8519).
+name = "syncsubtitles_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2.8"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+# Kill-on-close Job Object tying the engine's lifetime to the app (lib.rs).
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+lto = "thin"
+opt-level = 3
+panic = "abort"
+strip = true

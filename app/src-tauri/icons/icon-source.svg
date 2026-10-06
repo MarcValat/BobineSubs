@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b6cff"/>
+      <stop offset="1" stop-color="#2f3bb8"/>
+    </linearGradient>
+  </defs>
+  <!-- Full bleed, same corner radius as SyncAudio's icon: both apps show
+       at the same size in the taskbar. Vertical gradient: a diagonal one
+       (light top-left, dark bottom-right) let the dark right side melt
+       into a dark taskbar, and the icon looked shifted left. -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <!-- Arrow (y 236-476) and the two subtitle lines (496-588, 636-728)
+       span y 236-728, centred on 482: moved down 30 to sit exactly on the
+       canvas centre (512), rather than eyeballed. Horizontally both are
+       already centred on 512 (arrow 300-724, lines 190-834). -->
+  <g transform="translate(0,30)">
+    <path d="M300 356 L420 236 L420 316 L604 316 L604 236 L724 356 L604 476 L604 396 L420 396 L420 476 Z" fill="#ffd25b"/>
+    <rect x="190" y="496" width="644" height="92" rx="46" fill="#ffffff"/>
+    <rect x="290" y="636" width="444" height="92" rx="46" fill="#ffffff" opacity="0.75"/>
+  </g>
+</svg>
