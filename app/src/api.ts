@@ -100,10 +100,34 @@ export async function probe(path: string): Promise<ProbeResponse> {
   return (await engineFetch(`/probe?path=${encodeURIComponent(path)}`)).json();
 }
 
-export async function defaultOutput(reference: string, target: TrackRef, subsOnly: boolean): Promise<string> {
+/** Where an export goes by default: next to its source, or in `folder`. */
+export async function defaultOutput(
+  reference: string,
+  target: TrackRef,
+  subsOnly: boolean,
+  folder: string | null = null,
+): Promise<string> {
   const params = new URLSearchParams({ reference, target: target.path, subs_only: String(subsOnly) });
   if (target.index !== null) params.set("target_index", String(target.index));
+  if (folder) params.set("folder", folder);
   return (await (await engineFetch(`/default-output?${params}`)).json()).path;
+}
+
+/** Dropped paths as files, a folder standing for its files with one of
+ * `extensions`, in name order. */
+export async function expandPaths(paths: string[], extensions: string[]): Promise<string[]> {
+  return (await (await postJson("/paths/expand", { paths, extensions })).json()).files;
+}
+
+export interface FilePair {
+  video: string | null;
+  subtitle: string | null;
+  /** "episode": same number in both names; "order": by position; null: alone. */
+  by: "episode" | "order" | null;
+}
+
+export async function pairFiles(videos: string[], subtitles: string[]): Promise<FilePair[]> {
+  return (await (await postJson("/pairs", { videos, subtitles })).json()).pairs;
 }
 
 export async function pathExists(path: string): Promise<boolean> {

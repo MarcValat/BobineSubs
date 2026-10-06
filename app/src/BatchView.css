@@ -1,0 +1,110 @@
+.batch-card {
+  gap: 12px;
+}
+
+.batch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.batch-head h2 {
+  margin: 0;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+.button-row button {
+  flex: 1;
+}
+
+table.batch-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+table.batch-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+table.batch-table th:nth-child(1),
+table.batch-table th:nth-child(2) {
+  width: 30%;
+}
+table.batch-table th:nth-child(4) {
+  width: 44px;
+}
+table.batch-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+table.batch-table td.file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.batch-table tr.problem td.file {
+  color: var(--text-muted);
+}
+
+.subtitle-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.subtitle-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.move {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.move button,
+.actions-cell button {
+  padding: 0 7px;
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.result-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-align: left;
+}
+button.link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.success-text {
+  color: var(--success);
+}
