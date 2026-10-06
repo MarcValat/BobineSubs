@@ -114,3 +114,25 @@ def test_cancelled_export_leaves_no_file(tmp_path, monkeypatch):
     with pytest.raises(Cancelled):
         render_module.mux("in.mkv", SubtitleDocument(SRT, []), out, render_module.TrackMetadata())
     assert list(tmp_path.iterdir()) == []
+
+
+def test_default_output_in_a_chosen_folder(pair):
+    body = client.get(
+        "/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1]), "folder": "E:/Out"}
+    ).json()
+    assert Path(body["path"]) == Path("E:/Out/Film.synced.mkv")
+
+
+def test_expand_a_folder_in_episode_order(tmp_path):
+    for name in ["E10.mkv", "E2.mkv", "notes.txt", "E1.srt"]:
+        (tmp_path / name).write_text("")
+    body = client.post("/paths/expand", json={"paths": [str(tmp_path)], "extensions": ["mkv", "srt"]}).json()
+    assert [Path(f).name for f in body["files"]] == ["E1.srt", "E2.mkv", "E10.mkv"]
+
+
+def test_pairs_endpoint():
+    body = client.post("/pairs", json={"videos": ["S01E02.mkv", "S01E01.mkv"], "subtitles": ["1x01.srt"]}).json()
+    assert body["pairs"] == [
+        {"video": "S01E01.mkv", "subtitle": "1x01.srt", "by": "episode"},
+        {"video": "S01E02.mkv", "subtitle": None, "by": None},
+    ]

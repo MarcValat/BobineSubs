@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from syncsubtitles.episodes import natural_key, pair_files
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
 from syncsubtitles.jobs import get_job, start_job
 from syncsubtitles.models import SubtitleTrackSpec
@@ -115,8 +116,16 @@ def probe(path: str) -> ProbeResponse:
 
 
 @app.get("/default-output")
-def default_output(reference: str, target: str, target_index: int | None = None, subs_only: bool = False) -> dict[str, str]:
-    """Where an export goes unless told otherwise."""
+def default_output(
+    reference: str, target: str, target_index: int | None = None, subs_only: bool = False, folder: str | None = None
+) -> dict[str, str]:
+    """Where an export goes unless told otherwise (in ``folder`` if given,
+    else next to its source)."""
+    path = Path(_default_output(reference, target, target_index, subs_only))
+    return {"path": str(Path(folder) / path.name if folder else path)}
+
+
+def _default_output(reference: str, target: str, target_index: int | None, subs_only: bool) -> str:
     if subs_only:
         spec = TrackRef(path=target, index=target_index).to_spec()
         fmt = Path(target).suffix.lower().lstrip(".") if spec.is_external else "srt"
@@ -124,8 +133,41 @@ def default_output(reference: str, target: str, target_index: int | None = None,
             streams = probe_subtitle_streams(target)
             if target_index is not None and target_index < len(streams):
                 fmt = subtitle_format(streams[target_index].codec) or "srt"
-        return {"path": str(default_subtitle_output(spec, "ass" if fmt == "ssa" else fmt))}
-    return {"path": str(default_mkv_output(reference))}
+        return str(default_subtitle_output(spec, "ass" if fmt == "ssa" else fmt))
+    return str(default_mkv_output(reference))
+
+
+class ExpandRequest(BaseModel):
+    paths: list[str]
+    # Lowercase, without the dot: what a folder's files are kept by.
+    extensions: list[str]
+
+
+@app.post("/paths/expand")
+def expand_paths(req: ExpandRequest) -> dict[str, list[str]]:
+    """Dropped paths as files: a file as is, a folder as the files directly
+    in it with one of ``extensions``, in name order (a series folder in
+    episode order). Paths that no longer exist are left out."""
+    extensions = {e.lower() for e in req.extensions}
+    files: list[str] = []
+    for path in map(Path, req.paths):
+        if path.is_dir():
+            inside = [f for f in path.iterdir() if f.is_file() and f.suffix[1:].lower() in extensions]
+            files.extend(str(f) for f in sorted(inside, key=lambda f: natural_key(f.name)))
+        elif path.is_file():
+            files.append(str(path))
+    return {"files": files}
+
+
+class PairRequest(BaseModel):
+    videos: list[str]
+    subtitles: list[str]
+
+
+@app.post("/pairs")
+def pairs(req: PairRequest) -> dict[str, list[dict]]:
+    """Each video with its subtitle file, by episode number (see episodes.py)."""
+    return {"pairs": [vars(p) for p in pair_files(req.videos, req.subtitles)]}
 
 
 @app.get("/exists")
