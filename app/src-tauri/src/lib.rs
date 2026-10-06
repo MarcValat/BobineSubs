@@ -89,6 +89,19 @@ impl KillOnCloseJob {
 #[cfg(windows)]
 struct SidecarJob(#[allow(dead_code)] Option<KillOnCloseJob>);
 
+/// Stop the engine ahead of an in-place update install: the updater
+/// replaces the app's own exe but knows nothing of the engine, which would
+/// keep its exe locked ("Error opening file for writing", seen in
+/// SyncAudio). The frontend calls this once the update is downloaded, right
+/// before installing; the relaunch that follows starts a fresh engine.
+#[tauri::command]
+fn stop_sidecar(state: tauri::State<SidecarState>) {
+    let mut guard = state.0.lock().unwrap();
+    if let Some(child) = guard.take() {
+        kill_process_tree(child.id());
+    }
+}
+
 /// Dev-time only: assumes the source tree layout (`../../engine` relative
 /// to src-tauri's cwd).
 fn engine_dir() -> PathBuf {
@@ -196,6 +209,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Restores the main window's size, position and maximized state as
         // it's created. It's created hidden (tauri.conf.json) and only shown
         // here, once restored, so it doesn't flash at the default size first.
@@ -225,6 +240,7 @@ pub fn run() {
             app.manage(SidecarState(Mutex::new(child)));
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![stop_sidecar])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {

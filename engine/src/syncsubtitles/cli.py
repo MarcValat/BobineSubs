@@ -169,3 +169,7 @@ def serve(host: str, port: int, parent_pid: int | None) -> None:
     # The app object, not "module:attr": the string form fails inside a
     # PyInstaller-frozen build.
     uvicorn.run(app, host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

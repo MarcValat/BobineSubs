@@ -1,0 +1,202 @@
+# Builds the Windows and Linux installers + auto-updater artifacts and
+# publishes them as a GitHub Release, triggered by pushing a `vX.Y.Z` tag.
+# A manual run (Actions > Release > Run workflow, on any branch) builds both
+# without publishing anything: the installers are attached to the run as
+# artifacts, to try a change to the build before merging it. Pull requests
+# don't build on their own: each push to one used to start a build, and one
+# still running when the pull request was merged was a build for nothing.
+#
+# Required repo secrets (Settings > Secrets and variables > Actions):
+#   TAURI_SIGNING_PRIVATE_KEY          -- contents of app/.tauri-keys/syncsubtitles.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD -- the password chosen when generating it
+#     (empty string is fine if none was set)
+# `GITHUB_TOKEN` is provided automatically, no setup needed.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# A new manual run on a branch cancels the one still running there: the
+# newer one supersedes it. Never a release's.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  # The engine's tests, on both platforms. A release waits for them (see
+  # create-release); a manual build runs alongside them, to be ready sooner.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: engine/uv.lock
+
+      - name: Run engine tests
+        working-directory: engine
+        run: uv run pytest -q
+
+  # One draft release for both platforms to upload to, created up front: two
+  # build jobs each creating it when they finish could race into two. Only
+  # once the tests pass: a release never ships an engine that fails them.
+  create-release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - id: create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        # Draft: reviewed and published by hand once, not auto-public the
+        # instant a build succeeds. Its id is read from the creation's own
+        # answer: looked up in the list of releases right after, a new draft
+        # can be missing from it yet (seen in SyncAudio: its v1.4.0 builds then
+        # quietly published nothing).
+        run: |
+          id=$(gh api -X POST "repos/$GH_REPO/releases" -f tag_name="$TAG" -f name="SyncSubtitles $TAG" -F draft=true --jq .id)
+          test -n "$id"
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: create-release
+    # A release: once its draft exists (so after the tests). A manual run:
+    # straight away, create-release being skipped.
+    if: >-
+      ${{ !cancelled() && (needs.create-release.result == 'success' ||
+      (needs.create-release.result == 'skipped' && !startsWith(github.ref, 'refs/tags/'))) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            bundles: nsis
+          # A .deb only, which uses the system's own WebKitGTK and graphics
+          # drivers. (An AppImage, bundling Ubuntu 22.04's, failed to show
+          # anything on a recent distribution: "Could not create default EGL
+          # display".) Built on the oldest supported Ubuntu, so the package
+          # installs on it and every newer Debian-based distribution.
+          - platform: ubuntu-22.04
+            bundles: deb
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+    env:
+      # Published builds get the fullest optimization (its whole-program
+      # pass is redone on every build, cache or not: minutes). Manual builds
+      # keep Cargo.toml's cheaper settings (see its [profile.release]):
+      # they only need to show the build works.
+      CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/v') && 'fat' || 'thin' }}
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '16' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux system dependencies (WebKitGTK)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+          # Also after a failed build: the next one, fixing it, then
+          # doesn't recompile every dependency.
+          cache-on-failure: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: engine/uv.lock
+
+      - name: Install engine dependencies
+        working-directory: engine
+        run: uv sync
+
+      # The frozen engine from an earlier run, when nothing it's built from
+      # changed: build_sidecar.py then sees its source hash match and skips
+      # PyInstaller.
+      - uses: actions/cache@v6
+        with:
+          path: app/src-tauri/binaries
+          key: sidecar-${{ runner.os }}-${{ hashFiles('engine/src/**/*.py', 'engine/pyproject.toml', 'engine/uv.lock', 'engine/packaging/syncsubtitles-engine.spec') }}
+
+      # PyInstaller only builds for the system it runs on: each platform
+      # freezes its own engine.
+      - name: Build the engine sidecar (PyInstaller folder -> app/src-tauri/binaries/syncsubtitles-engine)
+        working-directory: engine
+        run: uv run python packaging/build_sidecar.py
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      # If a "STATIC_VCRUNTIME is deprecated" warning still shows up here on
+      # Windows, that's expected and harmless -- confirmed (by comparing a
+      # plain `cargo check` against a real `tauri build` locally) that the
+      # Tauri CLI itself sets that env var internally, likely its own
+      # backward-compat bridge for build.rs scripts, since this CLI
+      # version's config schema doesn't actually support tauri.conf.json's
+      # documented build.windows.staticVCRuntime replacement yet either (see
+      # build.rs, which uses the Rust-side WindowsAttributes API instead --
+      # that one *is* honored by tauri-build, just not by this particular
+      # warning).
+      #
+      # Each job adds its installers, and its platform's entry in
+      # latest.json, to the draft release.
+      # On a tag, always this one: without a release id, tauri-action fails
+      # rather than the build quietly publishing nothing.
+      - name: Build and publish to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: --bundles ${{ matrix.bundles }}
+
+      - name: Build only (manual run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          args: --bundles ${{ matrix.bundles }}
+
+      - name: Attach the installers to the run
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: installers-${{ runner.os }}
+          path: |
+            app/src-tauri/target/release/bundle/nsis/*.exe
+            app/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
