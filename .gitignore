@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Media: never commit source or generated test media (large, copyrighted).
+*.mkv
+*.mka
+*.mp4
+*.wav
+*.flac
+engine/tests/fixtures/generated/
