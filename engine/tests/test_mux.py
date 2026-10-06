@@ -9,7 +9,7 @@ import pytest
 
 from syncsubtitles.ffmpeg_backend import extract_subtitle, probe_subtitle_streams, resolve_ffmpeg
 from syncsubtitles.render import TrackMetadata, mux
-from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
+from syncsubtitles.subformats import ASS, SRT, Cue, SubtitleDocument, parse
 
 REF = "1\n00:00:10,000 --> 00:00:12,000\nHello\n\n2\n00:00:20,000 --> 00:00:21,500\nWorld\n"
 VF = "1\n00:00:09,000 --> 00:00:11,000\nBonjour\n"
@@ -57,11 +57,21 @@ def _subtitle_offset_from_video(path: Path, index: int) -> int:
     return _first_pts_ms(path, f"0:s:{index}") - _first_pts_ms(path, "0:v:0")
 
 
+ASS_DOC = """[Script Info]
+ScriptType: v4.00+
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:15.00,0:00:16.00,Default,,0,0,0,,Corrigé
+"""
+
+
+@pytest.mark.parametrize("fmt", [SRT, ASS])
 @pytest.mark.parametrize("replace_index", [None, 1])
-def test_muxed_track_lands_where_its_timestamps_say_against_the_video(mkv: Path, tmp_path: Path, replace_index):
+def test_muxed_track_lands_where_its_timestamps_say_against_the_video(mkv: Path, tmp_path: Path, replace_index, fmt):
     # A plain remux moves the whole file 0.128 s forward but not an added
     # subtitle file: the corrected track used to land 128 ms early.
-    doc = SubtitleDocument(SRT, [Cue(15.0, 16.0, "Corrigé")])
+    doc = SubtitleDocument(SRT, [Cue(15.0, 16.0, "Corrigé")]) if fmt == SRT else parse(ASS_DOC, ASS)
     out = tmp_path / "out.mkv"
     mux(str(mkv), doc, out, TrackMetadata(language="fre", title="VF"), replace_index)
 
@@ -69,5 +79,6 @@ def test_muxed_track_lands_where_its_timestamps_say_against_the_video(mkv: Path,
     new_index = 1 if replace_index is not None else 2
     assert len(streams) == (2 if replace_index is not None else 3)
     assert (streams[new_index].language, streams[new_index].title) == ("fre", "VF")
-    assert _subtitle_offset_from_video(out, new_index) == 15000
+    # ASS is timed in centiseconds: 15.128 s is written 15.13.
+    assert _subtitle_offset_from_video(out, new_index) == pytest.approx(15000, abs=10)
     assert _subtitle_offset_from_video(out, 0) == 10000

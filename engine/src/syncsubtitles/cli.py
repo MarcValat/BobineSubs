@@ -6,21 +6,20 @@ from pathlib import Path
 import click
 
 from syncsubtitles.detect import Detection, detect_constant
-from syncsubtitles.ffmpeg_backend import FFmpegError, probe_subtitle_streams
+from syncsubtitles.ffmpeg_backend import FFmpegError, probe_subtitle_streams, subtitle_format
 from syncsubtitles.languages import guess_language
 from syncsubtitles.render import TrackMetadata, default_mkv_output, default_subtitle_output, mux, write_subtitle
 from syncsubtitles.retime import remap_cue, retime
 from syncsubtitles.segments import STANDARD_RATIOS, SegmentDetection, detect_segments
-from syncsubtitles.subformats import format_for_codec
-from syncsubtitles.tracks import SUBTITLE_EXTENSIONS, load_track, parse_track_spec
+from syncsubtitles.tracks import SUBTITLE_EXTENSIONS, load_pair, parse_track_spec, same_file
+
+# A reference with far fewer lines than the target is likely a forced track.
+_FEW_REFERENCE_LINES = 0.4
+
 
 def _fail(message: str) -> None:
     click.echo(f"Erreur : {message}", err=True)
     sys.exit(1)
-
-
-def _same_file(a: str, b: str) -> bool:
-    return Path(a).resolve() == Path(b).resolve()
 
 
 @click.group()
@@ -44,7 +43,8 @@ def probe(file: str) -> None:
         click.echo("Aucune piste de sous-titres.")
     for s in streams:
         flags = [f for f, on in (("défaut", s.default), ("forcés", s.forced)) if on]
-        usable = "" if format_for_codec(s.codec) else "  (image : pas encore supporté)"
+        fmt = subtitle_format(s.codec)
+        usable = "  (non supporté)" if fmt is None else "  (image : référence seulement)" if fmt in ("pgs", "vobsub") else ""
         click.echo(
             f"@{s.index}  {s.codec:<18} {s.language or '-':<5} {s.title or '':<30} {' '.join(flags)}{usable}".rstrip()
         )
@@ -70,22 +70,28 @@ def _clock(t: float) -> str:
 
 
 def _detect(reference: str, target: str, constant: bool):
-    ref_spec, tgt_spec = parse_track_spec(reference), parse_track_spec(target)
     try:
-        ref_doc, tgt_doc = load_track(ref_spec), load_track(tgt_spec)
+        pair = load_pair(parse_track_spec(reference), parse_track_spec(target))
     except (FFmpegError, ValueError, OSError) as exc:
         _fail(str(exc))
+    ref_doc, tgt_doc = pair.reference_doc, pair.target_doc
+    if pair.reference_choice:
+        click.echo(f"Référence choisie : {pair.reference_choice}")
+    if not tgt_doc.is_text:
+        _fail(f"la cible est en {tgt_doc.fmt} (sous-titres image) : seuls SRT et ASS peuvent être recalés.")
     click.echo(f"[référence] {len(ref_doc.cues)} répliques   [cible] {len(tgt_doc.cues)} répliques")
+    if len(ref_doc.cues) < _FEW_REFERENCE_LINES * len(tgt_doc.cues):
+        click.echo("⚠ La référence a bien moins de répliques que la cible : piste forcée ? Choisis-en une autre avec @N.")
     try:
         if constant:
             detection = detect_constant(ref_doc, tgt_doc)
             _report_constant(detection)
-            return ref_spec, tgt_spec, tgt_doc, detection.segments
+            return pair, detection.segments
         detection = detect_segments(ref_doc, tgt_doc)
     except ValueError as exc:
         _fail(str(exc))
     _report_segments(detection)
-    return ref_spec, tgt_spec, tgt_doc, detection.segments
+    return pair, detection.segments
 
 
 def _report_constant(detection: Detection) -> None:
@@ -126,7 +132,8 @@ def align(reference: str, target: str, constant: bool) -> None:
     """Mesure le décalage de TARGET par rapport à REFERENCE (dérive et sauts compris).
 
     \b
-    REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0, voir `probe`)."""
+    REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0,
+    voir `probe`). Sans @N, la référence est la piste la plus complète du MKV."""
     _detect(reference, target, constant)
 
 
@@ -158,8 +165,10 @@ def render(
     Le fichier d'origine n'est jamais modifié.
 
     \b
-    REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0, voir `probe`)."""
-    ref_spec, tgt_spec, tgt_doc, segments = _detect(reference, target, constant)
+    REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0,
+    voir `probe`). Sans @N, la référence est la piste la plus complète du MKV."""
+    pair, segments = _detect(reference, target, constant)
+    ref_spec, tgt_spec, tgt_doc = pair.reference, pair.target, pair.target_doc
     corrected = retime(tgt_doc, segments)
     dropped = [c for c in tgt_doc.cues if (m := remap_cue(c, segments)) is None or m[1] <= 0]
     if dropped:
@@ -177,12 +186,12 @@ def render(
     if ref_spec.is_external:
         _fail("la référence est un fichier de sous-titres seul : pas de MKV où ajouter la piste (utilise --subs-only).")
     out = Path(output) if output else default_mkv_output(ref_spec.path)
-    if _same_file(out, ref_spec.path):
+    if same_file(out, ref_spec.path):
         _fail("le fichier de sortie ne peut pas être le fichier d'origine.")
 
     replace_index = None
     metadata = TrackMetadata(language=language or guess_language(tgt_spec.path), title=title, default=bool(default))
-    if not tgt_spec.is_external and _same_file(tgt_spec.path, ref_spec.path):
+    if not tgt_spec.is_external and same_file(tgt_spec.path, ref_spec.path):
         replace_index = tgt_spec.stream_index
         original = probe_subtitle_streams(ref_spec.path)[replace_index]
         metadata = TrackMetadata(
@@ -192,7 +201,7 @@ def render(
             forced=original.forced,
         )
     elif not tgt_spec.is_external:
-        source = probe_subtitle_streams(tgt_spec.path)[tgt_spec.stream_index or 0]
+        source = probe_subtitle_streams(tgt_spec.path)[tgt_spec.stream_index]
         metadata = TrackMetadata(
             language=language or source.language, title=title or source.title, default=bool(default), forced=source.forced
         )
