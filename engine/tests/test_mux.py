@@ -30,21 +30,28 @@ def _first_pts_ms(path: Path, selector: str) -> int:
     return int(next(line for line in out.splitlines() if not line.startswith("#")).split(",")[2])
 
 
-@pytest.fixture
-def mkv(tmp_path: Path) -> Path:
-    """Video + AAC audio (whose priming makes the file start at -0.128 s) +
-    eng and fre subtitles."""
+@pytest.fixture(params=["negative_start", "positive_start"])
+def mkv(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
+    """Video + eng and fre subtitles, the file starting either below 0
+    (AAC audio, whose priming starts at -0.128 s) or above it (video
+    starting at 0.2 s, as B-frames make a real HEVC file start at 0.083)."""
     (tmp_path / "ref.srt").write_text(REF)
     (tmp_path / "vf.srt").write_text(VF)
     out = tmp_path / "in.mkv"
-    _ff(
-        "-f", "lavfi", "-i", "color=c=black:s=64x36:r=5:d=30", "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono",
-        "-i", str(tmp_path / "ref.srt"), "-i", str(tmp_path / "vf.srt"),
-        "-map", "0", "-map", "1", "-map", "2", "-map", "3", "-t", "30",
-        "-c:v", "mpeg4", "-c:a", "aac", "-c:s", "copy",
-        "-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=fre", "-metadata:s:s:1", "title=VF",
-        str(out),
-    )
+    subs = ["-i", str(tmp_path / "ref.srt"), "-i", str(tmp_path / "vf.srt")]
+    tags = ["-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=fre", "-metadata:s:s:1", "title=VF"]
+    video = ["-f", "lavfi", "-i", "color=c=black:s=64x36:r=5:d=30"]
+    if request.param == "negative_start":
+        _ff(
+            *video, "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono", *subs,
+            "-map", "0", "-map", "1", "-map", "2", "-map", "3", "-t", "30",
+            "-c:v", "mpeg4", "-c:a", "aac", "-c:s", "copy", *tags, str(out),
+        )
+    else:
+        _ff(
+            "-copyts", "-itsoffset", "0.25", *video, *subs,
+            "-map", "0", "-map", "1", "-map", "2", "-t", "30", "-c:v", "mpeg4", "-c:s", "copy", *tags, str(out),
+        )
     return out
 
 
@@ -79,6 +86,9 @@ def test_muxed_track_lands_where_its_timestamps_say_against_the_video(mkv: Path,
     new_index = 1 if replace_index is not None else 2
     assert len(streams) == (2 if replace_index is not None else 3)
     assert (streams[new_index].language, streams[new_index].title) == ("fre", "VF")
-    # ASS is timed in centiseconds: 15.128 s is written 15.13.
-    assert _subtitle_offset_from_video(out, new_index) == pytest.approx(15000, abs=10)
-    assert _subtitle_offset_from_video(out, 0) == 10000
+    # The new cue is at 15 s on the source file's timeline, and every track
+    # keeps its place against the video, whatever ffmpeg did to the file's
+    # start. ASS is timed in centiseconds (15.128 s is written 15.13).
+    video_start = _first_pts_ms(mkv, "0:v:0")
+    assert _subtitle_offset_from_video(out, new_index) == pytest.approx(15000 - video_start, abs=10)
+    assert _subtitle_offset_from_video(out, 0) == _subtitle_offset_from_video(mkv, 0)

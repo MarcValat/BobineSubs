@@ -133,16 +133,17 @@ def probe_start_time(path: str) -> float:
 
 
 def remux_shift(path: str) -> float:
-    """How much a plain ``ffmpeg -c copy`` remux of ``path`` shifts all its streams.
+    """How much a plain ``ffmpeg -c copy`` remux of ``path`` moves its streams.
 
-    Matroska can't store negative timestamps, so ffmpeg moves every stream
-    of a file starting below 0 forward by that much -- but not a new
-    subtitle file added next to it, which then lands early. Measured on a
-    real remux (AAC priming, start -0.128): video 0 -> 0.128, added SRT
-    unchanged. Feeding the added file through ``-itsoffset`` of this value
-    keeps it in place relative to the video.
+    ffmpeg offsets every input by minus its start time; a standalone SRT/ASS
+    file has none, so a corrected track added next to the source isn't
+    moved with it. Measured both ways: AAC priming (start -0.128 s) moved
+    the video to 0.128 and left the new track 128 ms early; B-frames
+    (HEVC, start +0.083 s) moved everything 83 ms back and left it 83 ms
+    late. Feeding the new file through ``-itsoffset`` of this value keeps
+    it in place against the video.
     """
-    return max(0.0, -probe_start_time(path))
+    return -probe_start_time(path)
 
 
 _IMAGE_FORMATS = {"hdmv_pgs_subtitle": PGS, "pgssub": PGS, "dvd_subtitle": VOBSUB, "dvdsub": VOBSUB}
