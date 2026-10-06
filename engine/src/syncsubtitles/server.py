@@ -128,6 +128,12 @@ def default_output(reference: str, target: str, target_index: int | None = None,
     return {"path": str(default_mkv_output(reference))}
 
 
+@app.get("/exists")
+def exists(path: str) -> dict[str, bool]:
+    """Whether an export would overwrite something (the app warns first)."""
+    return {"exists": Path(path).exists()}
+
+
 # --- jobs --------------------------------------------------------------------
 
 
