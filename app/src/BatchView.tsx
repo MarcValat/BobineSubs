@@ -180,8 +180,7 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
 
   // --- running ------------------------------------------------------------
 
-  async function analyzeAll() {
-    const todo = rows.filter((r) => typeof inputs(r) === "object" && runsOf(r).analysis.status !== "done");
+  async function analyzeRows(todo: Row[]) {
     stop.current = false;
     setBusy("analysis");
     for (const [n, row] of todo.entries()) {
@@ -206,8 +205,7 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
     setProgress(null);
   }
 
-  async function exportAll() {
-    const todo = rows.filter((r) => runsOf(r).analysis.status === "done" && runsOf(r).render.status !== "done");
+  async function exportRows(todo: Row[]) {
     stop.current = false;
     setBusy("render");
     for (const [n, row] of todo.entries()) {
@@ -244,8 +242,15 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
     if (currentJob.current) cancelJob(currentJob.current);
   }
 
-  const analyzable = rows.filter((r) => typeof inputs(r) === "object").length;
-  const analyzed = rows.filter((r) => runsOf(r).analysis.status === "done").length;
+  // What "Analyser tout" / "Exporter tout" do: what's left to do, or once
+  // everything is, all of it again.
+  const analyzableRows = rows.filter((r) => typeof inputs(r) === "object");
+  const analyzedRows = rows.filter((r) => runsOf(r).analysis.status === "done");
+  const pendingAnalysis = analyzableRows.filter((r) => runsOf(r).analysis.status !== "done");
+  const pendingExport = analyzedRows.filter((r) => runsOf(r).render.status !== "done");
+  const analysisTodo = pendingAnalysis.length ? pendingAnalysis : analyzableRows;
+  const exportTodo = pendingExport.length ? pendingExport : analyzedRows;
+  const analyzed = analyzedRows.length;
   const exported = rows.filter((r) => runsOf(r).render.status === "done").length;
 
   // --- view ---------------------------------------------------------------
@@ -346,11 +351,19 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
             )}
           </section>
 
-          <button className="primary wide big" onClick={analyzeAll} disabled={busy !== null || analyzable === analyzed || !analyzable}>
-            {busy === "analysis" ? "Analyse en cours…" : `Analyser tout (${analyzable - analyzed})`}
+          <button className="primary wide big" onClick={() => analyzeRows(analysisTodo)} disabled={busy !== null || !analysisTodo.length}>
+            {busy === "analysis"
+              ? "Analyse en cours…"
+              : pendingAnalysis.length || !analysisTodo.length
+                ? `Analyser tout (${analysisTodo.length})`
+                : `Tout réanalyser (${analysisTodo.length})`}
           </button>
-          <button className="primary wide big" onClick={exportAll} disabled={busy !== null || analyzed === exported || !analyzed}>
-            {busy === "render" ? "Export en cours…" : `Exporter tout (${analyzed - exported})`}
+          <button className="primary wide big" onClick={() => exportRows(exportTodo)} disabled={busy !== null || !exportTodo.length}>
+            {busy === "render"
+              ? "Export en cours…"
+              : pendingExport.length || !exportTodo.length
+                ? `Exporter tout (${exportTodo.length})`
+                : `Tout réexporter (${exportTodo.length})`}
           </button>
           {busy && (
             <>
@@ -406,6 +419,8 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
                       canMoveDown={i < rows.length - 1}
                       onMove={(d) => moveSubtitle(i, d)}
                       onRemove={() => removeRow(row)}
+                      onAnalyze={typeof inputs(row) === "object" ? () => analyzeRows([row]) : null}
+                      onExport={runsOf(row).analysis.status === "done" ? () => exportRows([row]) : null}
                       onDetails={() => setDetails(row)}
                     />
                   ))}
@@ -452,6 +467,8 @@ function BatchRow({
   canMoveDown,
   onMove,
   onRemove,
+  onAnalyze,
+  onExport,
   onDetails,
 }: {
   row: Row;
@@ -464,6 +481,8 @@ function BatchRow({
   canMoveDown: boolean;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
+  onAnalyze: (() => void) | null;
+  onExport: (() => void) | null;
   onDetails: () => void;
 }) {
   const { analysis, render } = runs;
@@ -531,6 +550,21 @@ function BatchRow({
         )}
       </td>
       <td className="actions-cell">
+        {onAnalyze && analysis.status !== "idle" && analysis.status !== "running" && (
+          <button onClick={onAnalyze} disabled={busy} title="Relancer l'analyse de cet épisode">
+            ↻ Analyse
+          </button>
+        )}
+        {onExport && render.status !== "idle" && render.status !== "running" && (
+          <button onClick={onExport} disabled={busy} title="Exporter à nouveau cet épisode (remplace le fichier)">
+            ↻ Export
+          </button>
+        )}
+        {onExport && render.status === "idle" && (
+          <button onClick={onExport} disabled={busy} title="Exporter cet épisode">
+            Exporter
+          </button>
+        )}
         <button onClick={onRemove} disabled={busy} title="Retirer">
           ✕
         </button>
