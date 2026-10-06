@@ -243,7 +243,7 @@ class AnalysisModel(BaseModel):
     ratio: float
     ratio_name: str | None
     segments: list[SegmentModel]
-    reference_cues: list[tuple[float, float]]
+    reference_cues: list[tuple[float, float, str]]
     target_cues: list[TargetCueModel]
     warnings: list[str]
 

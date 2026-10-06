@@ -66,7 +66,8 @@ class Analysis:
     reference_choice: str | None
     ratio: float
     segments: list[Segment]
-    reference_cues: list[tuple[float, float]]
+    # (start, end, text); no text for image subtitles.
+    reference_cues: list[tuple[float, float, str]]
     target_cues: list[TargetCue]
     warnings: list[str] = field(default_factory=list)
 
@@ -116,7 +117,7 @@ def analyze(reference: SubtitleTrackSpec, target: SubtitleTrackSpec, constant: b
         reference_choice=pair.reference_choice,
         ratio=ratio,
         segments=segments,
-        reference_cues=[(c.start, c.end) for c in ref_doc.cues],
+        reference_cues=[(c.start, c.end, plain_text(c.text).strip()) for c in ref_doc.cues],
         target_cues=[
             TargetCue(c.start, c.end, plain_text(c.text).strip(), groups.get(i, -1), remap_cue(c, segments))
             for i, c in enumerate(tgt_doc.cues)
