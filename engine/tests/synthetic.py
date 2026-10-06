@@ -38,3 +38,33 @@ def translated(cues: list[Cue], offset: float = 0.0, seed: int = 1) -> list[Cue]
             continue
         out.append(Cue(start, max(end, start + 0.5), cue.text))
     return out
+
+
+def edited(cues: list[Cue], jumps: list[tuple[float, float]] = (), ratio: float = 1.0, seed: int = 2) -> list[Cue]:
+    """``cues`` (reference time) as another edit of the film would place them.
+
+    Each ``(at, delta)`` jump, at reference time ``at``: a positive delta is
+    a scene of that length only the target has (filled with extra lines),
+    a negative one a scene only the reference has (its lines are gone from
+    the target). ``ratio`` then plays the whole target at another speed
+    (target time = ratio * edited time).
+    """
+    rng = np.random.default_rng(seed)
+    out: list[Cue] = []
+    shift = 0.0
+    jumps = sorted(jumps)
+    pending = list(jumps)
+    for cue in cues:
+        while pending and pending[0][0] <= cue.start:
+            at, delta = pending.pop(0)
+            if delta > 0:
+                t = at + shift + 0.5
+                while t < at + shift + delta - 2.5:
+                    out.append(Cue(t, t + 2.0, "extra"))
+                    t += 3.0 + rng.uniform(0, 1)
+            shift += delta
+        removed = any(delta < 0 and at <= cue.start < at - delta for at, delta in jumps)
+        if removed:
+            continue
+        out.append(Cue(cue.start + shift, cue.end + shift, cue.text))
+    return [Cue(c.start * ratio, c.end * ratio, c.text) for c in out]
