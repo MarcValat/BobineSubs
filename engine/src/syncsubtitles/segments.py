@@ -5,8 +5,9 @@ syncaudio's sliding windows: every target cue gets its own offset, picked
 by a Viterbi pass over all cues at once.
 
 1. Drift: a target made for another frame rate (PAL speed-up, 23.976 vs
-   24...) runs at a constant speed ratio. The standard ratios are tried on
-   the whole track and the best one undone up front ("destretched").
+   24...) runs at a constant speed ratio. The standard ratios close to the
+   best whole-track correlation are each undone ("destretched") and run
+   through the steps below; the best overall result wins.
 2. Candidate offsets: sliding-window correlations give the offsets that
    occur somewhere in the film; only those (± a few seconds) are searched.
 3. Viterbi: each cue scores each candidate offset by how well it lands on
@@ -25,6 +26,7 @@ import numpy as np
 
 from syncsubtitles.activity import FRAME_RATE, activity_signal
 from syncsubtitles.align import estimate_offset
+from syncsubtitles.filters import dialogue_indices
 from syncsubtitles.retime import Segment
 from syncsubtitles.subformats import Cue, SubtitleDocument
 
@@ -32,8 +34,9 @@ from syncsubtitles.subformats import Cue, SubtitleDocument
 # over reference speed).
 _NTSC = 24000 / 1001
 STANDARD_RATIOS = (1.0, 25 / _NTSC, _NTSC / 25, 24 / _NTSC, _NTSC / 24, 25 / 24, 24 / 25)
-# A ratio other than 1 must beat it by this much correlation to be believed.
-_RATIO_MIN_GAIN = 0.03
+# Ratios within this much whole-track correlation of the best one are
+# tried in full.
+_RATIO_CANDIDATE_MARGIN = 0.05
 
 _WINDOW_S = 240.0
 _HOP_S = 60.0
@@ -80,6 +83,7 @@ class SegmentDetection:
     segments: list[Segment]
     # Target speed over reference speed (1.0: no drift).
     ratio: float
+    # Spoken target lines only (see filters).
     matches: list[CueMatch]
 
 
@@ -87,16 +91,23 @@ def _scaled(cues: list[Cue], ratio: float) -> list[Cue]:
     return cues if ratio == 1.0 else [Cue(c.start / ratio, c.end / ratio, c.text, c.style) for c in cues]
 
 
-def detect_ratio(reference: list[Cue], target: list[Cue]) -> float:
-    """The standard speed ratio that best explains the target's timing."""
+def ratio_candidates(reference: list[Cue], target: list[Cue]) -> list[float]:
+    """Speed ratios worth a full detection: 1.0, and any whose whole-track
+    correlation comes close to the best one's.
+
+    Correlation alone can't settle it: a jump halfway through a track is
+    explained about as well by a slight drift (seen: a 0.7 s jump over
+    30 min read as 23.976 -> 24, 1.8 s over that time). The candidates are
+    told apart by the full detection's result instead.
+    """
     length = max(c.end for c in [*reference, *target]) * max(STANDARD_RATIOS) + 1.0
     ref = activity_signal(reference, length)
     scores = {}
     for ratio in STANDARD_RATIOS:
         tgt = activity_signal(_scaled(target, ratio), length)
         scores[ratio] = estimate_offset(ref, tgt, FRAME_RATE, max_offset_s=_WINDOW_SEARCH_S).score
-    best = max(scores, key=scores.__getitem__)
-    return best if scores[best] - scores[1.0] >= _RATIO_MIN_GAIN else 1.0
+    best = max(scores.values())
+    return [1.0] + [r for r in STANDARD_RATIOS[1:] if scores[r] >= best - _RATIO_CANDIDATE_MARGIN]
 
 
 def window_offsets(ref: np.ndarray, tgt: np.ndarray) -> list[int]:
@@ -215,12 +226,25 @@ def forward_chain(ref_frames: np.ndarray, run_ids: np.ndarray, weights: np.ndarr
 def detect_segments(reference: SubtitleDocument, target: SubtitleDocument) -> SegmentDetection:
     if not reference.cues or not target.cues:
         raise ValueError("Both subtitle tracks must contain at least one cue.")
-    ratio = detect_ratio(reference.cues, target.cues)
-    order = sorted(range(len(target.cues)), key=lambda i: target.cues[i].start + target.cues[i].end)
-    tgt_cues = _scaled([target.cues[i] for i in order], ratio)
+    ref_cues = [reference.cues[i] for i in dialogue_indices(reference.cues)]
+    # Target cues by index into the document, spoken lines only, in time order.
+    order = sorted(dialogue_indices(target.cues), key=lambda i: target.cues[i].start + target.cues[i].end)
+    plain = [target.cues[i] for i in order]
+    results = [_detect_at_ratio(ref_cues, plain, order, r) for r in ratio_candidates(ref_cues, plain)]
+    # Ties go to the first candidate, 1.0 (no drift).
+    return max(results, key=lambda result: result[1])[0]
 
-    length = max(c.end for c in [*reference.cues, *tgt_cues]) + 1.0
-    ref = activity_signal(reference.cues, length)
+
+def _detect_at_ratio(
+    ref_cues: list[Cue], plain: list[Cue], order: list[int], ratio: float
+) -> tuple[SegmentDetection, float]:
+    """The detection once ``ratio`` is undone, and how good it is: every
+    spoken line's score at its final offset, minus the jumps' cost (the
+    Viterbi's own objective)."""
+    tgt_cues = _scaled(plain, ratio)
+
+    length = max(c.end for c in [*ref_cues, *tgt_cues]) + 1.0
+    ref = activity_signal(ref_cues, length)
     tgt = activity_signal(tgt_cues, length)
     ref_cumsum = np.concatenate([[0.0], np.cumsum(ref)])
 
@@ -271,7 +295,13 @@ def detect_segments(reference: SubtitleDocument, target: SubtitleDocument) -> Se
             matches[j] = CueMatch(order[j], offset / FRAME_RATE, matches[j].overlap, g)
     matches.sort(key=lambda m: m.index)
 
-    return SegmentDetection(_build_segments(groups, frames, kept, ref_cumsum, ratio, length), ratio, matches)
+    final = offsets.copy()
+    for members, offset in groups:
+        final[members] = offset
+    objective = float(((2 * _cue_overlaps(ref_cumsum, frames, final) - durations) / durations).sum())
+    objective -= JUMP_PENALTY * max(len(groups) - 1, 0)
+    detection = SegmentDetection(_build_segments(groups, frames, kept, ref_cumsum, ratio, length), ratio, matches)
+    return detection, objective
 
 
 def _build_segments(

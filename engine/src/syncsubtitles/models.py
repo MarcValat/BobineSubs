@@ -8,17 +8,15 @@ class SubtitleTrackSpec:
     """A subtitle track, parsed from a CLI argument.
 
     Either a subtitle stream inside a container (``path@INDEX``, ``INDEX``
-    counted among subtitle streams only, like ffmpeg's ``0:s:N``), or a
-    standalone SRT/ASS file (``stream_index`` is ``None``).
+    counted among subtitle streams only, like ffmpeg's ``0:s:N``; no
+    ``@INDEX``: ``stream_index`` is None, to be chosen), or a standalone
+    SRT/ASS file (``is_external``).
     """
 
     raw: str
     path: str
     stream_index: int | None = None
-
-    @property
-    def is_external(self) -> bool:
-        return self.stream_index is None
+    is_external: bool = False
 
 
 @dataclass(frozen=True)

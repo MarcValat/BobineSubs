@@ -6,14 +6,43 @@ __pycache__/
 dist/
 build/
 
-# Media: never commit source or generated test media (large, copyrighted).
+# Media and subtitles: never commit source or generated test files (large,
+# copyrighted). Tests build their own in temporary folders.
+# Video / containers
 *.mkv
 *.mka
+*.mks
+*.mk3d
 *.mp4
+*.m4v
+*.m2ts
+*.mts
+*.ts
+*.avi
+*.mov
+*.webm
+*.wmv
+*.vob
+# Audio
 *.wav
 *.flac
+*.aac
+*.ac3
+*.eac3
+*.dts
+*.thd
+*.mp3
+*.opus
+*.ogg
+*.m4a
+# Subtitles
+*.srt
+*.ass
+*.ssa
+*.sup
+*.sub
+*.idx
+*.vtt
+*.smi
+*.ttml
 engine/tests/fixtures/generated/
-
-# Real-world test subtitles dropped at the root (copyrighted).
-/test-*.srt
-/test-*.ass
