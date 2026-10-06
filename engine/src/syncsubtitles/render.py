@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -77,16 +78,24 @@ def mux(
     flags = [name for name, on in (("default", metadata.default), ("forced", metadata.forced)) if on]
     tags += [f"-disposition:{new_position}", "+".join(flags) or "0"]
 
-    with tempfile.TemporaryDirectory(prefix="syncsubtitles-") as tmp:
-        corrected = Path(tmp) / f"corrected.{document.fmt}"
-        write_subtitle(document, corrected)
-        run_checked(
-            [
-                resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
-                "-i", container,
-                # See remux_shift: keeps the new track in place against the video.
-                "-itsoffset", f"{remux_shift(container):.6f}", "-i", str(corrected),
-                *maps, "-map_metadata", "0", "-map_chapters", "0",
-                *tags, "-c", "copy", str(output),
-            ]
-        )
+    output = Path(output)
+    # Written under another name and renamed once complete: a failed or
+    # cancelled export leaves nothing half-written behind.
+    partial = output.with_name(f"{output.stem}.part{output.suffix}")
+    try:
+        with tempfile.TemporaryDirectory(prefix="syncsubtitles-") as tmp:
+            corrected = Path(tmp) / f"corrected.{document.fmt}"
+            write_subtitle(document, corrected)
+            run_checked(
+                [
+                    resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", container,
+                    # See remux_shift: keeps the new track in place against the video.
+                    "-itsoffset", f"{remux_shift(container):.6f}", "-i", str(corrected),
+                    *maps, "-map_metadata", "0", "-map_chapters", "0",
+                    *tags, "-c", "copy", "-f", "matroska", str(partial),
+                ]
+            )
+        os.replace(partial, output)
+    finally:
+        partial.unlink(missing_ok=True)
