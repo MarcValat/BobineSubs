@@ -14,6 +14,9 @@ from pathlib import Path
 
 SRT = "srt"
 ASS = "ass"
+# Image subtitles: only their timing is read, to serve as a reference.
+PGS = "pgs"
+VOBSUB = "vobsub"
 
 _CODEC_TO_FORMAT = {"subrip": SRT, "srt": SRT, "ass": ASS, "ssa": ASS}
 
@@ -71,12 +74,18 @@ class SubtitleDocument:
     _lines: list[str] = field(default_factory=list, repr=False)
     _events: list[_AssEvent] = field(default_factory=list, repr=False)
 
+    @property
+    def is_text(self) -> bool:
+        return self.fmt in (SRT, ASS)
+
     def retimed(self, mapping: Callable[[Cue], tuple[float, float] | None]) -> SubtitleDocument:
         """A copy with every cue's (start, end) replaced by ``mapping(cue)``.
 
         Cues mapped to ``None`` or entirely before 0 are dropped; one
         straddling 0 is cut to start at 0.
         """
+        if not self.is_text:
+            raise ValueError(f"{self.fmt} subtitles are images: they can't be retimed, only used as a reference.")
         if self.fmt == SRT:
             cues = []
             for cue in self.cues:
