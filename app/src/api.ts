@@ -53,7 +53,8 @@ export interface Analysis {
   ratio: number;
   ratio_name: string | null;
   segments: Segment[];
-  reference_cues: [number, number][];
+  /** [start, end, text]; no text for image subtitles. */
+  reference_cues: [number, number, string][];
   target_cues: TargetCue[];
   warnings: string[];
 }

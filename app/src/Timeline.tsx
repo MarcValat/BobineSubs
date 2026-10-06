@@ -1,25 +1,38 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Analysis } from "./api";
+import { offsetAt } from "./editing";
 import { clock, offset as formatOffset } from "./format";
+import { segmentFor } from "./retime";
+import { LOW_CONFIDENCE } from "./shared";
 import { useElementWidth } from "./useElementWidth";
 import "./Timeline.css";
 
-const LOW_CONFIDENCE = 0.8;
 const ZOOMS = [10, 30, 60, 120];
-const OVERVIEW_HEIGHT = 120;
-const OVERVIEW_PAD = { top: 12, bottom: 30, left: 56, right: 12 };
+const OVERVIEW_HEIGHT = 130;
+const OVERVIEW_PAD = { top: 14, bottom: 30, left: 60, right: 14 };
+
+/** What the timeline can change when it's in the segment editor; each
+ * drag reports as it moves (`done` false) and once released (`done` true). */
+export interface TimelineEditing {
+  onDragBoundary: (i: number, t: number, done: boolean) => void;
+  onDragSegment: (i: number, delta: number, done: boolean) => void;
+  onSplit: (t: number) => void;
+  /** Move segment `i` so that target time `from` lands on reference time `to`. */
+  onAlign: (i: number, from: number, to: number) => void;
+}
 
 interface Props {
   analysis: Analysis;
   duration: number;
+  editing?: TimelineEditing;
 }
 
 /** The whole file at a glance (offset per segment, where lines are), and a
  * close-up window comparing the reference with the target before and after
  * correction, line by line. */
-export default function Timeline({ analysis, duration }: Props) {
+export default function Timeline({ analysis, duration, editing }: Props) {
   const [zoom, setZoom] = useState(30);
-  const [centre, setCentre] = useState(() => firstLine(analysis) + zoom / 2 - 2);
+  const [centre, setCentre] = useState(() => (analysis.reference_cues[0]?.[0] ?? 0) + zoom / 2 - 2);
   const boundaries = useMemo(() => analysis.segments.slice(1).map((s) => s.start_s), [analysis]);
 
   const windowStart = Math.max(0, Math.min(centre - zoom / 2, duration - zoom));
@@ -33,7 +46,14 @@ export default function Timeline({ analysis, duration }: Props) {
 
   return (
     <div className="timeline">
-      <Overview analysis={analysis} duration={duration} windowStart={windowStart} windowEnd={windowEnd} onPick={setCentre} />
+      <Overview
+        analysis={analysis}
+        duration={duration}
+        windowStart={windowStart}
+        windowEnd={windowEnd}
+        onPick={setCentre}
+        editing={editing}
+      />
       <div className="timeline-controls">
         <div className="button-group">
           <button onClick={() => goToJump(-1)} disabled={!boundaries.some((b) => b < centre - 0.01)}>
@@ -42,6 +62,11 @@ export default function Timeline({ analysis, duration }: Props) {
           <button onClick={() => goToJump(1)} disabled={!boundaries.some((b) => b > centre + 0.01)}>
             Saut suivant →
           </button>
+          {editing && (
+            <button onClick={() => editing.onSplit(centre)} title="Couper le segment au centre de la loupe">
+              ✂ Couper ici
+            </button>
+          )}
         </div>
         <span className="timeline-window">
           {clock(windowStart, 0)} – {clock(windowEnd, 0)}
@@ -54,14 +79,12 @@ export default function Timeline({ analysis, duration }: Props) {
           ))}
         </div>
       </div>
-      <Detail analysis={analysis} start={windowStart} end={windowEnd} boundaries={boundaries} />
+      <Detail analysis={analysis} start={windowStart} end={windowEnd} boundaries={boundaries} editing={editing} />
     </div>
   );
 }
 
-function firstLine(analysis: Analysis): number {
-  return analysis.reference_cues[0]?.[0] ?? 0;
-}
+type Drag = { kind: "boundary"; i: number } | { kind: "segment"; i: number; startY: number; lo: number; hi: number } | { kind: "pick" };
 
 function Overview({
   analysis,
@@ -69,32 +92,71 @@ function Overview({
   windowStart,
   windowEnd,
   onPick,
+  editing,
 }: Props & { windowStart: number; windowEnd: number; onPick: (t: number) => void }) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const drag = useRef<Drag | null>(null);
+  const [frozen, setFrozen] = useState<[number, number] | null>(null);
   const plotWidth = Math.max(1, width - OVERVIEW_PAD.left - OVERVIEW_PAD.right);
   const plotHeight = OVERVIEW_HEIGHT - OVERVIEW_PAD.top - OVERVIEW_PAD.bottom;
 
   const offsets = analysis.segments.flatMap((s) => [s.offset_start, s.offset_end]);
-  let lo = Math.min(...offsets);
-  let hi = Math.max(...offsets);
-  const margin = Math.max(0.1, (hi - lo) * 0.2);
-  lo -= margin;
-  hi += margin;
+  const dataLo = Math.min(...offsets);
+  const dataHi = Math.max(...offsets);
+  const margin = Math.max(0.1, (dataHi - dataLo) * 0.2);
+  // While a segment is dragged, the scale stays put: it would otherwise
+  // follow the segment and the drag would run away.
+  const [lo, hi] = frozen ?? [dataLo - margin, dataHi + margin];
 
   const x = (t: number) => OVERVIEW_PAD.left + (t / duration) * plotWidth;
   const y = (o: number) => OVERVIEW_PAD.top + ((hi - o) / (hi - lo)) * plotHeight;
+  const timeAt = (clientX: number, box: DOMRect) =>
+    Math.max(0, Math.min(duration, ((clientX - box.left - OVERVIEW_PAD.left) / plotWidth) * duration));
   const ticks = timeTicks(duration, plotWidth);
 
-  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    const target = e.target as Element;
     const box = e.currentTarget.getBoundingClientRect();
-    const t = ((e.clientX - box.left - OVERVIEW_PAD.left) / plotWidth) * duration;
-    onPick(Math.max(0, Math.min(duration, t)));
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const boundary = target.getAttribute("data-boundary");
+    const segment = target.getAttribute("data-segment");
+    if (editing && boundary !== null) {
+      drag.current = { kind: "boundary", i: Number(boundary) };
+    } else if (editing && segment !== null) {
+      drag.current = { kind: "segment", i: Number(segment), startY: e.clientY, lo, hi };
+      setFrozen([lo, hi]);
+    } else {
+      drag.current = { kind: "pick" };
+      onPick(timeAt(e.clientX, box));
+    }
+  };
+
+  const report = (e: React.PointerEvent<SVGSVGElement>, done: boolean) => {
+    const d = drag.current;
+    if (!d) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    if (d.kind === "pick") onPick(timeAt(e.clientX, box));
+    else if (d.kind === "boundary") editing?.onDragBoundary(d.i, timeAt(e.clientX, box), done);
+    else editing?.onDragSegment(d.i, ((d.startY - e.clientY) / plotHeight) * (d.hi - d.lo), done);
+  };
+
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    report(e, true);
+    drag.current = null;
+    setFrozen(null);
   };
 
   return (
-    <div ref={ref} className="overview">
+    <div ref={ref} className={`overview ${editing ? "editable" : ""}`}>
       {width > 0 && (
-        <svg width={width} height={OVERVIEW_HEIGHT} onMouseDown={pick} onMouseMove={(e) => e.buttons === 1 && pick(e)}>
+        <svg
+          width={width}
+          height={OVERVIEW_HEIGHT}
+          onPointerDown={onPointerDown}
+          onPointerMove={(e) => report(e, false)}
+          onPointerUp={onPointerUp}
+          onDoubleClick={(e) => editing?.onSplit(timeAt(e.clientX, e.currentTarget.getBoundingClientRect()))}
+        >
           {analysis.segments.map((s, i) => (
             <rect
               key={i}
@@ -128,21 +190,33 @@ function Overview({
             ) : null,
           )}
           <line x1={OVERVIEW_PAD.left} x2={OVERVIEW_PAD.left + plotWidth} y1={y(0)} y2={y(0)} className="zero-line" />
-          {analysis.segments.map((s, i) => (
-            <line
-              key={i}
-              x1={x(s.start_s)}
-              x2={x(Math.min(s.end_s, duration))}
-              y1={y(s.offset_start)}
-              y2={y(s.offset_start + ((s.offset_end - s.offset_start) * (Math.min(s.end_s, duration) - s.start_s)) / (s.end_s - s.start_s))}
-              className={`offset-line ${s.confidence < LOW_CONFIDENCE ? "weak" : ""}`}
-            />
-          ))}
-          <text x={OVERVIEW_PAD.left - 6} y={y(hi - margin) + 4} className="axis-label" textAnchor="end">
-            {formatOffset(hi - margin)}
+          {analysis.segments.map((s, i) => {
+            const end = Math.min(s.end_s, duration);
+            return (
+              <g key={i}>
+                <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className={`offset-line ${s.confidence < LOW_CONFIDENCE ? "weak" : ""}`} />
+                {editing && (
+                  <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className="offset-hit" data-segment={i}>
+                    <title>Glisser vers le haut ou le bas pour changer le décalage</title>
+                  </line>
+                )}
+              </g>
+            );
+          })}
+          {editing &&
+            analysis.segments.slice(1).map((s, k) => (
+              <g key={`b${k}`}>
+                <line x1={x(s.start_s)} x2={x(s.start_s)} y1={OVERVIEW_PAD.top} y2={OVERVIEW_PAD.top + plotHeight} className="boundary-line" />
+                <circle cx={x(s.start_s)} cy={OVERVIEW_PAD.top + plotHeight / 2} r={7} className="boundary-handle" data-boundary={k + 1}>
+                  <title>Glisser pour déplacer la frontière</title>
+                </circle>
+              </g>
+            ))}
+          <text x={OVERVIEW_PAD.left - 6} y={y(hi - (frozen ? 0 : margin)) + 4} className="axis-label" textAnchor="end">
+            {formatOffset(frozen ? hi : dataHi)}
           </text>
-          <text x={OVERVIEW_PAD.left - 6} y={y(lo + margin) + 4} className="axis-label" textAnchor="end">
-            {formatOffset(lo + margin)}
+          <text x={OVERVIEW_PAD.left - 6} y={y(lo + (frozen ? 0 : margin)) + 4} className="axis-label" textAnchor="end">
+            {formatOffset(frozen ? lo : dataLo)}
           </text>
           {ticks.map((t) => (
             <text key={t} x={x(t)} y={OVERVIEW_HEIGHT - 4} className="axis-label" textAnchor="middle">
@@ -171,18 +245,39 @@ function timeTicks(duration: number, width: number): number[] {
   return ticks;
 }
 
-function Detail({ analysis, start, end, boundaries }: { analysis: Analysis; start: number; end: number; boundaries: number[] }) {
+interface Lane {
+  label: string;
+  cues: { a: number; b: number; text: string; kind: string; tip: string; target?: number; ref?: number }[];
+}
+
+function Detail({
+  analysis,
+  start,
+  end,
+  boundaries,
+  editing,
+}: {
+  analysis: Analysis;
+  start: number;
+  end: number;
+  boundaries: number[];
+  editing?: TimelineEditing;
+}) {
+  // Align tool: the target cue picked first ("Après" row).
+  const [picked, setPicked] = useState<number | null>(null);
   const span = end - start;
   const left = (t: number) => `${((t - start) / span) * 100}%`;
   const width = (a: number, b: number) => `${(Math.max(0, b - a) / span) * 100}%`;
   const inView = (a: number, b: number) => b > start && a < end;
 
-  const rows: { label: string; cues: { a: number; b: number; text: string; kind: string; tip: string }[] }[] = [
+  const rows: Lane[] = [
     {
       label: "Référence",
       cues: analysis.reference_cues
-        .filter(([a, b]) => inView(a, b))
-        .map(([a, b]) => ({ a, b, text: "", kind: "ref", tip: `${clock(a, 2)} → ${clock(b, 2)}` })),
+        .map(([a, b, text], ref) => ({ a, b, text, ref }))
+        .filter(({ a, b }) => inView(a, b))
+        .map(({ a, b, text, ref }) => ({ a, b, text, kind: "ref", ref, tip: `${clock(a, 2)} → ${clock(b, 2)}${text ? `
+${text}` : ""}` })),
     },
     {
       label: "Avant",
@@ -193,30 +288,57 @@ function Detail({ analysis, start, end, boundaries }: { analysis: Analysis; star
     {
       label: "Après",
       cues: analysis.target_cues
-        .filter((c) => c.corrected && inView(c.corrected[0], c.corrected[1]))
-        .map((c) => ({
+        .map((c, target) => ({ c, target }))
+        .filter(({ c }) => c.corrected && inView(c.corrected[0], c.corrected[1]))
+        .map(({ c, target }) => ({
           a: c.corrected![0],
           b: c.corrected![1],
           text: c.text,
-          kind: c.group < 0 ? "after orphan" : "after",
+          target,
+          kind: `after ${c.group < 0 ? "orphan" : ""} ${picked === target ? "picked" : ""}`,
           tip: `${clock(c.corrected![0], 2)} → ${clock(c.corrected![1], 2)}\n${c.text}${c.group < 0 ? "\n(sans équivalent dans la référence)" : ""}`,
         })),
     },
   ];
 
+  const click = (cue: Lane["cues"][number]) => {
+    if (!editing) return;
+    if (cue.target !== undefined) {
+      setPicked(picked === cue.target ? null : cue.target);
+    } else if (cue.ref !== undefined && picked !== null) {
+      const tc = analysis.target_cues[picked];
+      const i = segmentFor((tc.start + tc.end) / 2, analysis.segments);
+      if (i !== null) editing.onAlign(i, tc.start, cue.a);
+      setPicked(null);
+    }
+  };
+
   return (
     <div className="detail">
+      {editing && (
+        <p className="hint align-hint">
+          {picked === null
+            ? "Aligner : clique une réplique de la ligne « Après », puis la réplique de référence où elle doit tomber."
+            : "Maintenant, clique la réplique de référence où elle doit tomber (ou reclique-la pour annuler)."}
+        </p>
+      )}
       {rows.map((row) => (
         <div key={row.label} className="detail-row">
           <span className="detail-label">{row.label}</span>
-          <div className="detail-lane">
+          <div className={`detail-lane ${editing ? "clickable" : ""}`}>
             {boundaries
               .filter((b) => b > start && b < end)
               .map((b) => (
                 <div key={b} className="boundary" style={{ left: left(b) }} />
               ))}
             {row.cues.map((c, i) => (
-              <div key={i} className={`cue ${c.kind}`} style={{ left: left(c.a), width: width(c.a, c.b) }} title={c.tip}>
+              <div
+                key={i}
+                className={`cue ${c.kind} ${editing && picked !== null && c.ref !== undefined ? "aim" : ""}`}
+                style={{ left: left(c.a), width: width(c.a, c.b) }}
+                title={c.tip}
+                onClick={() => click(c)}
+              >
                 {c.text.split("\n").join(" / ")}
               </div>
             ))}

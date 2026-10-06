@@ -110,6 +110,7 @@
 }
 .cue.ref {
   background: var(--ref);
+  color: light-dark(#ffffff, #f2f2f2);
 }
 .cue.before {
   background: var(--target-faded);
@@ -130,4 +131,41 @@
   width: 0;
   border-left: 2px dashed var(--accent);
   opacity: 0.7;
+}
+
+.overview.editable svg {
+  cursor: default;
+}
+.offset-hit {
+  stroke: transparent;
+  stroke-width: 16;
+  cursor: ns-resize;
+}
+.boundary-line {
+  stroke: var(--accent);
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.boundary-handle {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  cursor: ew-resize;
+}
+.boundary-handle:hover {
+  fill: var(--accent);
+}
+.detail-lane.clickable .cue {
+  cursor: pointer;
+}
+.cue.picked {
+  outline: 2px solid var(--warn);
+  outline-offset: 1px;
+}
+.cue.aim:hover {
+  outline: 2px solid var(--warn);
+}
+.align-hint {
+  margin: 0;
 }
