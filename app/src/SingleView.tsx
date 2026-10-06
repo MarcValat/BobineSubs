@@ -10,6 +10,7 @@ import {
   probe,
   type ProbeResponse,
   type RenderResult,
+  type Segment,
   runJob,
   startAnalyze,
   startRender,
@@ -17,6 +18,8 @@ import {
 } from "./api";
 import { retryEngine, useEngineStatus } from "./engine";
 import AnalysisView, { analysisDuration } from "./AnalysisView";
+import { withSegments } from "./retime";
+import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { clock, fileName, isSubtitleFile, trackLabel } from "./format";
 import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
@@ -244,7 +247,7 @@ export default function SingleView({ modeSwitch, active }: { modeSwitch: React.R
             </div>
           )}
           {analysis.status === "done" && analysis.result && reference && (
-            <Results analysis={analysis.result} duration={duration} referenceIsVideo={reference.kind === "container"} sameFile={targetMode === "same"} />
+            <Results key={analysis.jobId} analysis={analysis.result} duration={duration} referenceIsVideo={reference.kind === "container"} sameFile={targetMode === "same"} />
           )}
         </main>
       </div>
@@ -287,7 +290,7 @@ function EmptyState({ hasReference }: { hasReference: boolean }) {
 }
 
 function Results({
-  analysis,
+  analysis: detected,
   duration,
   referenceIsVideo,
   sameFile,
@@ -297,10 +300,26 @@ function Results({
   referenceIsVideo: boolean;
   sameFile: boolean;
 }) {
+  // Hand-edited segments, if any (a new analysis starts from scratch:
+  // this component is remounted with it).
+  const [edited, setEdited] = useState<Segment[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const analysis = edited ? withSegments(detected, edited) : detected;
   return (
     <div className="results-content">
-      <AnalysisView analysis={analysis} duration={duration} />
-      <ExportCard analysis={analysis} referenceIsVideo={referenceIsVideo} sameFile={sameFile} />
+      <AnalysisView analysis={analysis} duration={duration} edited={edited !== null} onEdit={() => setEditing(true)} />
+      <ExportCard key={JSON.stringify(analysis.segments)} analysis={analysis} referenceIsVideo={referenceIsVideo} sameFile={sameFile} />
+      {editing && (
+        <SegmentEditor
+          analysis={analysis}
+          duration={duration}
+          onClose={() => setEditing(false)}
+          onSave={(segments) => {
+            setEdited(segments);
+            setEditing(false);
+          }}
+        />
+      )}
     </div>
   );
 }

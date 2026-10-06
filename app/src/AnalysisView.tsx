@@ -1,13 +1,26 @@
 import type { Analysis } from "./api";
 import { clock, offset } from "./format";
+import { segmentFor } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import Timeline from "./Timeline";
 
 /** Everything an analysis found: summary, timeline, segments. Shared by the
  * single-file view and a batch row's details. */
-export default function AnalysisView({ analysis, duration }: { analysis: Analysis; duration: number }) {
+export default function AnalysisView({
+  analysis,
+  duration,
+  edited = false,
+  onEdit,
+}: {
+  analysis: Analysis;
+  duration: number;
+  /** The segments were changed by hand since the analysis. */
+  edited?: boolean;
+  onEdit?: () => void;
+}) {
   const segments = analysis.segments;
-  const counts = segments.map((_, g) => analysis.target_cues.filter((c) => c.group === g).length);
+  // By where each line falls now (hand edits move them between segments).
+  const counts = segments.map((_, g) => analysis.target_cues.filter((c) => segmentFor((c.start + c.end) / 2, segments) === g).length);
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
   const dropped = analysis.target_cues.filter((c) => c.corrected === null || c.corrected[1] <= 0).length;
 
@@ -16,11 +29,19 @@ export default function AnalysisView({ analysis, duration }: { analysis: Analysi
       <section className="card">
         <div className="summary">
           <div>
-            <h2>{summarize(analysis)}</h2>
+            <h2>
+              {summarize(analysis)}
+              {edited && <span className="badge edited">Modifié à la main</span>}
+            </h2>
             {analysis.ratio_name && <div className="badge">Dérive : {analysis.ratio_name}</div>}
             {analysis.reference_choice && <div className="muted">Référence : piste {analysis.reference_choice}</div>}
           </div>
           <div className="muted right">
+            {onEdit && (
+              <button className="edit-button" onClick={onEdit}>
+                ✎ Modifier les segments
+              </button>
+            )}
             {analysis.reference_cues.length} répliques de référence · {analysis.target_cues.length} à corriger
             {orphans > 0 && <div>{orphans} sans équivalent (ou non dialoguées)</div>}
             {dropped > 0 && <div className="warn-text">{dropped} seront retirées</div>}

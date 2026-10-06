@@ -17,6 +17,8 @@ import {
 } from "./api";
 import AnalysisView, { analysisDuration, summarize } from "./AnalysisView";
 import Dialog from "./Dialog";
+import { withSegments } from "./retime";
+import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { fileName, isSubtitleFile } from "./format";
 import { EngineBadge } from "./SingleView";
@@ -49,6 +51,8 @@ interface Row {
 interface RowRuns {
   analysis: Run<Analysis>;
   render: Run<RenderResult>;
+  /** The analysis' segments were changed by hand. */
+  edited?: boolean;
 }
 
 const NO_RUNS: RowRuns = { analysis: IDLE, render: IDLE };
@@ -77,6 +81,7 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
   const [busy, setBusy] = useState<null | "analysis" | "render">(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [details, setDetails] = useState<Row | null>(null);
+  const [editingRow, setEditingRow] = useState<Row | null>(null);
   const stop = useRef(false);
   const currentJob = useRef<string | null>(null);
 
@@ -445,13 +450,32 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
         </main>
       </div>
 
-      {details && runsOf(details).analysis.result && (
+      {details && runsOf(details).analysis.result && !editingRow && (
         <Dialog title={fileName(details.video ?? "")} onClose={() => setDetails(null)}>
           <AnalysisView
             analysis={runsOf(details).analysis.result!}
             duration={analysisDuration(runsOf(details).analysis.result!)}
+            edited={runsOf(details).edited}
+            onEdit={busy ? undefined : () => setEditingRow(details)}
           />
         </Dialog>
+      )}
+      {editingRow && runsOf(editingRow).analysis.result && (
+        <SegmentEditor
+          analysis={runsOf(editingRow).analysis.result!}
+          duration={analysisDuration(runsOf(editingRow).analysis.result!)}
+          onClose={() => setEditingRow(null)}
+          onSave={(segments) => {
+            const row = editingRow;
+            // The export no longer matches: it's to do again.
+            updateRuns(row.key, (r) => ({
+              analysis: { ...r.analysis, result: withSegments(r.analysis.result!, segments) },
+              render: IDLE,
+              edited: true,
+            }));
+            setEditingRow(null);
+          }}
+        />
       )}
       <DropOverlay
         drag={drag}
@@ -547,6 +571,7 @@ function BatchRow({
             <button className="link" onClick={onDetails} title="Voir le détail">
               {summarize(result!)}
               {result!.ratio_name && " · dérive"}
+              {runs.edited && " · modifié"}
               {weak && <span className="warn-text"> ⚠ à vérifier</span>}
             </button>
             {render.status === "running" && <span className="muted">Export…</span>}
