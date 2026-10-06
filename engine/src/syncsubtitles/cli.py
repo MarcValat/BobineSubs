@@ -9,7 +9,8 @@ from syncsubtitles.detect import Detection, detect_constant
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_subtitle_streams
 from syncsubtitles.languages import guess_language
 from syncsubtitles.render import TrackMetadata, default_mkv_output, default_subtitle_output, mux, write_subtitle
-from syncsubtitles.retime import retime
+from syncsubtitles.retime import remap_cue, retime
+from syncsubtitles.segments import STANDARD_RATIOS, SegmentDetection, detect_segments
 from syncsubtitles.subformats import format_for_codec
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS, load_track, parse_track_spec
 
@@ -49,19 +50,45 @@ def probe(file: str) -> None:
         )
 
 
-def _detect(reference: str, target: str):
+# ratio = target time / reference time: below 1 the target runs fast.
+_RATIO_NAMES = {
+    STANDARD_RATIOS[1]: "cible ralentie (25 -> 23,976 i/s)",
+    STANDARD_RATIOS[2]: "cible accélérée (23,976 -> 25 i/s, PAL)",
+    STANDARD_RATIOS[3]: "cible ralentie (24 -> 23,976 i/s)",
+    STANDARD_RATIOS[4]: "cible accélérée (23,976 -> 24 i/s)",
+    STANDARD_RATIOS[5]: "cible ralentie (25 -> 24 i/s)",
+    STANDARD_RATIOS[6]: "cible accélérée (24 -> 25 i/s)",
+}
+# Below this share of a segment's lines landing on reference lines, flag it.
+_LOW_CONFIDENCE = 0.8
+
+
+def _clock(t: float) -> str:
+    sign = "-" if t < 0 else ""
+    t = abs(t)
+    return f"{sign}{int(t // 3600)}:{int(t % 3600 // 60):02d}:{t % 60:06.3f}"
+
+
+def _detect(reference: str, target: str, constant: bool):
     ref_spec, tgt_spec = parse_track_spec(reference), parse_track_spec(target)
     try:
         ref_doc, tgt_doc = load_track(ref_spec), load_track(tgt_spec)
     except (FFmpegError, ValueError, OSError) as exc:
         _fail(str(exc))
     click.echo(f"[référence] {len(ref_doc.cues)} répliques   [cible] {len(tgt_doc.cues)} répliques")
-    detection = detect_constant(ref_doc, tgt_doc)
-    _report(detection)
-    return ref_spec, tgt_spec, tgt_doc, detection
+    try:
+        if constant:
+            detection = detect_constant(ref_doc, tgt_doc)
+            _report_constant(detection)
+            return ref_spec, tgt_spec, tgt_doc, detection.segments
+        detection = detect_segments(ref_doc, tgt_doc)
+    except ValueError as exc:
+        _fail(str(exc))
+    _report_segments(detection)
+    return ref_spec, tgt_spec, tgt_doc, detection.segments
 
 
-def _report(detection: Detection) -> None:
+def _report_constant(detection: Detection) -> None:
     offset = detection.segments[0].offset_start
     direction = "en retard" if offset > 0 else "en avance"
     click.echo(f"Décalage : {offset:+.3f} s (la cible est {direction})   score {detection.score:.2f}")
@@ -71,15 +98,36 @@ def _report(detection: Detection) -> None:
         click.echo("⚠ Score faible : les deux pistes se ressemblent peu, ce ne sont peut-être pas les mêmes répliques.")
 
 
+def _report_segments(detection: SegmentDetection) -> None:
+    if detection.ratio != 1.0:
+        click.echo(f"Dérive : {_RATIO_NAMES.get(detection.ratio, f'rapport {detection.ratio:.5f}')}")
+    counts = [sum(m.group == g for m in detection.matches) for g in range(len(detection.segments))]
+    kind = "décalage constant" if len(detection.segments) == 1 else f"{len(detection.segments) - 1} saut(s)"
+    click.echo(f"{len(detection.segments)} segment(s), {kind} :")
+    for seg, count in zip(detection.segments, counts):
+        offset = f"{seg.offset_start:+.3f} s" if not seg.is_drift else f"{seg.offset_start:+.3f} -> {seg.offset_end:+.3f} s"
+        warn = "  ⚠ peu fiable" if seg.confidence < _LOW_CONFIDENCE else ""
+        click.echo(
+            f"  {_clock(seg.start_s)} -> {_clock(seg.end_s)}   {offset:<22} {count:4d} répliques   confiance {seg.confidence:.0%}{warn}"
+        )
+    orphans = sum(m.group == -1 for m in detection.matches)
+    if orphans:
+        click.echo(f"{orphans} réplique(s) de la cible sans équivalent dans la référence.")
+
+
+CONSTANT_OPTION = click.option("--constant", is_flag=True, help="Un seul décalage pour toute la piste (ni dérive, ni sauts).")
+
+
 @main.command()
 @click.argument("reference")
 @click.argument("target")
-def align(reference: str, target: str) -> None:
-    """Mesure le décalage de TARGET par rapport à REFERENCE.
+@CONSTANT_OPTION
+def align(reference: str, target: str, constant: bool) -> None:
+    """Mesure le décalage de TARGET par rapport à REFERENCE (dérive et sauts compris).
 
     \b
     REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0, voir `probe`)."""
-    _detect(reference, target)
+    _detect(reference, target, constant)
 
 
 @main.command()
@@ -90,7 +138,17 @@ def align(reference: str, target: str) -> None:
 @click.option("--language", help="Langue de la piste ajoutée (code ISO 639-2, ex. fre). Par défaut : devinée du nom de fichier.")
 @click.option("--title", help="Titre de la piste ajoutée.")
 @click.option("--default/--no-default", "default", default=None, help="Marque la piste comme piste par défaut.")
-def render(reference: str, target: str, output: str | None, subs_only: bool, language: str | None, title: str | None, default: bool | None) -> None:
+@CONSTANT_OPTION
+def render(
+    reference: str,
+    target: str,
+    output: str | None,
+    subs_only: bool,
+    language: str | None,
+    title: str | None,
+    default: bool | None,
+    constant: bool,
+) -> None:
     """Recale TARGET sur REFERENCE et écrit le résultat.
 
     \b
@@ -101,11 +159,14 @@ def render(reference: str, target: str, output: str | None, subs_only: bool, lan
 
     \b
     REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0, voir `probe`)."""
-    ref_spec, tgt_spec, tgt_doc, detection = _detect(reference, target)
-    corrected = retime(tgt_doc, detection.segments)
-    dropped = len(tgt_doc.cues) - len(corrected.cues)
+    ref_spec, tgt_spec, tgt_doc, segments = _detect(reference, target, constant)
+    corrected = retime(tgt_doc, segments)
+    dropped = [c for c in tgt_doc.cues if (m := remap_cue(c, segments)) is None or m[1] <= 0]
     if dropped:
-        click.echo(f"{dropped} réplique(s) tombée(s) avant le début de la vidéo, retirée(s).")
+        click.echo(f"{len(dropped)} réplique(s) retirée(s) (avant le début de la vidéo, ou dans une scène absente de la référence) :")
+        for cue in dropped:
+            text = " / ".join(line.strip() for line in cue.text.replace(r"\N", "\n").splitlines())
+            click.echo(f"  {_clock(cue.start)}  {text[:70]}")
 
     if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
         out = Path(output) if output else default_subtitle_output(tgt_spec, corrected.fmt)
