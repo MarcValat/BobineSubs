@@ -13,3 +13,7 @@ build/
 *.wav
 *.flac
 engine/tests/fixtures/generated/
+
+# Real-world test subtitles dropped at the root (copyrighted).
+/test-*.srt
+/test-*.ass

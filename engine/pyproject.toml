@@ -1,0 +1,28 @@
+[project]
+name = "syncsubtitles"
+version = "0.1.0"
+description = "Recale une piste de sous-titres sur les sous-titres de référence d'un MKV (décalage, dérive, sauts)"
+readme = "README.md"
+authors = [
+    { name = "Marc Valat", email = "marc.valat@hotmail.fr" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "click>=8.4.2",
+    "imageio-ffmpeg>=0.6.0",
+    "numpy>=2.5.1",
+]
+
+[project.scripts]
+syncsubtitles = "syncsubtitles.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+[tool.pytest.ini_options]
+pythonpath = ["tests"]

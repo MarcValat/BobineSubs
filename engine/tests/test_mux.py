@@ -1,0 +1,73 @@
+"""End-to-end: real MKV files through ffmpeg."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from syncsubtitles.ffmpeg_backend import extract_subtitle, probe_subtitle_streams, resolve_ffmpeg
+from syncsubtitles.render import TrackMetadata, mux
+from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
+
+REF = "1\n00:00:10,000 --> 00:00:12,000\nHello\n\n2\n00:00:20,000 --> 00:00:21,500\nWorld\n"
+VF = "1\n00:00:09,000 --> 00:00:11,000\nBonjour\n"
+
+
+def _ff(*args: str) -> None:
+    subprocess.run([resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
+
+
+def _first_pts_ms(path: Path, selector: str) -> int:
+    out = subprocess.run(
+        [
+            resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-copyts",
+            "-i", str(path), "-map", selector, "-c", "copy", "-f", "framecrc", "-",
+        ],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return int(next(line for line in out.splitlines() if not line.startswith("#")).split(",")[2])
+
+
+@pytest.fixture
+def mkv(tmp_path: Path) -> Path:
+    """Video + AAC audio (whose priming makes the file start at -0.128 s) +
+    eng and fre subtitles."""
+    (tmp_path / "ref.srt").write_text(REF)
+    (tmp_path / "vf.srt").write_text(VF)
+    out = tmp_path / "in.mkv"
+    _ff(
+        "-f", "lavfi", "-i", "color=c=black:s=64x36:r=5:d=30", "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono",
+        "-i", str(tmp_path / "ref.srt"), "-i", str(tmp_path / "vf.srt"),
+        "-map", "0", "-map", "1", "-map", "2", "-map", "3", "-t", "30",
+        "-c:v", "mpeg4", "-c:a", "aac", "-c:s", "copy",
+        "-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=fre", "-metadata:s:s:1", "title=VF",
+        str(out),
+    )
+    return out
+
+
+def test_extraction_keeps_container_timestamps(mkv: Path):
+    doc = extract_subtitle(str(mkv), 0)
+    assert [(c.start, c.end) for c in doc.cues] == [(10.0, 12.0), (20.0, 21.5)]
+
+
+def _subtitle_offset_from_video(path: Path, index: int) -> int:
+    return _first_pts_ms(path, f"0:s:{index}") - _first_pts_ms(path, "0:v:0")
+
+
+@pytest.mark.parametrize("replace_index", [None, 1])
+def test_muxed_track_lands_where_its_timestamps_say_against_the_video(mkv: Path, tmp_path: Path, replace_index):
+    # A plain remux moves the whole file 0.128 s forward but not an added
+    # subtitle file: the corrected track used to land 128 ms early.
+    doc = SubtitleDocument(SRT, [Cue(15.0, 16.0, "Corrigé")])
+    out = tmp_path / "out.mkv"
+    mux(str(mkv), doc, out, TrackMetadata(language="fre", title="VF"), replace_index)
+
+    streams = probe_subtitle_streams(str(out))
+    new_index = 1 if replace_index is not None else 2
+    assert len(streams) == (2 if replace_index is not None else 3)
+    assert (streams[new_index].language, streams[new_index].title) == ("fre", "VF")
+    assert _subtitle_offset_from_video(out, new_index) == 15000
+    assert _subtitle_offset_from_video(out, 0) == 10000
