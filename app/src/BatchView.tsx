@@ -952,7 +952,7 @@ function BatchRow({
             {analysis.status === "done" && result && (
               <>
                 {summarize(result)}
-                {result.ratio_name && " · dérive"}
+                {result.ratio_name && <span className="drift-text"> · dérive</span>}
                 {runs.edited && " · modifié"}
                 {weak && <span className="batch-issues">⚠ à vérifier</span>}
               </>

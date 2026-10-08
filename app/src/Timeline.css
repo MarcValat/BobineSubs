@@ -16,17 +16,26 @@
 .segment-band.odd {
   fill: var(--band-b);
 }
+/* An unreliable segment: its band faintly red. */
 .segment-band.weak {
-  fill: var(--warn-soft);
+  fill: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
+/* As Bobine Audio's segment chart: constant in blue, drift in orange,
+   dashed when unreliable. */
 .offset-line {
-  stroke: var(--accent);
   stroke-width: 2.5;
   stroke-linecap: round;
 }
-.offset-line.weak {
-  stroke: var(--warn);
+.offset-line.constant {
+  stroke: var(--constant);
+}
+.offset-line.drift {
+  stroke: var(--drift);
+}
+.offset-line.low-confidence {
+  stroke-dasharray: 7 5;
+  stroke-linecap: butt;
 }
 
 .zero-line {
@@ -121,7 +130,7 @@
   color: var(--on-accent);
 }
 .cue.after.orphan {
-  background: var(--warn);
+  background: var(--error);
 }
 
 .boundary {
@@ -174,4 +183,38 @@
   display: flex;
   align-items: center;
   gap: 0.4em;
+}
+
+/* Under the overview, as Bobine Audio's segment chart legend. */
+.segment-chart-legend {
+  display: flex;
+  gap: 1.5em;
+  margin-top: -0.2em;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 1.2em;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.legend-swatch.constant {
+  background: var(--constant);
+}
+
+.legend-swatch.drift {
+  background: var(--drift);
+}
+
+.legend-swatch.low-confidence {
+  background: repeating-linear-gradient(90deg, var(--error) 0 4px, transparent 4px 7px);
 }
