@@ -1,4 +1,5 @@
 import type { Analysis } from "./api";
+import { ConfidenceGauge } from "./ConfidenceGauge";
 import { clock, offset } from "./format";
 import { segmentFor } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
@@ -64,7 +65,7 @@ export default function AnalysisView({
                 </td>
                 <td>{counts[i]}</td>
                 <td>
-                  {Math.round(s.confidence * 100)} %{s.confidence < LOW_CONFIDENCE && " ⚠"}
+                  <ConfidenceGauge value={s.confidence} />
                 </td>
               </tr>
             ))}

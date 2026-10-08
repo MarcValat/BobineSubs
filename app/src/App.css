@@ -1228,3 +1228,49 @@ button:focus-visible {
 .editor-table-wrap .editor-table tbody tr.editor-row-low-confidence {
   background: color-mix(in srgb, var(--error) 8%, transparent);
 }
+
+/* A segment's confidence (ConfidenceGauge.tsx): a thin bar filled to it,
+   green when reliable, orange when it's to check, the percentage after. */
+.confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.confidence-bar {
+  width: 3.5em;
+  height: 0.4em;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.confidence-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+}
+
+.confidence-weak .confidence-fill {
+  background: var(--warn);
+}
+
+.confidence-weak .confidence-value {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* Right-aligned values line up on the bar. */
+.confidence-value {
+  min-width: 3em;
+  text-align: right;
+}
+
+.confidence-flag {
+  width: 1em;
+  margin-left: -0.2em;
+}
