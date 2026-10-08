@@ -20,10 +20,17 @@ import AnalysisView, { analysisDuration } from "./AnalysisView";
 import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
+import { DropZone } from "./DropZone";
 import { clock, fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
+import { PillSwitch } from "./PillSwitch";
 import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
+
+const EXPORT_KINDS = [
+  ["mkv", "Nouveau MKV"],
+  ["subs", "Sous-titres seuls"],
+] as const;
 
 /** Where the track to correct comes from: the opened file, or another one. */
 type Source = "same" | "file";
@@ -245,7 +252,12 @@ export default function SingleView({ active }: { active: boolean }) {
           )}
         </div>
         <div className="analysis-scroll">
-          {analysis.status === "idle" && <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>}
+          {analysis.status === "idle" && !reference && (
+            <DropZone title="Glisse une vidéo ici" onClick={openReference} disabled={opening !== null}>
+              ou clique pour ouvrir un fichier : ses sous-titres serviront de référence.
+            </DropZone>
+          )}
+          {analysis.status === "idle" && reference && <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>}
           {running && <p className="placeholder">Analyse en cours...</p>}
           {analysis.status === "cancelled" && <p className="placeholder">Annulé</p>}
           {analysis.status === "error" && <p className="error">{analysis.error}</p>}
@@ -421,14 +433,14 @@ function ExportPanel({ analysis, referenceIsVideo, sameFile }: { analysis: Analy
     <section className="panel field-results">
       <h2>Export</h2>
       <div className="export-options">
-        <div className="choice-row">
-          <button className={!subsOnly ? "primary-button" : ""} onClick={() => setSubsOnly(false)} disabled={!referenceIsVideo || running}>
-            Nouveau MKV
-          </button>
-          <button className={subsOnly ? "primary-button" : ""} onClick={() => setSubsOnly(true)} disabled={running}>
-            Sous-titres seuls
-          </button>
-        </div>
+        <PillSwitch
+          className="pill-switch-wide"
+          label="Contenu de l'export"
+          options={referenceIsVideo ? EXPORT_KINDS : EXPORT_KINDS.slice(1)}
+          value={subsOnly ? "subs" : "mkv"}
+          onChange={(v) => setSubsOnly(v === "subs")}
+          disabled={running}
+        />
         {!subsOnly && !sameFile && (
           <div className="export-fields">
             <label>

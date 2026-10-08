@@ -21,3 +21,16 @@ export function DownloadIcon() {
     </svg>
   );
 }
+
+/** A film strip with an arrow into it: something to drop here. */
+export function FilmDropIcon() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <rect x="9" y="5" width="30" height="38" rx="4" />
+      <path d="M15 5v38M33 5v38" />
+      <path d="M9 12h6M9 19h6M9 26h6M9 33h6M33 12h6M33 19h6M33 26h6M33 33h6" />
+      <path d="M24 15v15" />
+      <path d="M19 25l5 5 5-5" />
+    </svg>
+  );
+}
