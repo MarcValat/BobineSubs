@@ -1139,3 +1139,18 @@ button:focus-visible {
   color: var(--text-muted);
   font-size: 0.85em;
 }
+
+/* Batch: the written file's folder, an icon centered in its narrow column. */
+.batch-table-wrap col.batch-col-folder {
+  width: 3.2em;
+}
+
+.batch-table-wrap td.batch-row-actions {
+  padding: 0.45em 0.3em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.batch-table-wrap td.batch-row-actions button {
+  margin: 0;
+}

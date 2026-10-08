@@ -21,7 +21,7 @@ import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, type DropSide, useFileDrop } from "./FileDrop";
 import { DropZone } from "./DropZone";
 import { fileName, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
-import { RedoIcon } from "./icons";
+import { FolderIcon, RedoIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
 import {
@@ -820,8 +820,13 @@ function BatchRow({
       </td>
       <td className="batch-row-actions">
         {render.status === "done" && render.result && (
-          <button className="small-button" title="Ouvrir le dossier du fichier écrit" onClick={() => revealItemInDir(render.result!.path)}>
-            Dossier
+          <button
+            className="small-button icon-small-button"
+            title="Ouvrir le dossier du fichier écrit"
+            aria-label="Ouvrir le dossier du fichier écrit"
+            onClick={() => revealItemInDir(render.result!.path)}
+          >
+            <FolderIcon />
           </button>
         )}
       </td>
