@@ -23,6 +23,7 @@ import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { clock, fileName, isSubtitleFile, trackLabel } from "./format";
 import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
+import { InfoTip } from "./InfoTip";
 
 export default function SingleView({ modeSwitch, active }: { modeSwitch: React.ReactNode; active: boolean }) {
   const [reference, setReference] = useState<ProbeResponse | null>(null);
@@ -131,8 +132,9 @@ export default function SingleView({ modeSwitch, active }: { modeSwitch: React.R
           {modeSwitch}
           <EngineBadge />
           <section className="card">
-            <h2>Référence</h2>
-            <p className="hint">La vidéo dont les sous-titres sont déjà bien calés (ou un SRT/ASS calé).</p>
+            <h2>
+              Référence <InfoTip>La vidéo dont les sous-titres sont déjà bien calés (ou un SRT/ASS calé).</InfoTip>
+            </h2>
             <button className="primary wide" onClick={() => open_("reference")} disabled={opening !== null}>
               {opening === "reference" ? "Lecture…" : reference ? "Changer de fichier…" : "Ouvrir un fichier…"}
             </button>
@@ -163,7 +165,9 @@ export default function SingleView({ modeSwitch, active }: { modeSwitch: React.R
           </section>
 
           <section className="card">
-            <h2>À corriger</h2>
+            <h2>
+              À corriger <InfoTip>Une piste de la référence, un fichier SRT/ASS, ou une vidéo contenant la piste à corriger.</InfoTip>
+            </h2>
             {reference?.kind === "container" && textTracks(reference).length > 0 && (
               <div className="segmented">
                 <button className={targetMode === "same" ? "active" : ""} onClick={() => setTargetMode("same")}>
@@ -187,7 +191,6 @@ export default function SingleView({ modeSwitch, active }: { modeSwitch: React.R
               </label>
             ) : (
               <>
-                <p className="hint">Un fichier SRT/ASS, ou une vidéo contenant la piste à corriger.</p>
                 <button className="wide" onClick={() => open_("target")} disabled={opening !== null}>
                   {opening === "target" ? "Lecture…" : targetFile ? "Changer de fichier…" : "Choisir les sous-titres…"}
                 </button>
@@ -380,7 +383,16 @@ function ExportCard({ analysis, referenceIsVideo, sameFile }: { analysis: Analys
   const running = run.status === "running";
   return (
     <section className="card">
-      <h2>Exporter</h2>
+      <h2>
+        Exporter{" "}
+        <InfoTip>
+          {subsOnly
+            ? "Écrit le fichier de sous-titres corrigé."
+            : sameFile
+              ? "Copie la vidéo dans un nouveau MKV où la piste corrigée remplace l'originale. Rien n'est réencodé, le fichier d'origine n'est pas modifié."
+              : "Copie la vidéo dans un nouveau MKV avec les sous-titres corrigés en piste supplémentaire. Rien n'est réencodé, le fichier d'origine n'est pas modifié."}
+        </InfoTip>
+      </h2>
       <div className="segmented">
         <button className={!subsOnly ? "active" : ""} onClick={() => { edited.current = false; setSubsOnly(false); }} disabled={!referenceIsVideo || running}>
           Nouveau MKV
@@ -389,13 +401,6 @@ function ExportCard({ analysis, referenceIsVideo, sameFile }: { analysis: Analys
           Sous-titres seuls
         </button>
       </div>
-      <p className="hint">
-        {subsOnly
-          ? "Écrit le fichier de sous-titres corrigé."
-          : sameFile
-            ? "Copie la vidéo dans un nouveau MKV où la piste corrigée remplace l'originale. Rien n'est réencodé, le fichier d'origine n'est pas modifié."
-            : "Copie la vidéo dans un nouveau MKV avec les sous-titres corrigés en piste supplémentaire. Rien n'est réencodé, le fichier d'origine n'est pas modifié."}
-      </p>
       <div className="output-row">
         <input value={output} onChange={(e) => { edited.current = true; setOutput(e.target.value); }} spellCheck={false} disabled={running} />
         <button onClick={choose} disabled={running}>

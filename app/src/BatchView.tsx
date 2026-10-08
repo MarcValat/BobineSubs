@@ -22,6 +22,7 @@ import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { fileName, isSubtitleFile } from "./format";
 import { EngineBadge } from "./SingleView";
+import { InfoTip } from "./InfoTip";
 import {
   errorMessage,
   IDLE,
@@ -281,7 +282,14 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
           {modeSwitch}
           <EngineBadge />
           <section className="card">
-            <h2>Série</h2>
+            <h2>
+              Série{" "}
+              <InfoTip>
+                {kind === "pairs"
+                  ? "Des vidéos d'un côté, des SRT/ASS de l'autre : appariés par numéro d'épisode (S01E03, 1x03…). Les sous-titres de chaque vidéo servent de référence."
+                  : "Des vidéos contenant chacune la référence et la piste à corriger, choisie par langue."}
+              </InfoTip>
+            </h2>
             <div className="segmented">
               <button className={kind === "pairs" ? "active" : ""} onClick={() => setKind("pairs")} disabled={busy !== null}>
                 Vidéos + sous-titres
@@ -290,11 +298,6 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
                 Vidéos multipistes
               </button>
             </div>
-            <p className="hint">
-              {kind === "pairs"
-                ? "Des vidéos d'un côté, des SRT/ASS de l'autre : appariés par numéro d'épisode (S01E03, 1x03…). Les sous-titres de chaque vidéo servent de référence."
-                : "Des vidéos contenant chacune la référence et la piste à corriger, choisie par langue."}
-            </p>
             {kind === "pairs" ? (
               <div className="button-row">
                 <button onClick={addVideos} disabled={busy !== null}>

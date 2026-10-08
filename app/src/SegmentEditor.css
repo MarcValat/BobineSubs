@@ -29,18 +29,6 @@
   font-weight: 600;
 }
 
-.editor-help {
-  color: var(--text-muted);
-  font-size: 13px;
-}
-.editor-help summary {
-  cursor: pointer;
-}
-.editor-help ul {
-  margin: 6px 0 0;
-  padding-left: 20px;
-}
-
 .editor-table td {
   vertical-align: middle;
 }

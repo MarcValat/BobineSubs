@@ -19,6 +19,7 @@ import { clock } from "./format";
 import { withSegments } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import Timeline, { type TimelineEditing } from "./Timeline";
+import { InfoTip } from "./InfoTip";
 import "./SegmentEditor.css";
 
 /** "1:02:03.4", "2:03.4", "123.4" -> seconds; null if unreadable. */
@@ -123,7 +124,21 @@ export default function SegmentEditor({
     <div className="dialog-backdrop">
       <div className="dialog editor" role="dialog" aria-label="Modifier les segments">
         <div className="dialog-header">
-          <h2>Modifier les segments</h2>
+          <h2>
+            Modifier les segments{" "}
+            <InfoTip>
+              <ul>
+                <li>Glisse un segment vers le haut ou le bas pour changer son décalage ; glisse une poignée ● pour déplacer une frontière.</li>
+                <li>Double-clique sur le graphe, ou « ✂ Couper ici », pour couper un segment en deux.</li>
+                <li>
+                  <strong>Aligner</strong> : dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même
+                  chose : tout son segment se décale pour qu'elles commencent ensemble.
+                </li>
+                <li>« Retirer » supprime un segment (une fausse détection) : son voisin s'étend sur sa durée, avec son propre décalage.</li>
+                <li>Décalage : + = les sous-titres à corriger sont en retard sur la référence, − = en avance. Ctrl+Z / Ctrl+Y : défaire / refaire.</li>
+              </ul>
+            </InfoTip>
+          </h2>
           <div className="editor-toolbar">
             <button onClick={() => setHistory(undo)} disabled={!history.past.length} title="Ctrl+Z">
               ↶ Défaire
@@ -154,19 +169,6 @@ export default function SegmentEditor({
           </div>
         )}
         <div className="dialog-body">
-          <details className="editor-help">
-            <summary>Comment faire</summary>
-            <ul>
-              <li>Glisse un segment vers le haut ou le bas pour changer son décalage ; glisse une poignée ● pour déplacer une frontière.</li>
-              <li>Double-clique sur le graphe, ou « ✂ Couper ici », pour couper un segment en deux.</li>
-              <li>
-                <strong>Aligner</strong> : dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même
-                chose : tout son segment se décale pour qu'elles commencent ensemble.
-              </li>
-              <li>« Retirer » supprime un segment (une fausse détection) : son voisin s'étend sur sa durée, avec son propre décalage.</li>
-              <li>Décalage : + = les sous-titres à corriger sont en retard sur la référence, − = en avance. Ctrl+Z / Ctrl+Y : défaire / refaire.</li>
-            </ul>
-          </details>
           <section className="card">
             <Timeline analysis={shown} duration={duration} editing={editing} />
           </section>
