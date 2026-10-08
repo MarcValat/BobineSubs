@@ -1096,3 +1096,15 @@ button:focus-visible {
   padding: 0.8em;
   background: var(--surface);
 }
+
+/* Pairs: the track picked in a video to correct, under its name. */
+.batch-target-track {
+  margin-top: 0.15em;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.batch-file-inner .batch-track-status {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
