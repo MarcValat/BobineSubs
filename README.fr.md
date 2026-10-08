@@ -87,3 +87,5 @@ Rien d'autre à installer : le moteur d'analyse et ffmpeg sont fournis avec l'ap
 Copyright © 2026 Marc Valat. Bobine Subs est un logiciel libre, distribué sous [licence publique générale GNU v3](LICENSE) : tu peux l'utiliser, l'étudier, le partager et le modifier, et toute version distribuée, modifiée ou non, doit rester sous la même licence avec son code source disponible.
 
 L'installateur fournit aussi [FFmpeg](https://ffmpeg.org/) (une version de [gyan.dev](https://www.gyan.dev/ffmpeg/builds/), via [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg)), que Bobine Subs lance comme programme séparé. Cette version est elle aussi sous GPL v3 ; son code source est disponible auprès de FFmpeg et de gyan.dev.
+
+L'interface utilise la police [Inter](https://rsms.me/inter/) (intégrée via [Fontsource](https://fontsource.org/fonts/inter)), sous [licence SIL Open Font License 1.1](https://openfontlicense.org/).
