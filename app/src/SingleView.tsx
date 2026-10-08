@@ -16,7 +16,6 @@ import {
   startRender,
   type TrackRef,
 } from "./api";
-import { retryEngine, useEngineStatus } from "./engine";
 import AnalysisView, { analysisDuration } from "./AnalysisView";
 import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
@@ -25,7 +24,7 @@ import { clock, fileName, isSubtitleFile, trackLabel } from "./format";
 import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
 import { InfoTip } from "./InfoTip";
 
-export default function SingleView({ modeSwitch, active }: { modeSwitch: React.ReactNode; active: boolean }) {
+export default function SingleView({ active }: { active: boolean }) {
   const [reference, setReference] = useState<ProbeResponse | null>(null);
   const [referenceIndex, setReferenceIndex] = useState<number | null>(null); // null: automatic
   const [targetMode, setTargetMode] = useState<"same" | "file">("file");
@@ -129,8 +128,6 @@ export default function SingleView({ modeSwitch, active }: { modeSwitch: React.R
     <div className="view" hidden={!active}>
       <div className="layout">
         <aside className="sidebar">
-          {modeSwitch}
-          <EngineBadge />
           <section className="card">
             <h2>
               Référence <InfoTip>La vidéo dont les sous-titres sont déjà bien calés (ou un SRT/ASS calé).</InfoTip>
@@ -261,22 +258,6 @@ export default function SingleView({ modeSwitch, active }: { modeSwitch: React.R
         hint="Une vidéo : la référence · un SRT/ASS : les sous-titres à corriger"
       />
     </div>
-  );
-}
-
-export function EngineBadge() {
-  const status = useEngineStatus();
-  if (status === "ready") return null;
-  return (
-    <span className={`engine-badge ${status}`}>
-      {status === "starting" ? (
-        "Démarrage du moteur…"
-      ) : (
-        <>
-          Moteur injoignable <button onClick={retryEngine}>Réessayer</button>
-        </>
-      )}
-    </span>
   );
 }
 

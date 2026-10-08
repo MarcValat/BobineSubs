@@ -1,22 +1,9 @@
-.sidebar-top {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-.sidebar-top .mode-switch {
-  flex: 1;
-}
-
 .update-box {
   position: relative;
 }
 
+/* An update is waiting: accent color and a dot, like a notification. */
 .update-button {
-  position: relative;
-  height: 100%;
-  padding: 0 9px;
-  display: flex;
-  align-items: center;
   color: var(--accent);
 }
 .update-button.failed {
@@ -33,8 +20,8 @@
 
 .update-dot {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 5px;
+  right: 5px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -48,7 +35,7 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 700;
+  z-index: 40;
   width: 280px;
   padding: 12px 14px;
   display: flex;
@@ -56,8 +43,8 @@
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-popup);
 }
 .update-menu p {
   margin: 0;

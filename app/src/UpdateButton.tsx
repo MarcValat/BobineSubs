@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
+import { DownloadIcon } from "./icons";
+import { useCheckUpdates } from "./settings";
 import { errorMessage } from "./shared";
 import "./UpdateButton.css";
 
@@ -25,14 +27,11 @@ function devUpdate(): PendingUpdate | null {
   return { version: "9.9.9", download: () => Promise.reject(new Error("mise à jour fictive (dev)")), install: () => Promise.resolve() };
 }
 
-// One check per launch, shared: the button is shown in both views' sidebars.
-let checked: Promise<PendingUpdate | null> | null = null;
-const checkOnce = () => (checked ??= check());
-
 /**
  * From SyncAudio: asks GitHub Releases once at startup (tauri.conf.json's
  * plugins.updater.endpoints) and, when a newer signed build exists, shows
- * an icon whose menu installs it in place. Silent on failure (no network...):
+ * an icon next to Options whose menu installs it in place. Off in Options:
+ * no request to GitHub at all. Silent on failure (no network...):
  * an optional background check must never get in the way.
  */
 export function UpdateButton() {
@@ -42,11 +41,12 @@ export function UpdateButton() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const checkUpdates = useCheckUpdates();
 
   useEffect(() => {
-    if (devUpdate() || !isTauri()) return;
+    if (devUpdate() || !isTauri() || !checkUpdates) return;
     let cancelled = false;
-    checkOnce()
+    check()
       .then((result) => {
         if (!cancelled && result) {
           setUpdate(result);
@@ -59,7 +59,7 @@ export function UpdateButton() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [checkUpdates]);
 
   useEffect(() => {
     if (!open) return;
@@ -103,7 +103,7 @@ export function UpdateButton() {
     }
   }
 
-  if (phase === "idle" || !update) return null;
+  if (phase === "idle" || !update || (phase === "available" && !checkUpdates && !devUpdate())) return null;
 
   const percent = progress.total ? Math.round((progress.downloaded / progress.total) * 100) : null;
   const busy = phase === "downloading" || phase === "ready";
@@ -113,38 +113,36 @@ export function UpdateButton() {
       ? `Téléchargement de la mise à jour${percent !== null ? ` : ${percent} %` : "…"}`
       : failed
         ? "La mise à jour a échoué"
-        : `Version ${update.version} disponible`;
+        : `Mise à jour disponible : v${update.version}`;
 
   return (
     <div className="update-box" ref={boxRef}>
       <button
-        className={`update-button${failed ? " failed" : ""}${busy ? " busy" : ""}`}
+        className={`icon-button update-button${failed ? " failed" : ""}${busy ? " busy" : ""}`}
         title={title}
         aria-label={title}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <path d="M12 3v12m0 0-5-5m5 5 5-5M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <DownloadIcon />
         <span className="update-dot" aria-hidden="true" />
       </button>
       {open && (
         <div className="update-menu" role="dialog">
-          <p className="update-menu-title">{failed ? "La mise à jour a échoué" : `Bobine Subs ${update.version} est disponible`}</p>
+          <p className="update-menu-title">{failed ? "Échec de la mise à jour" : `Bobine Subs v${update.version} est disponible`}</p>
           {phase === "available" && (
             <>
-              <p className="muted">L'application redémarrera une fois la mise à jour installée.</p>
+              <p className="muted">L'application redémarre une fois la mise à jour téléchargée : une analyse ou un export en cours sera interrompu.</p>
               <button className="primary" onClick={install}>
-                Installer la mise à jour
+                Installer et redémarrer
               </button>
             </>
           )}
           {phase === "downloading" && <p>Téléchargement…{percent !== null && ` ${percent} %`}</p>}
-          {phase === "ready" && <p>Installation…</p>}
+          {phase === "ready" && <p>Installation, redémarrage…</p>}
           {phase === "error" && (
             <>
-              <p className="error">Le téléchargement a échoué : {error}</p>
+              <p className="error">Échec du téléchargement : {error}</p>
               <button className="primary" onClick={install}>
                 Réessayer
               </button>
@@ -152,7 +150,7 @@ export function UpdateButton() {
           )}
           {phase === "failed" && (
             <>
-              <p className="error">L'installation a échoué : {error}</p>
+              <p className="error">Échec de l'installation : {error}</p>
               <button className="primary" onClick={() => relaunch()}>
                 Redémarrer l'application
               </button>

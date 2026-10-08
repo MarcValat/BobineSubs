@@ -21,7 +21,6 @@ import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { fileName, isSubtitleFile } from "./format";
-import { EngineBadge } from "./SingleView";
 import { InfoTip } from "./InfoTip";
 import {
   errorMessage,
@@ -65,7 +64,7 @@ function trackInLanguage(probe: ProbeResponse | undefined, language: string | nu
   return candidates[0]?.index ?? null;
 }
 
-export default function BatchView({ modeSwitch, active }: { modeSwitch: React.ReactNode; active: boolean }) {
+export default function BatchView({ active }: { active: boolean }) {
   const [kind, setKind] = useState<Kind>("pairs");
   // Multi: videos holding both tracks.
   const [multiVideos, setMultiVideos] = useState<string[]>([]);
@@ -279,8 +278,6 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
     <div className="view" hidden={!active}>
       <div className="layout">
         <aside className="sidebar">
-          {modeSwitch}
-          <EngineBadge />
           <section className="card">
             <h2>
               Série{" "}
