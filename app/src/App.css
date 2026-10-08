@@ -1,6 +1,11 @@
-/* Design tokens, SyncAudio's palette. Each is light-dark(light, dark):
-   which applies follows `color-scheme` (Windows' theme, or data-theme). */
+/* Bobine Audio's stylesheet, shared by the Bobine suite (keep in sync).
+   Design tokens -- one place to tune the palette; every rule below reads
+   these instead of hardcoding colors. Each is light-dark(light, dark):
+   which one applies follows `color-scheme` -- Windows' theme by default,
+   or the one forced in Options (data-theme, see theme.ts). */
 :root {
+  /* Also makes native widgets (select popups, their scrollbars,
+     checkboxes...) follow the app's theme. */
   color-scheme: light dark;
   --accent: light-dark(#396cd8, #6d9eff);
   --accent-hover: light-dark(#2f5ab8, #85aeff);
@@ -9,52 +14,69 @@
   --surface: light-dark(#ffffff, #26272c);
   --surface-sunken: light-dark(#f0f1f4, #2f3036);
   --border: light-dark(rgba(15, 15, 15, 0.12), rgba(255, 255, 255, 0.12));
-  --border-strong: light-dark(rgba(15, 15, 15, 0.25), rgba(255, 255, 255, 0.25));
   --text: light-dark(#0f0f0f, #f2f2f2);
   --text-muted: light-dark(rgba(15, 15, 15, 0.6), rgba(242, 242, 242, 0.6));
   --error: light-dark(#cc3333, #ff6b6b);
   --success: light-dark(#2a8c4a, #57c785);
-  /* SyncAudio's "drift" orange: anything to double-check. */
+  /* Bobine Subs: anything to double-check, and the timeline's lines
+     (reference in neutral grey, target in the accent). */
   --warn: #d38a39;
   --warn-soft: light-dark(rgba(211, 138, 57, 0.16), rgba(211, 138, 57, 0.22));
-  /* Lines in the timeline: reference in neutral grey, target in the accent. */
   --ref: light-dark(#9aa1b0, #6b7080);
   --target: #396cd8;
   --target-faded: light-dark(rgba(57, 108, 216, 0.25), rgba(109, 158, 255, 0.3));
   --band-a: light-dark(#f7f8fa, #2a2b31);
   --band-b: light-dark(#eceff5, #313238);
+  --border-strong: light-dark(rgba(15, 15, 15, 0.25), rgba(255, 255, 255, 0.25));
   --radius: 12px;
   --radius-sm: 8px;
-  --backdrop: rgba(0, 0, 0, 0.55);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
   /* What floats over the rest: menus, dropdown lists, dialogs. */
   --shadow-popup: 0 6px 20px rgba(0, 0, 0, 0.25);
+  /* Dims the app behind a dialog. */
+  --backdrop: rgba(0, 0, 0, 0.55);
   --scrollbar-thumb: light-dark(rgba(15, 15, 15, 0.22), rgba(255, 255, 255, 0.2));
   --scrollbar-thumb-hover: light-dark(rgba(15, 15, 15, 0.4), rgba(255, 255, 255, 0.38));
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
-  /* Inter (bundled, see main.tsx) for the whole Bobine suite: a system
-     stack read as Segoe UI on Windows but as whatever the desktop picks on
-     Linux. The rest is only a fallback. */
+
+  /* Inter, bundled (main.tsx), for the whole Bobine suite: a system stack
+     read as Segoe UI on Windows but as the desktop's font on Linux. The
+     rest is only a fallback. */
   --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, "SF Mono", Menlo, monospace;
 
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
   color: var(--text);
-  background: var(--bg);
+  background-color: var(--bg);
+
   font-synthesis: none;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
-/* A forced theme (Options, theme.ts); none: Windows' own. */
-:root[data-theme="light"] {
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
+/* Stops the Chromium/WebView2 rubber-band bounce on trackpad scroll: the
+   whole page briefly overscrolls past its edge then springs back, even
+   though .container itself is a fixed 100vh with overflow:hidden and never
+   actually scrolls -- Chromium applies this at the top-level document/
+   viewport regardless. Also on the elements that really scroll (lists,
+   logs), for the same bounce at their ends.
 
-* {
-  box-sizing: border-box;
+   Not on every element: an element that only clips its content (overflow:
+   hidden, like a file name cut short with "...") counts as a scroll
+   container too, and with this set it swallowed the mouse wheel instead of
+   passing it on to the list around it -- the list wouldn't scroll with the
+   pointer over a file name. */
+html,
+body,
+#root,
+.list-scroll,
+.log {
+  overscroll-behavior: none;
 }
 
 /* Scrollbars in the app's palette (the lists that scroll, the editor's
@@ -96,85 +118,301 @@
   }
 }
 
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
+}
+
+body {
   background: var(--bg);
 }
 
-h1,
-h2 {
+.container {
+  height: 100vh;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Full-screen splash while the sidecar isn't reachable yet -- nothing else
+   in the app is usable before then, so it replaces the whole shell instead
+   of sitting as a banner over an inert one. */
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The engine's startup, top right (EngineStatus.tsx). */
+.engine-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-right: 0.4em;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.engine-status-error {
+  color: var(--error);
+}
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.file-open-button {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+/* The mode switch on the left; update and Options icons on the far right. */
+.top-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.7em 1em 0;
+}
+
+.mode-switch {
+  display: flex;
+  gap: 0.5em;
+}
+
+.mode-switch button {
+  padding: 0.4em 1em;
+}
+
+.top-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.icon-button {
+  position: relative;
+  width: 2.3em;
+  height: 2.3em;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button svg {
+  width: 1.2em;
+  height: 1.2em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* An update is waiting: accent color and a dot, like a notification. */
+.update-box {
+  position: relative;
+}
+
+.update-button {
+  color: var(--accent);
+}
+
+.update-button-failed {
+  color: var(--error);
+}
+
+.update-button-busy svg {
+  animation: update-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes update-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.update-dot {
+  position: absolute;
+  top: 0.3em;
+  right: 0.3em;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* A small menu hanging under a top-bar icon. */
+.top-menu {
+  position: absolute;
+  top: calc(100% + 0.4em);
+  right: 0;
+  z-index: 40;
+  width: 20em;
+  padding: 0.9em 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-popup);
+}
+
+.top-menu p {
   margin: 0;
 }
 
-h1 {
-  font-size: 18px;
-  font-weight: 650;
-}
-
-h2 {
-  font-size: 15px;
+.update-menu-title {
   font-weight: 600;
-  margin-bottom: 8px;
 }
 
-button,
-select,
-input {
-  font: inherit;
-  color: inherit;
+.update-menu-note {
+  font-size: 0.85em;
+  color: var(--text-muted);
 }
 
-/* Buttons and fields as in Bobine Audio. */
-button {
+/* Nothing in the app scrolls but lists: the window is split into regions
+   that shrink and grow with it, and a list that outgrows its region (tracks,
+   analyzed tracks) scrolls inside its own frame (.list-scroll). Left, the
+   file: tracks, analyzed tracks and the export. Right, what's looked at and
+   listened to: the chart and the waveforms. `min-height: 0` on every grid/
+   flex level is load-bearing: items default to `min-height: auto`, which
+   lets content push past its region instead of shrinking into it. */
+.app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1em;
+  display: grid;
+  /* Follows the window's width instead of keeping a fixed one. */
+  grid-template-columns: clamp(290px, 24vw, 420px) minmax(0, 1fr);
+  gap: 1em;
+  overflow: hidden;
+}
+
+.left-column {
+  grid-column: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+
+/* Keeps its natural height (the analyzed tracks below give way first), up
+   to a point where a file with many tracks scrolls its table instead. */
+.left-column .field-tracks {
+  flex: 0 0 auto;
+  max-height: 55%;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-column .field-results {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A list that may hold more than its region can show: it scrolls in its own
+   frame, the only kind of scrolling in the app. */
+.list-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.field-analysis {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel {
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1em 1.1em;
+  /* Clips to the rounded corners. */
+  overflow: hidden;
+  text-align: left;
+  /* Windows paths have no spaces to break on -- without this, a long one
+     (as in a result line naming the analyzed track) overflows the panel
+     instead of wrapping. Inherited by every descendant, not just <p>. */
+  overflow-wrap: anywhere;
+}
+
+.panel h2 {
+  flex: 0 0 auto;
+  margin: 0 0 0.7em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-muted);
+}
+
+.placeholder {
+  opacity: 0.6;
+  font-style: italic;
+  text-align: center;
+  font-size: 0.9em;
+  padding: 1.5em 0;
+}
+
+input,
+select,
+button {
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
   padding: 0.55em 1.1em;
+  font-size: 1em;
   font-weight: 500;
-  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  background-color: var(--surface);
   transition: border-color 0.15s, background-color 0.15s, color 0.15s;
 }
-button:hover:not(:disabled) {
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
   border-color: var(--accent);
 }
-button:active:not(:disabled) {
+button:active {
   background-color: var(--surface-sunken);
 }
 button:disabled {
-  opacity: 0.5;
   cursor: default;
-}
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-button.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-button.wide {
-  width: 100%;
-}
-button.big {
-  padding: 9px 16px;
-}
-button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-
-select,
-input {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.55em 0.8em;
-  min-width: 0;
-  transition: border-color 0.15s;
-}
-input:hover:not(:disabled) {
-  border-color: var(--accent);
+  opacity: 0.5;
+  border-color: var(--border);
 }
 
 /* Native <select>s otherwise keep the OS's own default look (a
@@ -264,364 +502,413 @@ button:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
-.app {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+/* The two main-flow actions (open a file, run an analysis) get the accent
+   fill; everything else (edit/export/preview controls) stays a plain
+   outline button so the primary path is visually obvious at a glance. */
+.primary-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
-
-.view {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
-.view[hidden] {
-  display: none;
-}
-
-.layout {
-  flex: 1;
-}
-
-button.small {
-  padding: 2px 9px;
-  font-size: 12.5px;
-}
-
-/* As in Bobine Audio: the mode switch on the left; the engine's state, the
-   update and Options icons on the far right. */
-.top-bar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px 0;
-}
-
-.mode-switch {
-  display: flex;
-  gap: 8px;
-}
-.mode-switch button {
-  padding: 6px 16px;
-}
-
-.top-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.icon-button {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon-button svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* The engine's startup (EngineStatus.tsx). */
-.engine-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 6px;
-  font-size: 12.5px;
+.primary-button:disabled {
+  background: var(--surface-sunken);
   color: var(--text-muted);
-  white-space: nowrap;
 }
-.engine-status-error {
+
+.file-path {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text-muted);
+  max-width: 100%;
+  margin: 0 0 0.6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.small-button {
+  padding: 0.3em 0.75em;
+  font-size: 0.85em;
+}
+
+/* A unit in an uppercase table header: "(ms)" must not become "(MS)". */
+.th-unit {
+  text-transform: none;
+}
+
+.tracks-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 1em;
+}
+
+/* One row per analyzed track (App.tsx): select it to show it on the right,
+   tick it to export it. A left bar gives its state at a glance. */
+/* The export of the whole file, at the bottom of the analyzed tracks. */
+.export-box {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 0.7em;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.export-button {
+  width: 100%;
+}
+
+/* While exporting: the progress, and the way out if it was started too early. */
+.export-running {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.export-running-label {
+  flex: 1 1 auto;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.export-cancel {
+  flex: 0 0 auto;
+  border-color: var(--error);
   color: var(--error);
 }
 
-.spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* As in Bobine Audio: the settings' cards on the left, the results on the
-   right, each region scrolling on its own; a width that follows the
-   window's. */
-.layout {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: clamp(290px, 24vw, 420px) minmax(0, 1fr);
-  gap: 1em;
-  padding: 1em;
-}
-
-.sidebar {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8em;
-  overflow: auto;
-}
-
-.results {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.results-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1em 1.1em;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* Takes the whole region (the right side before any result). */
-.card.fill {
-  flex: 1;
-}
-
-/* Card titles as Bobine Audio's panels: small, uppercase, muted. */
-.card h2 {
-  margin: 0 0 0.3em;
-  font-size: 0.8em;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.hint,
-.muted {
-  color: var(--text-muted);
-  font-size: 12.5px;
+.export-cancelled {
   margin: 0;
-}
-
-.right {
-  text-align: right;
-}
-
-.file-name {
-  font-weight: 600;
-  word-break: break-all;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
+  font-size: 0.85em;
   color: var(--text-muted);
 }
-.field select,
-.field input {
-  color: var(--text);
-}
-.field.inline {
-  flex: 1;
-  min-width: 160px;
+
+.analysis-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 0.7em;
 }
 
-.segmented {
-  display: flex;
-}
-.segmented button {
-  flex: 1;
-  border-radius: 0;
-}
-.segmented button:first-child {
-  border-radius: var(--radius-sm) 0 0 7px;
-}
-.segmented button:last-child {
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  border-left: none;
+.analysis-header h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .error {
   color: var(--error);
+}
+
+.export-summary {
   margin: 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.export-written {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.render-success {
+  margin-top: 0;
+}
+
+/* Bottom right, closing the panel like a dialog's main action. */
+.export-button {
+  flex: 0 0 auto;
+}
+
+.render-success {
+  margin-top: 0.6em;
+  font-size: 0.85em;
+  color: var(--success);
+}
+
+.tracks-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Headers stay in view when the table scrolls (.list-scroll). */
+.field-tracks th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.field-tracks table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85em;
+}
+
+/* No cell breaks mid-word ("truehd") in the narrow column of a small
+   window; a header may wrap at a space ("TO CORRECT"), never inside a word. */
+.field-tracks td {
+  white-space: nowrap;
+}
+
+.field-tracks th {
+  padding: 0.4em 0.3em;
+  text-align: center;
+  font-size: 0.75em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.field-tracks td {
+  padding: 0.5em 0.3em;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.field-tracks tbody tr:hover {
+  background: var(--surface-sunken);
+}
+
+.log-panel {
+  text-align: left;
+  font-size: 0.85em;
+}
+
+.log-panel summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.log {
+  margin-top: 0.5em;
+  padding: 0.8em;
+  max-height: 7em;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+/* A theme forced in Options (see theme.ts); none: Windows' own. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* ---- Bobine Subs only (what Bobine Audio has no equivalent of). ---- */
+
+/* Each view's root is a grid/flex box: its own display rule would beat
+   the `hidden` attribute's (a user-agent style). */
+.app-main[hidden],
+.batch-main[hidden] {
+  display: none;
+}
+
+/* Fichiers multipistes / Paires de fichiers (Bobine Audio's view tabs). */
+.view-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.3em;
+}
+
+.view-tabs button {
+  padding: 0.3em 0.9em;
+  font-size: 0.85em;
+}
+
+.view-tabs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.muted {
+  color: var(--text-muted);
 }
 
 .warning {
-  color: var(--warn);
   margin: 0;
+  color: var(--warn);
+  font-size: 0.9em;
 }
 
 .warn-text {
   color: var(--warn);
 }
 
-.log {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
-  background: var(--surface-sunken);
-  border-radius: 8px;
-  padding: 8px 10px;
-  max-height: 220px;
-  overflow: auto;
-}
-.log summary {
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: 4px;
+/* The tracks table of the single-file view: a file added to correct is
+   listed after the opened file's tracks. */
+.field-tracks tr.added-file td:first-child {
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* As in Bobine Audio: what's not there yet, in muted italics. */
-.placeholder {
-  opacity: 0.6;
-  font-style: italic;
-  text-align: center;
-  font-size: 0.9em;
-  padding: 1.5em 0;
-  max-width: 560px;
-  margin: 0 auto;
-}
-.placeholder p {
-  margin: 0.4em 0 0;
-}
-
-.summary {
+/* Under the tracks: which reference is used, and "+ Ajouter". */
+.tracks-subline {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-top: 0.6em;
+  font-size: 0.85em;
 }
-/* The result's headline, not a card title. */
-.summary h2 {
-  margin: 0;
-  font-size: 17px;
+
+.tracks-add {
+  margin-left: auto;
+}
+
+.tracks-actions {
+  flex-direction: row;
+  justify-content: center;
+}
+
+/* The analysis panel: its header stays, the result scrolls under it. */
+.field-analysis .analysis-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.analysis-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+
+.analysis-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3em 0.8em;
+}
+
+.analysis-found {
   font-weight: 600;
-  letter-spacing: normal;
-  text-transform: none;
-  color: var(--text);
+}
+
+.analysis-counts {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.85em;
 }
 
 .badge {
-  display: inline-block;
-  font-size: 12px;
-  padding: 2px 10px;
+  font-size: 0.8em;
+  padding: 0.1em 0.7em;
   border-radius: 999px;
   background: var(--warn-soft);
   color: var(--warn);
-  margin-bottom: 4px;
-}
-
-table.segments {
-  width: 100%;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-table.segments th {
-  text-align: left;
-  font-weight: 500;
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-}
-table.segments td {
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-}
-table.segments td.num {
-  text-align: right;
-}
-table.segments th:nth-child(n + 3) {
-  text-align: right;
-}
-table.segments tr.weak td {
-  color: var(--warn);
-}
-
-.button-group {
-  display: flex;
-  gap: 4px;
-}
-.button-group button {
-  padding: 4px 10px;
-  font-size: 12.5px;
-}
-
-.output-row {
-  display: flex;
-  gap: 8px;
-}
-.output-row input {
-  flex: 1;
-  font-size: 12.5px;
-}
-
-.options-row {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.checkbox {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding-bottom: 7px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.success {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--success);
 }
 
 .badge.edited {
-  margin-left: 10px;
-  vertical-align: middle;
-  background: light-dark(rgba(57, 108, 216, 0.12), rgba(109, 158, 255, 0.18));
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
-  font-weight: 500;
 }
 
-.summary .right {
+/* The segments' table, as Bobine Audio's track tables. */
+.segments-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.segments-table th {
+  padding: 0.4em 0.3em;
+  text-align: center;
+  font-size: 0.75em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.segments-table td {
+  padding: 0.5em 0.3em;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.segments-table tr.weak td {
+  color: var(--warn);
+}
+
+/* The export panel: what's written, above the export box. */
+.export-options {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  gap: 0.6em;
 }
-.edit-button {
-  margin-bottom: 6px;
+
+.choice-row {
+  display: flex;
+  gap: 0.5em;
+}
+
+.choice-row button {
+  flex: 1 1 0;
+  padding: 0.4em 0.6em;
+}
+
+.export-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  font-size: 0.9em;
+}
+
+.export-fields label {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.export-fields select,
+.export-fields input:not([type="checkbox"]) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The timeline's toolbars, as Bobine Audio's preview toolbar. */
+.toolbar-label {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.batch-config input:not([type="checkbox"]) {
+  width: 9em;
 }

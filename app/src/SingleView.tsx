@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
@@ -6,7 +6,6 @@ import {
   cancelJob,
   defaultOutput,
   JobCancelled,
-  pathExists,
   probe,
   type ProbeResponse,
   type RenderResult,
@@ -14,27 +13,36 @@ import {
   runJob,
   startAnalyze,
   startRender,
+  type TrackInfo,
   type TrackRef,
 } from "./api";
 import AnalysisView, { analysisDuration } from "./AnalysisView";
 import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
-import { clock, fileName, isSubtitleFile, trackLabel } from "./format";
-import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
+import { clock, fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
+import { LogPanel } from "./LogPanel";
+import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
 
+/** Where the track to correct comes from: the opened file, or another one. */
+type Source = "same" | "file";
+
+/** The single-file mode, laid out as Bobine Audio's: on the left, the file
+ * opened, its tracks (reference and track to correct) and the export; on
+ * the right, the analysis. */
 export default function SingleView({ active }: { active: boolean }) {
   const [reference, setReference] = useState<ProbeResponse | null>(null);
   const [referenceIndex, setReferenceIndex] = useState<number | null>(null); // null: automatic
-  const [targetMode, setTargetMode] = useState<"same" | "file">("file");
+  const [targetMode, setTargetMode] = useState<Source>("file");
   const [targetFile, setTargetFile] = useState<ProbeResponse | null>(null);
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<Run<Analysis>>(IDLE);
-
-  const usableReferences = reference?.tracks.filter((t) => t.format !== null) ?? [];
+  // Hand-edited segments, if any (a new analysis starts from scratch).
+  const [edited, setEdited] = useState<Segment[] | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const targetSource = targetMode === "same" ? reference : targetFile;
   const target: TrackRef | null = targetSource
@@ -51,12 +59,10 @@ export default function SingleView({ active }: { active: boolean }) {
   const canAnalyze = referenceRef !== null && target !== null && !sameTrack && analysis.status !== "running";
 
   // Any change of input makes a previous result stale.
-  useEffect(() => setAnalysis(IDLE), [reference, referenceIndex, targetMode, targetFile, targetIndex]);
-
-  const open_ = async (role: "reference" | "target") => {
-    const path = await pickFile(role === "reference" ? "Fichier de référence" : "Sous-titres à corriger", role === "target");
-    if (path) await load(role, path);
-  };
+  useEffect(() => {
+    setAnalysis(IDLE);
+    setEdited(null);
+  }, [reference, referenceIndex, targetMode, targetFile, targetIndex]);
 
   const load = async (role: "reference" | "target", path: string) => {
     setOpenError(null);
@@ -67,6 +73,7 @@ export default function SingleView({ active }: { active: boolean }) {
       if (role === "reference") {
         setReference(probed);
         setReferenceIndex(null);
+        setTargetFile(null);
         // A video with a second text track: correcting one of its own
         // tracks is the likely intent.
         const text = textTracks(probed);
@@ -79,6 +86,7 @@ export default function SingleView({ active }: { active: boolean }) {
         }
       } else {
         setTargetFile(probed);
+        setTargetMode("file");
         const text = textTracks(probed);
         setTargetIndex(probed.kind === "container" ? (text[0]?.index ?? null) : null);
       }
@@ -89,15 +97,25 @@ export default function SingleView({ active }: { active: boolean }) {
     }
   };
 
+  const openReference = async () => {
+    const path = await pickFile("Ouvrir un fichier");
+    if (path) await load("reference", path);
+  };
+  const addTarget = async () => {
+    const path = await pickFile("Sous-titres à corriger", true);
+    if (path) await load("target", path);
+  };
+
   // A video dropped is the reference, a subtitle file the target.
   const drag = useFileDrop(active, analysis.status === "running" ? "Attends la fin de l'analyse." : null, async (files) => {
     const video = files.find((f) => !isSubtitleFile(f));
     const subtitle = files.find(isSubtitleFile);
     if (video) await load("reference", video);
-    if (subtitle) {
-      setTargetMode("file");
-      await load("target", subtitle);
+    else if (subtitle && !reference) {
+      await load("reference", subtitle);
+      return;
     }
+    if (subtitle) await load("target", subtitle);
   });
 
   // Dev only: lets automated UI checks open files without the native dialog.
@@ -122,185 +140,122 @@ export default function SingleView({ active }: { active: boolean }) {
     }
   };
 
-  const duration = analysis.result ? analysisDuration(analysis.result, reference?.duration ?? null) : 0;
+  const detected = analysis.status === "done" ? (analysis.result ?? null) : null;
+  const shown = detected && edited ? withSegments(detected, edited) : detected;
+  const duration = shown ? analysisDuration(shown, reference?.duration ?? null) : 0;
+  const running = analysis.status === "running";
 
   return (
-    <div className="view" hidden={!active}>
-      <div className="layout">
-        <aside className="sidebar">
-          <section className="card">
-            <h2>
-              Référence <InfoTip>La vidéo dont les sous-titres sont déjà bien calés (ou un SRT/ASS calé).</InfoTip>
-            </h2>
-            <button className="primary wide" onClick={() => open_("reference")} disabled={opening !== null}>
-              {opening === "reference" ? "Lecture…" : reference ? "Changer de fichier…" : "Ouvrir un fichier…"}
-            </button>
-            {reference && (
-              <>
-                <div className="file-name" title={reference.path}>
-                  {fileName(reference.path)}
-                </div>
-                {reference.kind === "container" && (
-                  <label className="field">
-                    <span>Piste de référence</span>
-                    <select
-                      value={referenceIndex ?? "auto"}
-                      onChange={(e) => setReferenceIndex(e.target.value === "auto" ? null : Number(e.target.value))}
-                    >
-                      <option value="auto">Automatique (la plus complète)</option>
-                      {usableReferences.map((t) => (
-                        <option key={t.index} value={t.index}>
-                          {trackLabel(t)}
-                          {t.format === "pgs" || t.format === "vobsub" ? " (image)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </>
-            )}
-          </section>
+    <main className="app-main" hidden={!active}>
+      <div className="left-column">
+        <button className="primary-button file-open-button" onClick={openReference} disabled={opening !== null || running}>
+          Ouvrir un fichier
+        </button>
 
-          <section className="card">
-            <h2>
-              À corriger <InfoTip>Une piste de la référence, un fichier SRT/ASS, ou une vidéo contenant la piste à corriger.</InfoTip>
-            </h2>
-            {reference?.kind === "container" && textTracks(reference).length > 0 && (
-              <div className="segmented">
-                <button className={targetMode === "same" ? "active" : ""} onClick={() => setTargetMode("same")}>
-                  Piste de ce fichier
-                </button>
-                <button className={targetMode === "file" ? "active" : ""} onClick={() => setTargetMode("file")}>
-                  Autre fichier
+        <section className="panel field-tracks">
+          <h2>
+            Pistes{" "}
+            <InfoTip>
+              La référence : une piste de sous-titres déjà bien calée (choisie automatiquement : la plus complète). À corriger : une piste du même
+              fichier, ou d'un fichier ajouté (SRT/ASS, ou une vidéo qui la contient).
+            </InfoTip>
+          </h2>
+          {reference && (
+            <p className="file-path" title={reference.path}>
+              {fileName(reference.path)}
+            </p>
+          )}
+          {!reference && !openError && (
+            <p className="placeholder">{opening === "reference" ? "Lecture des pistes..." : "Ouvre un fichier pour voir ses pistes."}</p>
+          )}
+          {openError && <p className="error">{openError}</p>}
+          {reference && (
+            <>
+              <div className="tracks-table-wrap list-scroll">
+                <SubtitleTrackTable
+                  reference={reference}
+                  referenceIndex={referenceIndex}
+                  targetFile={targetFile}
+                  targetMode={targetMode}
+                  targetIndex={targetIndex}
+                  disabled={running}
+                  onReference={setReferenceIndex}
+                  onTarget={(mode, index) => {
+                    setTargetMode(mode);
+                    setTargetIndex(index);
+                  }}
+                />
+              </div>
+              <div className="tracks-subline">
+                <span className="muted">
+                  Référence : {reference.kind === "subtitles" ? "ce fichier" : referenceIndex === null ? "automatique" : `@${referenceIndex}`}
+                </span>
+                {referenceIndex !== null && (
+                  <button className="small-button" onClick={() => setReferenceIndex(null)} disabled={running}>
+                    Automatique
+                  </button>
+                )}
+                <button
+                  className="small-button tracks-add"
+                  onClick={addTarget}
+                  disabled={opening !== null || running}
+                  title="Ajouter les sous-titres à corriger : un SRT/ASS, ou une vidéo qui les contient"
+                >
+                  {opening === "target" ? "Lecture..." : "+ Ajouter"}
                 </button>
               </div>
-            )}
-            {targetMode === "same" && reference ? (
-              <label className="field">
-                <span>Piste à corriger</span>
-                <select value={targetIndex ?? ""} onChange={(e) => setTargetIndex(Number(e.target.value))}>
-                  {textTracks(reference).map((t) => (
-                    <option key={t.index} value={t.index}>
-                      {trackLabel(t)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <>
-                <button className="wide" onClick={() => open_("target")} disabled={opening !== null}>
-                  {opening === "target" ? "Lecture…" : targetFile ? "Changer de fichier…" : "Choisir les sous-titres…"}
+              {sameTrack && <p className="error">La référence et la piste à corriger sont la même piste.</p>}
+              <div className="tracks-actions">
+                <button
+                  className="primary-button"
+                  onClick={analyze}
+                  disabled={!canAnalyze}
+                  title="Détecte le décalage de la piste à corriger par rapport à la référence (dérive et sauts nets inclus), avec la frise correspondante."
+                >
+                  {running ? "Analyse en cours..." : "Analyser"}
                 </button>
-                {targetFile && (
-                  <>
-                    <div className="file-name" title={targetFile.path}>
-                      {fileName(targetFile.path)}
-                      {targetFile.cue_count !== null && <span className="muted"> · {targetFile.cue_count} répliques</span>}
-                    </div>
-                    {targetFile.kind === "container" && (
-                      <label className="field">
-                        <span>Piste à corriger</span>
-                        <select value={targetIndex ?? ""} onChange={(e) => setTargetIndex(Number(e.target.value))}>
-                          {textTracks(targetFile).map((t) => (
-                            <option key={t.index} value={t.index}>
-                              {trackLabel(t)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                  </>
+                {running && analysis.jobId && (
+                  <button className="small-button" onClick={() => cancelJob(analysis.jobId!)}>
+                    Annuler
+                  </button>
                 )}
-              </>
-            )}
-            {sameTrack && <p className="error">La référence et la piste à corriger sont la même piste.</p>}
-          </section>
+              </div>
+              <LogPanel lines={analysis.log} />
+            </>
+          )}
+        </section>
 
-          {openError && <p className="error">{openError}</p>}
+        {shown && reference && (
+          <ExportPanel
+            key={JSON.stringify(shown.segments)}
+            analysis={shown}
+            referenceIsVideo={reference.kind === "container"}
+            sameFile={targetMode === "same"}
+          />
+        )}
+      </div>
 
-          <button className="primary wide big" onClick={analyze} disabled={!canAnalyze}>
-            {analysis.status === "running" ? "Analyse en cours…" : "Analyser"}
-          </button>
-          {analysis.status === "running" && analysis.jobId && (
-            <button className="wide" onClick={() => cancelJob(analysis.jobId!)}>
-              Annuler
+      <section className="panel field-analysis">
+        <div className="analysis-header">
+          <h2>{shown ? heading(shown, reference, targetSource) : "Analyse"}</h2>
+          {shown && (
+            <button className="small-button" onClick={() => setEditing(true)}>
+              Modifier les segments
             </button>
           )}
-          {analysis.log.length > 0 && (
-            <details className="log" open={analysis.status === "running"}>
-              <summary>Journal</summary>
-              {analysis.log.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </details>
-          )}
-        </aside>
+        </div>
+        <div className="analysis-scroll">
+          {analysis.status === "idle" && <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>}
+          {running && <p className="placeholder">Analyse en cours...</p>}
+          {analysis.status === "cancelled" && <p className="placeholder">Annulé</p>}
+          {analysis.status === "error" && <p className="error">{analysis.error}</p>}
+          {shown && <AnalysisView analysis={shown} duration={duration} edited={edited !== null} />}
+        </div>
+      </section>
 
-        <main className="results">
-          {(analysis.status === "idle" || analysis.status === "running" || analysis.status === "cancelled") && (
-            <section className="card fill">
-              <h2>Analyse</h2>
-              {analysis.status === "idle" && <EmptyState hasReference={reference !== null} />}
-              {analysis.status === "running" && <div className="placeholder">Analyse en cours…</div>}
-              {analysis.status === "cancelled" && <div className="placeholder">Analyse annulée.</div>}
-            </section>
-          )}
-          {analysis.status === "error" && (
-            <div className="card">
-              <h2>L'analyse a échoué</h2>
-              <p className="error">{analysis.error}</p>
-            </div>
-          )}
-          {analysis.status === "done" && analysis.result && reference && (
-            <Results key={analysis.jobId} analysis={analysis.result} duration={duration} referenceIsVideo={reference.kind === "container"} sameFile={targetMode === "same"} />
-          )}
-        </main>
-      </div>
-      <DropOverlay
-        drag={drag}
-        blocked={analysis.status === "running" ? "Attends la fin de l'analyse." : null}
-        label="Ouvrir"
-        hint="Une vidéo : la référence · un SRT/ASS : les sous-titres à corriger"
-      />
-    </div>
-  );
-}
-
-function EmptyState({ hasReference }: { hasReference: boolean }) {
-  return (
-    <div className="placeholder">
-      <div className="placeholder-title">{hasReference ? "Choisis les sous-titres à corriger, puis lance l'analyse." : "Ouvre la vidéo de référence pour commencer."}</div>
-      <p>
-        Bobine Subs compare le rythme des répliques des deux pistes (quand elles s'affichent, quand elles s'arrêtent) : ça marche d'une langue à
-        l'autre, et retrouve décalage, dérive et sauts.
-      </p>
-    </div>
-  );
-}
-
-function Results({
-  analysis: detected,
-  duration,
-  referenceIsVideo,
-  sameFile,
-}: {
-  analysis: Analysis;
-  duration: number;
-  referenceIsVideo: boolean;
-  sameFile: boolean;
-}) {
-  // Hand-edited segments, if any (a new analysis starts from scratch:
-  // this component is remounted with it).
-  const [edited, setEdited] = useState<Segment[] | null>(null);
-  const [editing, setEditing] = useState(false);
-  const analysis = edited ? withSegments(detected, edited) : detected;
-  return (
-    <div className="results-content">
-      <AnalysisView analysis={analysis} duration={duration} edited={edited !== null} onEdit={() => setEditing(true)} />
-      <ExportCard key={JSON.stringify(analysis.segments)} analysis={analysis} referenceIsVideo={referenceIsVideo} sameFile={sameFile} />
-      {editing && (
+      {editing && shown && (
         <SegmentEditor
-          analysis={analysis}
+          analysis={shown}
           duration={duration}
           onClose={() => setEditing(false)}
           onSave={(segments) => {
@@ -309,48 +264,137 @@ function Results({
           }}
         />
       )}
-    </div>
+      <DropOverlay
+        drag={drag}
+        blocked={running ? "Attends la fin de l'analyse." : null}
+        label="Déposer pour ouvrir le fichier"
+        hint="Une vidéo : la référence · un SRT/ASS : les sous-titres à corriger"
+      />
+    </main>
   );
 }
 
-function ExportCard({ analysis, referenceIsVideo, sameFile }: { analysis: Analysis; referenceIsVideo: boolean; sameFile: boolean }) {
+/** "Piste @2 (fre) · référence @0 (eng)", as Bobine Audio's panel title. */
+function heading(analysis: Analysis, reference: ProbeResponse | null, targetSource: ProbeResponse | null): string {
+  const label = (probe: ProbeResponse | null, index: number | null) => {
+    if (!probe || probe.kind === "subtitles" || index === null) return fileName(probe?.path ?? "");
+    const track = probe.tracks.find((t) => t.index === index);
+    return `@${index} (${track?.language ?? "?"})`;
+  };
+  // The automatic reference, as the engine reports it: "@0 (ass, eng, ...)".
+  const chosen = analysis.reference.index ?? Number(/^@(\d+)/.exec(analysis.reference_choice ?? "")?.[1] ?? NaN);
+  return `Piste ${label(targetSource, analysis.target.index)} · référence ${label(reference, Number.isNaN(chosen) ? null : chosen)}`;
+}
+
+/** The opened file's subtitle tracks, then those of the file added to
+ * correct: Bobine Audio's track table, with the reference and the track
+ * to correct picked by radio (one of each). */
+function SubtitleTrackTable({
+  reference,
+  referenceIndex,
+  targetFile,
+  targetMode,
+  targetIndex,
+  disabled,
+  onReference,
+  onTarget,
+}: {
+  reference: ProbeResponse;
+  referenceIndex: number | null;
+  targetFile: ProbeResponse | null;
+  targetMode: Source;
+  targetIndex: number | null;
+  disabled: boolean;
+  onReference: (index: number) => void;
+  onTarget: (mode: Source, index: number | null) => void;
+}) {
+  const textOnly = (t: TrackInfo) => t.format === "srt" || t.format === "ass";
+  const rows: { key: string; source: Source; track: TrackInfo | null; probe: ProbeResponse }[] = [
+    ...(reference.kind === "subtitles"
+      ? [{ key: "ref", source: "same" as const, track: null, probe: reference }]
+      : reference.tracks.map((t) => ({ key: `ref${t.index}`, source: "same" as const, track: t, probe: reference }))),
+    ...(targetFile
+      ? targetFile.kind === "subtitles"
+        ? [{ key: "file", source: "file" as const, track: null, probe: targetFile }]
+        : targetFile.tracks.filter(textOnly).map((t) => ({ key: `file${t.index}`, source: "file" as const, track: t, probe: targetFile }))
+      : []),
+  ];
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Piste</th>
+          <th>Langue</th>
+          <th>Format</th>
+          <th className="track-pick">Réf.</th>
+          <th className="track-pick">À corriger</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(({ key, source, track, probe }) => {
+          const isRefFile = source === "same";
+          const standalone = track === null;
+          const isReference = isRefFile && (standalone || referenceIndex === track.index);
+          const isTarget = targetMode === source && (standalone ? source === "file" : targetIndex === track.index);
+          return (
+            <tr key={key} className={source === "file" ? "added-file" : ""}>
+              <td title={probe.path}>{standalone ? fileName(probe.path) : `${source === "file" ? `${fileName(probe.path)} ` : ""}@${track.index}`}</td>
+              <td>{track ? (track.language ?? "?") : "?"}</td>
+              <td>{track ? track.codec : (probe.path.split(".").pop() ?? "?")}</td>
+              <td className="track-pick">
+                <input
+                  type="radio"
+                  name="reference"
+                  checked={isReference}
+                  disabled={disabled || !isRefFile || standalone || track.format === null}
+                  onChange={() => track && onReference(track.index)}
+                />
+              </td>
+              <td className="track-pick">
+                <input
+                  type="radio"
+                  name="target"
+                  checked={isTarget}
+                  disabled={disabled || (isRefFile && (standalone || !textOnly(track!)))}
+                  onChange={() => onTarget(source, track?.index ?? null)}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/** The export, under the tracks as Bobine Audio's: what it writes, then the
+ * button that asks where (the system's save dialog) and writes it. */
+function ExportPanel({ analysis, referenceIsVideo, sameFile }: { analysis: Analysis; referenceIsVideo: boolean; sameFile: boolean }) {
   const [subsOnly, setSubsOnly] = useState(!referenceIsVideo);
-  const [output, setOutput] = useState("");
-  const [overwrite, setOverwrite] = useState(false);
   const [language, setLanguage] = useState("");
   const [title, setTitle] = useState("");
   const [makeDefault, setMakeDefault] = useState(false);
   const [run, setRun] = useState<Run<RenderResult>>(IDLE);
-  const edited = useRef(false);
+  const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
-    if (edited.current) return;
-    defaultOutput(analysis.reference.path, analysis.target, subsOnly).then(setOutput, () => {});
-  }, [analysis, subsOnly]);
-
-  useEffect(() => {
-    if (!output) return;
-    pathExists(output).then(setOverwrite, () => setOverwrite(false));
-  }, [output, run.status]);
-
-  const choose = async () => {
-    const extension = subsOnly ? (output.split(".").pop() ?? "srt") : "mkv";
-    const picked = await save({
-      defaultPath: output || undefined,
+  const exportFile = async () => {
+    const suggested = await defaultOutput(analysis.reference.path, analysis.target, subsOnly).catch(() => "");
+    const extension = subsOnly ? (suggested.split(".").pop() ?? "srt") : "mkv";
+    const output = await save({
+      defaultPath: suggested || undefined,
       filters: [subsOnly ? { name: "Sous-titres", extensions: [extension] } : { name: "Vidéo MKV", extensions: ["mkv"] }],
     });
-    if (picked) {
-      edited.current = true;
-      setOutput(picked);
+    if (!output) return;
+    if (output.toLowerCase() === analysis.reference.path.toLowerCase()) {
+      setRun({ status: "error", log: [], error: "Choisis un autre nom que le fichier d'origine : il ne peut pas être remplacé pendant sa lecture." });
+      return;
     }
-  };
-
-  const exportNow = async () => {
+    setCancelling(false);
     setRun({ status: "running", log: [] });
     try {
       const result = await runJob<RenderResult>(
         startRender(analysis.reference, analysis.target, analysis.segments, {
-          output: output || null,
+          output,
           subs_only: subsOnly,
           language: language || null,
           title: title || null,
@@ -367,84 +411,92 @@ function ExportCard({ analysis, referenceIsVideo, sameFile }: { analysis: Analys
   };
 
   const running = run.status === "running";
+  const summary = subsOnly
+    ? "Contiendra les sous-titres corrigés, seuls (SRT/ASS)."
+    : sameFile
+      ? "Contiendra la vidéo, où la piste corrigée remplace l'originale. Rien n'est réencodé, le fichier d'origine n'est pas modifié."
+      : "Contiendra la vidéo, avec les sous-titres corrigés en piste supplémentaire. Rien n'est réencodé, le fichier d'origine n'est pas modifié.";
+
   return (
-    <section className="card">
-      <h2>
-        Exporter{" "}
-        <InfoTip>
-          {subsOnly
-            ? "Écrit le fichier de sous-titres corrigé."
-            : sameFile
-              ? "Copie la vidéo dans un nouveau MKV où la piste corrigée remplace l'originale. Rien n'est réencodé, le fichier d'origine n'est pas modifié."
-              : "Copie la vidéo dans un nouveau MKV avec les sous-titres corrigés en piste supplémentaire. Rien n'est réencodé, le fichier d'origine n'est pas modifié."}
-        </InfoTip>
-      </h2>
-      <div className="segmented">
-        <button className={!subsOnly ? "active" : ""} onClick={() => { edited.current = false; setSubsOnly(false); }} disabled={!referenceIsVideo || running}>
-          Nouveau MKV
-        </button>
-        <button className={subsOnly ? "active" : ""} onClick={() => { edited.current = false; setSubsOnly(true); }} disabled={running}>
-          Sous-titres seuls
-        </button>
-      </div>
-      <div className="output-row">
-        <input value={output} onChange={(e) => { edited.current = true; setOutput(e.target.value); }} spellCheck={false} disabled={running} />
-        <button onClick={choose} disabled={running}>
-          Parcourir…
-        </button>
-      </div>
-      {overwrite && run.status !== "done" && <p className="warning">⚠ Ce fichier existe déjà : il sera remplacé.</p>}
-      {!subsOnly && !sameFile && (
-        <div className="options-row">
-          <label className="field inline">
-            <span>Langue</span>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={running}>
-              <option value="">Automatique (nom du fichier)</option>
-              {LANGUAGES.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name} ({code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field inline">
-            <span>Titre</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Français" disabled={running} />
-          </label>
-          <label className="checkbox">
-            <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} disabled={running} />
-            Piste par défaut
-          </label>
+    <section className="panel field-results">
+      <h2>Export</h2>
+      <div className="export-options">
+        <div className="choice-row">
+          <button className={!subsOnly ? "primary-button" : ""} onClick={() => setSubsOnly(false)} disabled={!referenceIsVideo || running}>
+            Nouveau MKV
+          </button>
+          <button className={subsOnly ? "primary-button" : ""} onClick={() => setSubsOnly(true)} disabled={running}>
+            Sous-titres seuls
+          </button>
         </div>
-      )}
-      <div className="actions">
-        <button className="primary big" onClick={exportNow} disabled={running || !output}>
-          {running ? "Export en cours…" : "Exporter"}
-        </button>
-        {running && run.jobId && <button onClick={() => cancelJob(run.jobId!)}>Annuler</button>}
-      </div>
-      {run.status === "done" && run.result && (
-        <div className="success">
-          <div>
-            ✓ Écrit : <strong>{fileName(run.result.path)}</strong>
-            {run.result.kind !== "subtitles" && ` (piste ${run.result.kind === "replaced" ? "remplacée" : "ajoutée"})`}
+        {!subsOnly && !sameFile && (
+          <div className="export-fields">
+            <label>
+              Langue :
+              <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={running}>
+                <option value="">Celle du fichier</option>
+                {LANGUAGES.map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Titre :
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Français" disabled={running} />
+            </label>
+            <label className="export-check">
+              <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} disabled={running} />
+              Piste par défaut
+            </label>
           </div>
-          <button onClick={() => revealItemInDir(run.result!.path)}>Afficher dans le dossier</button>
-        </div>
-      )}
-      {run.status === "done" && run.result && run.result.dropped.length > 0 && (
-        <details className="log">
-          <summary>{run.result.dropped.length} réplique(s) retirée(s)</summary>
-          {run.result.dropped.map((d, i) => (
-            <div key={i}>
-              {clock(d.start)} · {d.text}
-            </div>
-          ))}
-        </details>
-      )}
-      {run.status === "cancelled" && <p className="muted">Export annulé, aucun fichier écrit.</p>}
-      {run.status === "error" && <p className="error">{run.error}</p>}
+        )}
+      </div>
+
+      <div className="export-box">
+        <p className="export-summary">
+          Contenu de l'export <InfoTip>{summary}</InfoTip>
+        </p>
+        <LogPanel lines={run.log} />
+        {run.status === "error" && <p className="error">{run.error}</p>}
+        {run.status === "done" && run.result && (
+          <div className="export-written">
+            <span className="render-success" title={run.result.path}>
+              Fichier écrit : {fileName(run.result.path)}
+            </span>
+            <button className="small-button" onClick={() => revealItemInDir(run.result!.path)}>
+              Ouvrir le dossier
+            </button>
+          </div>
+        )}
+        {run.status === "done" && run.result && run.result.dropped.length > 0 && (
+          <LogPanel
+            title={`${run.result.dropped.length} réplique${run.result.dropped.length > 1 ? "s" : ""} retirée${run.result.dropped.length > 1 ? "s" : ""}`}
+            lines={run.result.dropped.map((d) => `${clock(d.start)} · ${d.text}`)}
+          />
+        )}
+        {run.status === "cancelled" && <p className="export-cancelled">Export annulé : aucun fichier n'a été écrit.</p>}
+        {running ? (
+          <div className="export-running">
+            <span className="export-running-label">Export en cours...</span>
+            <button
+              className="export-cancel"
+              onClick={() => {
+                setCancelling(true);
+                cancelJob(run.jobId!);
+              }}
+              disabled={!run.jobId || cancelling}
+            >
+              {cancelling ? "Annulation..." : "Annuler l'export"}
+            </button>
+          </div>
+        ) : (
+          <button className="primary-button export-button" onClick={exportFile}>
+            Exporter le fichier synchronisé
+          </button>
+        )}
+      </div>
     </section>
   );
 }
-

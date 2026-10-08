@@ -13,14 +13,14 @@ type Mode = "single" | "batch";
 export default function App() {
   const [mode, setMode] = useState<Mode>("single");
   return (
-    <div className="app">
+    <div className="container">
       <div className="top-bar">
         <div className="mode-switch">
-          <button className={mode === "single" ? "primary" : ""} onClick={() => setMode("single")}>
-            Un fichier
+          <button className={mode === "single" ? "primary-button" : ""} onClick={() => setMode("single")}>
+            Fichier unique
           </button>
-          <button className={mode === "batch" ? "primary" : ""} onClick={() => setMode("batch")}>
-            Série
+          <button className={mode === "batch" ? "primary-button" : ""} onClick={() => setMode("batch")}>
+            Batch
           </button>
         </div>
         <div className="top-actions">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Dialog from "./Dialog";
+import { Dialog, DialogHeader } from "./Dialog";
 import { GearIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { saveCheckUpdates, useCheckUpdates } from "./settings";
@@ -36,7 +36,8 @@ function OptionsDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Dialog title="Options" onClose={onClose} className="options-panel">
+    <Dialog onClose={onClose} closeOnBackdrop className="options-panel" labelledBy="options-title">
+      <DialogHeader id="options-title" title="Options" onClose={onClose} />
       {/* One setting per row: its name, then its control and explanation. */}
       <div className="options-grid">
         <label htmlFor="options-theme">Thème</label>

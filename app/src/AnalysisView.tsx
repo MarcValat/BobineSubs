@@ -4,19 +4,17 @@ import { segmentFor } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import Timeline from "./Timeline";
 
-/** Everything an analysis found: summary, timeline, segments. Shared by the
- * single-file view and a batch row's details. */
+/** Everything an analysis found, inside the Analyse panel (as Bobine
+ * Audio's): what was found, the timeline, then the segments' table. */
 export default function AnalysisView({
   analysis,
   duration,
   edited = false,
-  onEdit,
 }: {
   analysis: Analysis;
   duration: number;
   /** The segments were changed by hand since the analysis. */
   edited?: boolean;
-  onEdit?: () => void;
 }) {
   const segments = analysis.segments;
   // By where each line falls now (hand edits move them between segments).
@@ -25,41 +23,28 @@ export default function AnalysisView({
   const dropped = analysis.target_cues.filter((c) => c.corrected === null || c.corrected[1] <= 0).length;
 
   return (
-    <>
-      <section className="card">
-        <div className="summary">
-          <div>
-            <h2>
-              {summarize(analysis)}
-              {edited && <span className="badge edited">Modifié à la main</span>}
-            </h2>
-            {analysis.ratio_name && <div className="badge">Dérive : {analysis.ratio_name}</div>}
-            {analysis.reference_choice && <div className="muted">Référence : piste {analysis.reference_choice}</div>}
-          </div>
-          <div className="muted right">
-            {onEdit && (
-              <button className="edit-button" onClick={onEdit}>
-                ✎ Modifier les segments
-              </button>
-            )}
-            {analysis.reference_cues.length} répliques de référence · {analysis.target_cues.length} à corriger
-            {orphans > 0 && <div>{orphans} sans équivalent (ou non dialoguées)</div>}
-            {dropped > 0 && <div className="warn-text">{dropped} seront retirées</div>}
-          </div>
-        </div>
-        {analysis.warnings.map((w) => (
-          <p key={w} className="warning">
-            ⚠ {w}
-          </p>
-        ))}
-        <Timeline analysis={analysis} duration={duration} />
-      </section>
-
-      <section className="card">
-        <h2>Segments</h2>
-        <table className="segments">
+    <div className="analysis-content">
+      <div className="analysis-summary">
+        <span className="analysis-found">{summarize(analysis)}</span>
+        {analysis.ratio_name && <span className="badge">Dérive : {analysis.ratio_name}</span>}
+        {edited && <span className="badge edited">Modifié à la main</span>}
+        <span className="analysis-counts">
+          {analysis.reference_cues.length} répliques de référence · {analysis.target_cues.length} à corriger
+          {orphans > 0 && ` · ${orphans} sans équivalent (ou non dialoguées)`}
+          {dropped > 0 && <span className="warn-text"> · {dropped} seront retirées</span>}
+        </span>
+      </div>
+      {analysis.warnings.map((w) => (
+        <p key={w} className="warning">
+          ⚠ {w}
+        </p>
+      ))}
+      <Timeline analysis={analysis} duration={duration} />
+      <div className="tracks-table-wrap">
+        <table className="data-table segments-table">
           <thead>
             <tr>
+              <th>#</th>
               <th>Début</th>
               <th>Fin</th>
               <th>Décalage</th>
@@ -70,31 +55,32 @@ export default function AnalysisView({
           <tbody>
             {segments.map((s, i) => (
               <tr key={i} className={s.confidence < LOW_CONFIDENCE ? "weak" : ""}>
+                <td>{i + 1}</td>
                 <td>{clock(s.start_s)}</td>
                 <td>{clock(Math.min(s.end_s, duration))}</td>
-                <td className="num">
+                <td>
                   {offset(s.offset_start)}
                   {Math.abs(s.offset_end - s.offset_start) > 0.05 && ` → ${offset(s.offset_end)}`}
                 </td>
-                <td className="num">{counts[i]}</td>
-                <td className="num">
+                <td>{counts[i]}</td>
+                <td>
                   {Math.round(s.confidence * 100)} %{s.confidence < LOW_CONFIDENCE && " ⚠"}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </section>
-    </>
+      </div>
+    </div>
   );
 }
 
-/** "Décalage constant de +1.060 s" / "5 sauts, 6 segments" */
+/** "Décalage constant de +1.060 s" / "5 sauts · 6 segments" (Bobine Audio's
+ * wording: segments, then jumps). */
 export function summarize(analysis: Analysis): string {
   const segments = analysis.segments;
-  return segments.length === 1
-    ? `Décalage constant de ${offset(segments[0].offset_start)}`
-    : `${segments.length - 1} saut${segments.length > 2 ? "s" : ""}, ${segments.length} segments`;
+  const n = segments.length;
+  return n === 1 ? `Décalage constant de ${offset(segments[0].offset_start)}` : `${n} segments · ${n - 1} saut${n > 2 ? "s" : ""}`;
 }
 
 /** The end of everything on screen: the timeline's length. */

@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
+import { errorMessage } from "./shared";
 import { DownloadIcon } from "./icons";
 import { useCheckUpdates } from "./settings";
-import { errorMessage } from "./shared";
-import "./UpdateButton.css";
 
 // "error": the download failed, the app still works; "failed": the install
 // did, after the engine was stopped.
 type Phase = "idle" | "available" | "downloading" | "ready" | "error" | "failed";
 
+/** What this component needs from an update (the plugin's Update, or the dev stand-in). */
 interface PendingUpdate {
   version: string;
   download(onEvent: (event: DownloadEvent) => void): Promise<void>;
@@ -21,18 +21,23 @@ type DownloadEvent =
   | { event: "Progress"; data: { chunkLength: number } }
   | { event: "Finished" };
 
-/** Dev only: `?update=1` shows a pretend update. */
+/** Dev only (see devParam): `?update=1` shows a pretend update. */
 function devUpdate(): PendingUpdate | null {
   if (!import.meta.env.DEV || new URLSearchParams(location.search).get("update") !== "1") return null;
-  return { version: "9.9.9", download: () => Promise.reject(new Error("mise à jour fictive (dev)")), install: () => Promise.resolve() };
+  return {
+    version: "9.9.9",
+    download: () => Promise.reject(new Error("mise à jour fictive (dev)")),
+    install: () => Promise.resolve(),
+  };
 }
 
 /**
- * From SyncAudio: asks GitHub Releases once at startup (tauri.conf.json's
- * plugins.updater.endpoints) and, when a newer signed build exists, shows
- * an icon next to Options whose menu installs it in place. Off in Options:
- * no request to GitHub at all. Silent on failure (no network...):
- * an optional background check must never get in the way.
+ * Checks GitHub Releases (see src-tauri/tauri.conf.json's
+ * plugins.updater.endpoints) once on mount and, if a newer signed build
+ * exists, shows an icon next to Options; its menu offers to install it in
+ * place. Silently does nothing on failure -- no network, GitHub briefly
+ * unreachable -- since a background update check must never interrupt or
+ * clutter the app over something this optional.
  */
 export function UpdateButton() {
   const [update, setUpdate] = useState<PendingUpdate | null>(devUpdate);
@@ -41,10 +46,11 @@ export function UpdateButton() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
-  const checkUpdates = useCheckUpdates();
 
+  // Off in Options: no request to GitHub at all.
+  const checkUpdates = useCheckUpdates();
   useEffect(() => {
-    if (devUpdate() || !isTauri() || !checkUpdates) return;
+    if (devUpdate() || !checkUpdates) return;
     let cancelled = false;
     check()
       .then((result) => {
@@ -54,17 +60,22 @@ export function UpdateButton() {
         }
       })
       .catch(() => {
-        // Deliberately silent, see above.
+        // See docstring above -- deliberately silent.
       });
     return () => {
       cancelled = true;
     };
   }, [checkUpdates]);
 
+  // The menu closes on a click elsewhere or Escape.
   useEffect(() => {
     if (!open) return;
-    const onPointer = (e: PointerEvent) => !boxRef.current?.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    function onPointer(e: PointerEvent) {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     window.addEventListener("pointerdown", onPointer);
     window.addEventListener("keydown", onKey);
     return () => {
@@ -78,11 +89,14 @@ export function UpdateButton() {
     setPhase("downloading");
     setError(null);
     // Downloaded first, with the engine still running: a failed download
-    // leaves the app fully usable, and it can be retried.
+    // (network...) leaves the app fully usable, and it can be retried.
     try {
       await update.download((event) => {
-        if (event.event === "Started") setProgress({ downloaded: 0, total: event.data.contentLength ?? null });
-        else if (event.event === "Progress") setProgress((p) => ({ downloaded: p.downloaded + event.data.chunkLength, total: p.total }));
+        if (event.event === "Started") {
+          setProgress({ downloaded: 0, total: event.data.contentLength ?? null });
+        } else if (event.event === "Progress") {
+          setProgress((p) => ({ downloaded: p.downloaded + event.data.chunkLength, total: p.total }));
+        }
       });
     } catch (err) {
       setPhase("error");
@@ -91,8 +105,13 @@ export function UpdateButton() {
     }
     setPhase("ready");
     try {
-      // The installer can't replace the engine's exe while it runs: stopped
-      // only now, right before installing (see lib.rs's stop_sidecar).
+      // Real bug: the installer failed to overwrite the sidecar's own exe
+      // ("Error opening file for writing") because it was still running --
+      // Tauri's updater closes/replaces the main app for us, but has no
+      // idea this separately-managed child process exists. Stop it only
+      // now, right before installing, so its file is free by the time the
+      // installer gets to it; relaunch() below starts a fresh app (and
+      // sidecar) regardless.
       await invoke("stop_sidecar");
       await update.install();
       await relaunch();
@@ -110,7 +129,7 @@ export function UpdateButton() {
   const failed = phase === "error" || phase === "failed";
   const title =
     phase === "downloading"
-      ? `Téléchargement de la mise à jour${percent !== null ? ` : ${percent} %` : "…"}`
+      ? `Téléchargement de la mise à jour${percent !== null ? ` : ${percent} %` : "..."}`
       : failed
         ? "La mise à jour a échoué"
         : `Mise à jour disponible : v${update.version}`;
@@ -118,7 +137,7 @@ export function UpdateButton() {
   return (
     <div className="update-box" ref={boxRef}>
       <button
-        className={`icon-button update-button${failed ? " failed" : ""}${busy ? " busy" : ""}`}
+        className={`icon-button update-button${failed ? " update-button-failed" : ""}${busy ? " update-button-busy" : ""}`}
         title={title}
         aria-label={title}
         aria-expanded={open}
@@ -128,22 +147,24 @@ export function UpdateButton() {
         <span className="update-dot" aria-hidden="true" />
       </button>
       {open && (
-        <div className="update-menu" role="dialog">
-          <p className="update-menu-title">{failed ? "Échec de la mise à jour" : `Bobine Subs v${update.version} est disponible`}</p>
+        <div className="top-menu update-menu" role="dialog">
+          <p className="update-menu-title">
+            {failed ? "Échec de la mise à jour" : `Bobine Subs v${update.version} est disponible`}
+          </p>
           {phase === "available" && (
             <>
-              <p className="muted">L'application redémarre une fois la mise à jour téléchargée : une analyse ou un export en cours sera interrompu.</p>
-              <button className="primary" onClick={install}>
+              <p className="update-menu-note">L'application redémarre une fois la mise à jour téléchargée : une analyse ou un export en cours sera interrompu.</p>
+              <button className="primary-button" onClick={install}>
                 Installer et redémarrer
               </button>
             </>
           )}
-          {phase === "downloading" && <p>Téléchargement…{percent !== null && ` ${percent} %`}</p>}
-          {phase === "ready" && <p>Installation, redémarrage…</p>}
+          {phase === "downloading" && <p>Téléchargement... {percent !== null ? `${percent} %` : ""}</p>}
+          {phase === "ready" && <p>Installation, redémarrage...</p>}
           {phase === "error" && (
             <>
               <p className="error">Échec du téléchargement : {error}</p>
-              <button className="primary" onClick={install}>
+              <button className="primary-button" onClick={install}>
                 Réessayer
               </button>
             </>
@@ -151,7 +172,7 @@ export function UpdateButton() {
           {phase === "failed" && (
             <>
               <p className="error">Échec de l'installation : {error}</p>
-              <button className="primary" onClick={() => relaunch()}>
+              <button className="primary-button" onClick={() => relaunch()}>
                 Redémarrer l'application
               </button>
             </>
