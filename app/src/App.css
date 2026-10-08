@@ -1180,3 +1180,51 @@ button:focus-visible {
 .batch-target-track.batch-tracks-line {
   margin-top: 0.3em;
 }
+
+/* Airier tables, the same for every table of the app (tracks, segments,
+   editor, batch, "Choisir"): the column rules kept (they help read a row
+   across), every other row faintly tinted, a little more room in the
+   cells. The wrappers make these win over the tables' own rules
+   (BatchView.css, SegmentEditor.css load after this file). */
+.batch-choice-panel .batch-tracks-table th,
+.batch-choice-panel .batch-tracks-table td {
+  border: 1px solid var(--border);
+}
+
+.field-tracks .tracks-table-wrap td,
+.analysis-content .tracks-table-wrap td,
+.batch-choice-panel .batch-tracks-table td {
+  padding: 0.6em 0.5em;
+}
+
+.editor-table-wrap .editor-table td {
+  padding: 0.45em 0.6em;
+}
+
+.batch-table-wrap table td {
+  padding: 0.6em 0.6em;
+}
+
+.field-tracks .tracks-table-wrap tbody tr:nth-child(even),
+.analysis-content .tracks-table-wrap tbody tr:nth-child(even),
+.editor-table-wrap .editor-table tbody tr:nth-child(even),
+.batch-choice-panel .batch-tracks-table tbody tr:nth-child(even),
+.batch-table-wrap table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
+}
+
+/* The "Choisir" tables in a frame, as the others: its outer edges are the
+   frame's. */
+.batch-choice-panel .tracks-table-wrap {
+  overflow: hidden;
+}
+
+.batch-choice-panel .batch-tracks-table {
+  border-collapse: collapse;
+  border-style: hidden;
+}
+
+/* An unreliable segment keeps its tint over the alternate rows. */
+.editor-table-wrap .editor-table tbody tr.editor-row-low-confidence {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
