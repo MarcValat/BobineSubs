@@ -31,14 +31,14 @@ export default function App() {
           <button className={mode === "single" ? "primary-button" : ""} onClick={() => setMode("single")}>
             Fichier unique
           </button>
-          <button className={batch ? "primary-button" : ""} onClick={() => setMode("batch")} aria-expanded={batch}>
-            Batch
-          </button>
-          {/* Folded away (and out of the tab order) outside Batch. */}
-          <div className={`batch-submodes${batch ? " open" : ""}`} inert={!batch}>
-            <div className="batch-submodes-inner">
-              <span className="batch-submodes-separator" aria-hidden="true" />
-              <div className="view-tabs" role="tablist" aria-label="Mode batch">
+          {/* One pill: Batch, then its sub-modes coming out of it (folded
+              away, and out of the tab order, outside Batch). */}
+          <div className={`batch-pill${batch ? " open" : ""}`}>
+            <button className="batch-pill-main" onClick={() => setMode("batch")} aria-expanded={batch}>
+              Batch
+            </button>
+            <div className="batch-submodes" inert={!batch}>
+              <div className="batch-submodes-inner" role="tablist" aria-label="Mode batch">
                 {(
                   [
                     ["multi", "Fichiers multipistes"],

@@ -913,52 +913,86 @@ button:focus-visible {
   width: 9em;
 }
 
-/* Batch's two sub-modes, unfolding to the right of Batch when it's picked
-   (nothing left of them moves). The width animates through a grid column
-   going 0fr -> 1fr; the content slides in and fades with it. */
+/* Batch and its two sub-modes, one pill: picking Batch stretches it to
+   the right, the sub-modes coming out from behind Batch (nothing left of
+   them moves). The width animates through a grid column going 0fr -> 1fr.
+   Its segments are the mode buttons' size; the pill draws the border. */
 .mode-switch {
   align-items: center;
+}
+
+.batch-pill {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.batch-pill:hover,
+.batch-pill.open {
+  border-color: var(--accent);
+}
+
+.batch-pill button {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.batch-pill button:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.batch-pill.open .batch-pill-main {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.batch-pill.open .batch-pill-main:hover {
+  background: var(--accent-hover);
 }
 
 .batch-submodes {
   display: grid;
   grid-template-columns: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-columns 180ms ease-out,
-    opacity 180ms ease-out;
+  transition: grid-template-columns 200ms ease-out;
 }
 
-.batch-submodes.open {
+.batch-pill.open .batch-submodes {
   grid-template-columns: 1fr;
-  opacity: 1;
 }
 
 .batch-submodes-inner {
   min-width: 0;
-  overflow: hidden;
   display: flex;
-  align-items: center;
-  gap: 0.5em;
-  transform: translateX(-0.6em);
-  transition: transform 180ms ease-out;
+  transform: translateX(-35%);
+  opacity: 0;
+  transition:
+    transform 200ms ease-out,
+    opacity 200ms ease-out;
 }
 
-.batch-submodes.open .batch-submodes-inner {
+.batch-pill.open .batch-submodes-inner {
   transform: none;
+  opacity: 1;
 }
 
-/* Sets the sub-modes apart from the two main modes. */
-.batch-submodes-separator {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 1.4em;
-  margin: 0 0.2em;
-  background: var(--border);
+/* A thin rule between segments, in the pill's accent. */
+.batch-submodes-inner button {
+  border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-.batch-submodes .view-tabs button {
-  white-space: nowrap;
+.batch-submodes-inner button:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.batch-submodes-inner button.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
