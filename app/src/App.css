@@ -912,3 +912,99 @@ button:focus-visible {
 .batch-config input:not([type="checkbox"]) {
   width: 9em;
 }
+
+/* Batch and its sub-modes: a drawer, tinted with the accent, that unrolls
+   to the right from under Batch (tucked under its rounded corners) when
+   it's picked. Only the drawer's width moves (a grid column, 0fr -> 1fr),
+   clipped at its edges: nothing is drawn over Batch, and nothing left of
+   it moves. Smaller buttons than the modes: a level below them. */
+.mode-switch {
+  align-items: center;
+}
+
+.batch-group {
+  display: flex;
+  align-items: stretch;
+}
+
+/* Above the drawer tucked under it. */
+.batch-main-button {
+  position: relative;
+  z-index: 1;
+}
+
+.batch-drawer {
+  display: grid;
+  grid-template-columns: 0fr;
+  margin-left: calc(-1 * var(--radius-sm));
+  transition: grid-template-columns 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The column's width, whatever the sub-modes' own: what clips them. */
+.batch-drawer-clip {
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.batch-group.open .batch-drawer {
+  grid-template-columns: 1fr;
+}
+
+.batch-submodes {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* The part under Batch's corners, then the drawer's own inset. */
+  padding: 3px 4px 3px calc(var(--radius-sm) + 4px);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.batch-submodes button {
+  position: relative;
+  z-index: 1;
+  padding: 0.25em 0.8em;
+  font-size: 0.85em;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+}
+
+.batch-submodes button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.batch-submodes button.active {
+  color: var(--accent);
+}
+
+/* The selection pill, sliding under the picked sub-mode. */
+.batch-submodes-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.batch-submodes-pill.placed {
+  transition:
+    left 220ms cubic-bezier(0.2, 0, 0, 1),
+    width 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batch-drawer,
+  .batch-submodes-pill.placed {
+    transition: none;
+  }
+}

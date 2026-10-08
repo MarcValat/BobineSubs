@@ -37,7 +37,8 @@ import {
 import { loadSetting, saveSetting } from "./settings";
 import "./BatchView.css";
 
-type Kind = "multi" | "pairs";
+/** Fichiers multipistes / Paires de fichiers: picked in the top bar (App.tsx). */
+export type Kind = "multi" | "pairs";
 
 /** One episode: what's analyzed and exported. */
 interface Row {
@@ -67,8 +68,18 @@ function trackInLanguage(probe: ProbeResponse | undefined, language: string | nu
   return candidates[0]?.index ?? null;
 }
 
-export default function BatchView({ active }: { active: boolean }) {
-  const [kind, setKind] = useState<Kind>("multi");
+export default function BatchView({
+  active,
+  kind,
+  onKindChange,
+  onBusyChange,
+}: {
+  active: boolean;
+  kind: Kind;
+  onKindChange: (kind: Kind) => void;
+  /** Analyzing or exporting: the top bar keeps the sub-mode meanwhile. */
+  onBusyChange: (busy: boolean) => void;
+}) {
   // Multi: videos holding both tracks.
   const [multiVideos, setMultiVideos] = useState<string[]>([]);
   const [probes, setProbes] = useState<Record<string, ProbeResponse | string>>({});
@@ -89,6 +100,7 @@ export default function BatchView({ active }: { active: boolean }) {
   const [progress, setProgress] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<Row | null>(null);
   const stop = useRef(false);
+  useEffect(() => onBusyChange(busy !== null), [busy, onBusyChange]);
   const currentJob = useRef<string | null>(null);
 
   // --- rows ---------------------------------------------------------------
@@ -186,7 +198,7 @@ export default function BatchView({ active }: { active: boolean }) {
   // Dev only: automated UI checks add files without the native dialog.
   useEffect(() => {
     if (!import.meta.env.DEV || !active) return;
-    (window as unknown as { __test?: object }).__test = { addFiles, setKind };
+    (window as unknown as { __test?: object }).__test = { addFiles, setKind: onKindChange };
   });
 
   // --- running ------------------------------------------------------------
@@ -289,14 +301,6 @@ export default function BatchView({ active }: { active: boolean }) {
   return (
     <main className="batch-main" hidden={!active}>
       <div className="batch-config panel">
-        <div className="view-tabs batch-mode" role="tablist">
-          <button role="tab" aria-selected={kind === "multi"} className={kind === "multi" ? "active" : ""} onClick={() => setKind("multi")} disabled={busy !== null}>
-            Fichiers multipistes
-          </button>
-          <button role="tab" aria-selected={kind === "pairs"} className={kind === "pairs" ? "active" : ""} onClick={() => setKind("pairs")} disabled={busy !== null}>
-            Paires de fichiers
-          </button>
-        </div>
         {kind === "multi" && (
           <label>
             À corriger :
