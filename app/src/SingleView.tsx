@@ -282,7 +282,7 @@ function EmptyState({ hasReference }: { hasReference: boolean }) {
     <div className="placeholder">
       <div className="placeholder-title">{hasReference ? "Choisis les sous-titres à corriger, puis lance l'analyse." : "Ouvre la vidéo de référence pour commencer."}</div>
       <p>
-        SyncSubtitles compare le rythme des répliques des deux pistes (quand elles s'affichent, quand elles s'arrêtent) : ça marche d'une langue à
+        Bobine Subs compare le rythme des répliques des deux pistes (quand elles s'affichent, quand elles s'arrêtent) : ça marche d'une langue à
         l'autre, et retrouve décalage, dérive et sauts.
       </p>
     </div>

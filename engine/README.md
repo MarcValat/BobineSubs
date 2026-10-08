@@ -1,6 +1,6 @@
 # syncsubtitles engine
 
-Python engine of SyncSubtitles: retimes a subtitle track (SRT/ASS) onto a reference subtitle track, handling a constant offset, a frame-rate drift and jumps (ad breaks, cut scenes), then muxes it into the MKV.
+Python engine of Bobine Subs: retimes a subtitle track (SRT/ASS) onto a reference subtitle track, handling a constant offset, a frame-rate drift and jumps (ad breaks, cut scenes), then muxes it into the MKV.
 
 ```
 uv sync

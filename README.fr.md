@@ -1,36 +1,36 @@
 <p align="center"><a href="README.md">English</a> | Français</p>
 
 <p align="center">
-  <img src="app/src-tauri/icons/128x128@2x.png" width="112" alt="Icône de SyncSubtitles">
+  <img src="app/src-tauri/icons/128x128@2x.png" width="112" alt="Icône de Bobine Subs">
 </p>
 
-<h1 align="center">SyncSubtitles</h1>
+<h1 align="center">Bobine Subs</h1>
 
 <p align="center">
   <b>Recale des sous-titres sur ceux déjà présents dans la vidéo</b> : décalage, dérive et sauts, d'une langue à l'autre.
 </p>
 
 <p align="center">
-  <a href="https://github.com/MarcValat/SyncSubtitles/releases/latest"><img src="https://img.shields.io/github/v/release/MarcValat/SyncSubtitles?label=version" alt="Dernière version"></a>
+  <a href="https://github.com/MarcValat/BobineSubs/releases/latest"><img src="https://img.shields.io/github/v/release/MarcValat/BobineSubs?label=version" alt="Dernière version"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011%20(x64)-0078D6?logo=windows" alt="Windows 10 | 11 (x64)">
   <img src="https://img.shields.io/badge/Linux-Debian%20%7C%20Ubuntu%20(.deb)-E95420?logo=linux&logoColor=white" alt="Linux : Debian | Ubuntu (.deb)">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL%20v3-blue" alt="Licence GPL v3"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/MarcValat/SyncSubtitles/releases/latest"><img src="https://img.shields.io/badge/T%C3%A9l%C3%A9charger-Windows%20%7C%20Linux-2ea44f?style=for-the-badge" alt="Télécharger pour Windows ou Linux"></a>
+  <a href="https://github.com/MarcValat/BobineSubs/releases/latest"><img src="https://img.shields.io/badge/T%C3%A9l%C3%A9charger-Windows%20%7C%20Linux-2ea44f?style=for-the-badge" alt="Télécharger pour Windows ou Linux"></a>
 </p>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/main-dark.png">
-  <img src="docs/screenshots/main-light.png" alt="SyncSubtitles : décalage en fonction du temps, puis les répliques de la référence, des sous-titres avant et après correction">
+  <img src="docs/screenshots/main-light.png" alt="Bobine Subs : décalage en fonction du temps, puis les répliques de la référence, des sous-titres avant et après correction">
 </picture>
 
 ## Pourquoi
 
 Des sous-titres récupérés à part collent rarement à la vidéo : quelques dixièmes de seconde d'avance, un écart qui **dérive** peu à peu parce qu'ils ont été faits pour une autre cadence d'images (25 i/s au lieu de 23,976), ou des **sauts** là où la vidéo a été montée autrement (une coupure pub plus longue, une scène en moins). Les recaler à la main, réplique par réplique, est interminable.
 
-Or la vidéo contient souvent déjà des sous-titres bien calés, dans une autre langue. Ce qu'ils ont en commun avec ceux à corriger n'est pas le texte, mais le **rythme** : les mêmes répliques s'affichent aux mêmes moments, avec les mêmes silences entre elles. SyncSubtitles compare ce rythme, et recale chaque réplique.
+Or la vidéo contient souvent déjà des sous-titres bien calés, dans une autre langue. Ce qu'ils ont en commun avec ceux à corriger n'est pas le texte, mais le **rythme** : les mêmes répliques s'affichent aux mêmes moments, avec les mêmes silences entre elles. Bobine Subs compare ce rythme, et recale chaque réplique.
 
 ## Fonctionnalités
 
@@ -47,13 +47,13 @@ Or la vidéo contient souvent déjà des sous-titres bien calés, dans une autre
 
 **Windows 10 et 11 :**
 
-1. Télécharge `SyncSubtitles_x.y.z_x64-setup.exe` depuis la [dernière release](https://github.com/MarcValat/SyncSubtitles/releases/latest).
+1. Télécharge `Bobine.Subs_x.y.z_x64-setup.exe` depuis la [dernière release](https://github.com/MarcValat/BobineSubs/releases/latest).
 2. Lance-le. L'installateur n'est pas signé par un certificat, Windows SmartScreen peut donc afficher *« Windows a protégé votre ordinateur »* : clique sur **Informations complémentaires**, puis **Exécuter quand même**.
 
 **Linux** (Ubuntu 22.04 ou plus récent, Debian et leurs dérivées : Linux Mint, Pop!_OS…) :
 
-1. Télécharge `SyncSubtitles_x.y.z_amd64.deb` depuis la [dernière release](https://github.com/MarcValat/SyncSubtitles/releases/latest).
-2. Installe-le depuis son dossier avec `sudo apt install ./SyncSubtitles_x.y.z_amd64.deb`, puis lance-le depuis le menu des applications ou avec `syncsubtitles`.
+1. Télécharge `Bobine.Subs_x.y.z_amd64.deb` depuis la [dernière release](https://github.com/MarcValat/BobineSubs/releases/latest).
+2. Installe-le depuis son dossier avec `sudo apt install ./Bobine.Subs_x.y.z_amd64.deb`, puis lance-le depuis le menu des applications ou avec `syncsubtitles`.
 
 Rien d'autre à installer : le moteur d'analyse et ffmpeg sont fournis avec l'application. Quand une nouvelle version sort, l'application la propose et l'installe en un clic (sous Linux, après avoir demandé ton mot de passe).
 
@@ -84,6 +84,6 @@ Rien d'autre à installer : le moteur d'analyse et ffmpeg sont fournis avec l'ap
 
 ## Licence
 
-Copyright © 2026 Marc Valat. SyncSubtitles est un logiciel libre, distribué sous [licence publique générale GNU v3](LICENSE) : tu peux l'utiliser, l'étudier, le partager et le modifier, et toute version distribuée, modifiée ou non, doit rester sous la même licence avec son code source disponible.
+Copyright © 2026 Marc Valat. Bobine Subs est un logiciel libre, distribué sous [licence publique générale GNU v3](LICENSE) : tu peux l'utiliser, l'étudier, le partager et le modifier, et toute version distribuée, modifiée ou non, doit rester sous la même licence avec son code source disponible.
 
-L'installateur fournit aussi [FFmpeg](https://ffmpeg.org/) (une version de [gyan.dev](https://www.gyan.dev/ffmpeg/builds/), via [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg)), que SyncSubtitles lance comme programme séparé. Cette version est elle aussi sous GPL v3 ; son code source est disponible auprès de FFmpeg et de gyan.dev.
+L'installateur fournit aussi [FFmpeg](https://ffmpeg.org/) (une version de [gyan.dev](https://www.gyan.dev/ffmpeg/builds/), via [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg)), que Bobine Subs lance comme programme séparé. Cette version est elle aussi sous GPL v3 ; son code source est disponible auprès de FFmpeg et de gyan.dev.

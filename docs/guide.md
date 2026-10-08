@@ -2,7 +2,7 @@
 
 # User guide
 
-This guide explains how to use SyncSubtitles, from opening a video to exporting, for one file or a whole series. For installing it, see the [README](../README.md#install). The interface is in French: its labels are quoted below in French, with their meaning.
+This guide explains how to use Bobine Subs, from opening a video to exporting, for one file or a whole series. For installing it, see the [README](../README.md#install). The interface is in French: its labels are quoted below in French, with their meaning.
 
 ## Contents
 
@@ -17,7 +17,7 @@ This guide explains how to use SyncSubtitles, from opening a video to exporting,
 ## Words to know
 
 - **Reference** (*Référence*): the subtitles already in sync with the video, usually the original version's. They're never changed: they're the benchmark. Their language doesn't matter.
-- **Subtitles to fix** (*À corriger*): the out-of-sync ones, say a French track downloaded separately. SyncSubtitles retimes them onto the reference.
+- **Subtitles to fix** (*À corriger*): the out-of-sync ones, say a French track downloaded separately. Bobine Subs retimes them onto the reference.
 - **Offset** (*Décalage*): the gap between the two at a given moment. **+** means the subtitles to fix come **late**, **−** that they come **early**.
 - **Segment**: a stretch of the video over which the offset follows one rule. Subtitles off by a fixed amount have one segment; a video edited differently (ad breaks, scenes added or cut) has several.
 - **Constant, drift, jump**:

@@ -2,7 +2,7 @@
 
 # Guide d'utilisation
 
-Ce guide explique comment utiliser SyncSubtitles, de l'ouverture d'une vidéo à l'export, pour un fichier comme pour une série entière. Pour l'installation, voir le [README](../README.fr.md#installation).
+Ce guide explique comment utiliser Bobine Subs, de l'ouverture d'une vidéo à l'export, pour un fichier comme pour une série entière. Pour l'installation, voir le [README](../README.fr.md#installation).
 
 ## Sommaire
 
@@ -17,7 +17,7 @@ Ce guide explique comment utiliser SyncSubtitles, de l'ouverture d'une vidéo à
 ## Les mots à connaître
 
 - **Référence** : les sous-titres déjà bien calés sur la vidéo, en général ceux de la version originale. Ils ne sont jamais modifiés : c'est eux qui servent de repère. Leur langue n'a pas d'importance.
-- **Sous-titres à corriger** : ceux qui sont décalés, par exemple une VF récupérée à part. C'est eux que SyncSubtitles recale sur la référence.
+- **Sous-titres à corriger** : ceux qui sont décalés, par exemple une VF récupérée à part. C'est eux que Bobine Subs recale sur la référence.
 - **Décalage** : l'écart entre les deux à un instant donné. **+** veut dire que les sous-titres à corriger arrivent **en retard** sur la référence, **−** qu'ils arrivent **en avance**.
 - **Segment** : un morceau de la vidéo sur lequel le décalage suit une même règle. Des sous-titres décalés d'un bloc n'ont qu'un segment ; une vidéo montée différemment (coupures pub, scènes en plus ou en moins) en a plusieurs.
 - **Constant, dérive, saut** :
