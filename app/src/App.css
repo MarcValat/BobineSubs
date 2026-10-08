@@ -153,15 +153,13 @@ button.small {
 }
 
 /* As in Bobine Audio: the mode switch on the left; the engine's state, the
-   update and Options icons on the far right. Its bottom line meets the
-   sidebar's, so the two regions stay outlined. */
+   update and Options icons on the far right. */
 .top-bar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 0;
 }
 
 .mode-switch {
