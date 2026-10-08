@@ -15,13 +15,11 @@ import {
   startRender,
   type TrackRef,
 } from "./api";
-import AnalysisView, { analysisDuration, summarize } from "./AnalysisView";
-import Dialog from "./Dialog";
+import { analysisDuration, summarize } from "./AnalysisView";
 import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { fileName, isSubtitleFile } from "./format";
-import { EngineBadge } from "./SingleView";
 import { InfoTip } from "./InfoTip";
 import {
   errorMessage,
@@ -36,6 +34,7 @@ import {
   textTracks,
   VIDEO_FILTER,
 } from "./shared";
+import { loadSetting, saveSetting } from "./settings";
 import "./BatchView.css";
 
 type Kind = "multi" | "pairs";
@@ -58,6 +57,9 @@ interface RowRuns {
 
 const NO_RUNS: RowRuns = { analysis: IDLE, render: IDLE };
 
+/** The folder batch exports go to (null: next to each original), kept for the next session. */
+const OUTPUT_DIR_KEY = "syncsubtitles.batchOutputDir";
+
 /** The track of `probe` in `language` to correct: a full one before a forced one. */
 function trackInLanguage(probe: ProbeResponse | undefined, language: string | null): number | null {
   const candidates = textTracks(probe ?? null).filter((t) => t.language === language);
@@ -65,8 +67,8 @@ function trackInLanguage(probe: ProbeResponse | undefined, language: string | nu
   return candidates[0]?.index ?? null;
 }
 
-export default function BatchView({ modeSwitch, active }: { modeSwitch: React.ReactNode; active: boolean }) {
-  const [kind, setKind] = useState<Kind>("pairs");
+export default function BatchView({ active }: { active: boolean }) {
+  const [kind, setKind] = useState<Kind>("multi");
   // Multi: videos holding both tracks.
   const [multiVideos, setMultiVideos] = useState<string[]>([]);
   const [probes, setProbes] = useState<Record<string, ProbeResponse | string>>({});
@@ -76,12 +78,15 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
   // Results by what was analyzed (video + target): kept across re-pairings.
   const [runs, setRuns] = useState<Record<string, RowRuns>>({});
   const [subsOnly, setSubsOnly] = useState(false);
-  const [folder, setFolder] = useState<string | null>(null);
+  const [folder, setFolder] = useState<string | null>(() => loadSetting(OUTPUT_DIR_KEY));
+  const changeFolder = (dir: string | null) => {
+    setFolder(dir);
+    saveSetting(OUTPUT_DIR_KEY, dir);
+  };
   const [addedLanguage, setAddedLanguage] = useState("");
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState<null | "analysis" | "render">(null);
   const [progress, setProgress] = useState<string | null>(null);
-  const [details, setDetails] = useState<Row | null>(null);
   const [editingRow, setEditingRow] = useState<Row | null>(null);
   const stop = useRef(false);
   const currentJob = useRef<string | null>(null);
@@ -174,7 +179,7 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
 
   const clear = () => (kind === "multi" ? setMultiVideos([]) : setPairRows([]));
 
-  const drag = useFileDrop(active && details === null, busy ? "Attends la fin de la tâche en cours." : null, (files) => {
+  const drag = useFileDrop(active && editingRow === null, busy ? "Attends la fin de la tâche en cours." : null, (files) => {
     addFiles(files);
   });
 
@@ -262,207 +267,239 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
     if (currentJob.current) cancelJob(currentJob.current);
   }
 
-  // What "Analyser tout" / "Exporter tout" do: what's left to do, or once
+  // What "Exporter tout" does: what's left to do, or once
   // everything is, all of it again.
   const analyzableRows = rows.filter((r) => typeof inputs(r) === "object");
   const analyzedRows = rows.filter((r) => runsOf(r).analysis.status === "done");
   const pendingAnalysis = analyzableRows.filter((r) => runsOf(r).analysis.status !== "done");
   const pendingExport = analyzedRows.filter((r) => runsOf(r).render.status !== "done");
-  const analysisTodo = pendingAnalysis.length ? pendingAnalysis : analyzableRows;
   const exportTodo = pendingExport.length ? pendingExport : analyzedRows;
   const analyzed = analyzedRows.length;
   const exported = rows.filter((r) => runsOf(r).render.status === "done").length;
 
   // --- view ---------------------------------------------------------------
 
+  const unit = kind === "pairs" ? "paire" : "piste";
+  const missing = pendingAnalysis.length;
+  const hint =
+    kind === "pairs"
+      ? "Une ligne = une paire : la vidéo, dont les sous-titres servent de référence, et le fichier de sous-titres à corriger (SRT/ASS). Ils sont appariés par numéro d'épisode (S01E03, 1x03…), sinon dans l'ordre : ↑ ↓ pour corriger l'ordre de la colonne des sous-titres. Un dossier glissé sur la fenêtre ajoute ses fichiers."
+      : "Chaque fichier contient déjà la référence et la piste à corriger, choisie par langue pour tous les fichiers. Un dossier glissé sur la fenêtre ajoute ses fichiers.";
+
   return (
-    <div className="view" hidden={!active}>
-      <div className="layout">
-        <aside className="sidebar">
-          {modeSwitch}
-          <EngineBadge />
-          <section className="card">
-            <h2>
-              Série{" "}
-              <InfoTip>
-                {kind === "pairs"
-                  ? "Des vidéos d'un côté, des SRT/ASS de l'autre : appariés par numéro d'épisode (S01E03, 1x03…). Les sous-titres de chaque vidéo servent de référence."
-                  : "Des vidéos contenant chacune la référence et la piste à corriger, choisie par langue."}
-              </InfoTip>
-            </h2>
-            <div className="segmented">
-              <button className={kind === "pairs" ? "active" : ""} onClick={() => setKind("pairs")} disabled={busy !== null}>
-                Vidéos + sous-titres
-              </button>
-              <button className={kind === "multi" ? "active" : ""} onClick={() => setKind("multi")} disabled={busy !== null}>
-                Vidéos multipistes
-              </button>
-            </div>
-            {kind === "pairs" ? (
-              <div className="button-row">
-                <button onClick={addVideos} disabled={busy !== null}>
-                  + Vidéos…
-                </button>
-                <button onClick={addSubtitles} disabled={busy !== null}>
-                  + Sous-titres…
-                </button>
-              </div>
-            ) : (
-              <>
-                <button onClick={addVideos} disabled={busy !== null}>
-                  + Vidéos…
-                </button>
-                <label className="field">
-                  <span>Piste à corriger</span>
-                  <select value={language ?? ""} onChange={(e) => setLanguage(e.target.value)} disabled={busy !== null || !languages.length}>
-                    {!languages.length && <option value="">—</option>}
-                    {languages.map(([lang, n]) => (
-                      <option key={lang} value={lang}>
-                        {languageName(lang)} ({lang}) · {n} fichier{n > 1 ? "s" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-            <p className="hint">Ou glisse des fichiers, ou des dossiers entiers, sur la fenêtre.</p>
-          </section>
-
-          <section className="card">
-            <h2>Export</h2>
-            <div className="segmented">
-              <button className={!subsOnly ? "active" : ""} onClick={() => setSubsOnly(false)} disabled={busy !== null}>
-                Nouveaux MKV
-              </button>
-              <button className={subsOnly ? "active" : ""} onClick={() => setSubsOnly(true)} disabled={busy !== null}>
-                Sous-titres seuls
-              </button>
-            </div>
-            <label className="field">
-              <span>Dossier de sortie</span>
-              <div className="output-row">
-                <input readOnly value={folder ?? "À côté de chaque fichier"} />
-                <button onClick={async () => setFolder((await pickFolder("Dossier de sortie")) ?? folder)} disabled={busy !== null}>
-                  …
-                </button>
-                {folder && (
-                  <button onClick={() => setFolder(null)} disabled={busy !== null} title="À côté de chaque fichier">
-                    ✕
-                  </button>
-                )}
-              </div>
+    <main className="batch-main" hidden={!active}>
+      <div className="batch-config panel">
+        <div className="view-tabs batch-mode" role="tablist">
+          <button role="tab" aria-selected={kind === "multi"} className={kind === "multi" ? "active" : ""} onClick={() => setKind("multi")} disabled={busy !== null}>
+            Fichiers multipistes
+          </button>
+          <button role="tab" aria-selected={kind === "pairs"} className={kind === "pairs" ? "active" : ""} onClick={() => setKind("pairs")} disabled={busy !== null}>
+            Paires de fichiers
+          </button>
+        </div>
+        {kind === "multi" && (
+          <label>
+            À corriger :
+            <select value={language ?? ""} onChange={(e) => setLanguage(e.target.value)} disabled={busy !== null || !languages.length}>
+              {!languages.length && <option value="">—</option>}
+              {languages.map(([lang, n]) => (
+                <option key={lang} value={lang}>
+                  {languageName(lang)} ({lang}) · {n} fichier{n > 1 ? "s" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label>
+          Export :
+          <select value={subsOnly ? "subs" : "mkv"} onChange={(e) => setSubsOnly(e.target.value === "subs")} disabled={busy !== null}>
+            <option value="mkv">Nouveaux MKV</option>
+            <option value="subs">Sous-titres seuls</option>
+          </select>
+        </label>
+        {kind === "pairs" && !subsOnly && (
+          <>
+            <label>
+              Langue :
+              <select value={addedLanguage} onChange={(e) => setAddedLanguage(e.target.value)} disabled={busy !== null}>
+                <option value="">Celle du fichier</option>
+                {LANGUAGES.map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </select>
             </label>
-            {kind === "pairs" && !subsOnly && (
-              <>
-                <label className="field">
-                  <span>Langue de la piste ajoutée</span>
-                  <select value={addedLanguage} onChange={(e) => setAddedLanguage(e.target.value)} disabled={busy !== null}>
-                    <option value="">Automatique (nom du fichier)</option>
-                    {LANGUAGES.map(([code, name]) => (
-                      <option key={code} value={code}>
-                        {name} ({code})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Titre de la piste</span>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Français" disabled={busy !== null} />
-                </label>
-              </>
-            )}
-          </section>
-
-          <button className="primary wide big" onClick={() => analyzeRows(analysisTodo)} disabled={busy !== null || !analysisTodo.length}>
-            {busy === "analysis"
-              ? "Analyse en cours…"
-              : pendingAnalysis.length || !analysisTodo.length
-                ? `Analyser tout (${analysisTodo.length})`
-                : `Tout réanalyser (${analysisTodo.length})`}
-          </button>
-          <button className="primary wide big" onClick={() => exportRows(exportTodo)} disabled={busy !== null || !exportTodo.length}>
-            {busy === "render"
-              ? "Export en cours…"
-              : pendingExport.length || !exportTodo.length
-                ? `Exporter tout (${exportTodo.length})`
-                : `Tout réexporter (${exportTodo.length})`}
-          </button>
-          {busy && (
-            <>
-              <p className="muted">{progress}</p>
-              <button className="wide" onClick={cancel}>
-                Annuler
-              </button>
-            </>
-          )}
-        </aside>
-
-        <main className="results">
-          {rows.length === 0 ? (
-            <div className="placeholder">
-              <div className="placeholder-title">Ajoute les épisodes de la série.</div>
-              <p>
-                {kind === "pairs"
-                  ? "Ajoute ou glisse les vidéos et les sous-titres (ou leurs dossiers) : chaque fichier de sous-titres est associé à son épisode d'après son nom."
-                  : "Ajoute ou glisse les vidéos (ou leur dossier), puis choisis la langue de la piste à corriger."}
-              </p>
-            </div>
-          ) : (
-            <div className="card batch-card">
-              <div className="batch-head">
-                <h2>
-                  {rows.length} épisode{rows.length > 1 ? "s" : ""} · {analyzed} analysé{analyzed > 1 ? "s" : ""} · {exported} exporté
-                  {exported > 1 ? "s" : ""}
-                </h2>
-                <button onClick={clear} disabled={busy !== null}>
-                  Tout retirer
-                </button>
-              </div>
-              <table className="batch-table">
-                <thead>
-                  <tr>
-                    <th>Vidéo</th>
-                    <th>{kind === "pairs" ? "Sous-titres" : "Piste à corriger"}</th>
-                    <th>Résultat</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => (
-                    <BatchRow
-                      key={`${row.key}#${i}`}
-                      row={row}
-                      kind={kind}
-                      runs={runsOf(row)}
-                      problem={typeof inputs(row) === "string" ? (inputs(row) as string) : null}
-                      targetLabel={kind === "multi" ? multiTargetLabel(probes[row.video ?? ""], language) : null}
-                      busy={busy !== null}
-                      canMoveUp={i > 0}
-                      canMoveDown={i < rows.length - 1}
-                      onMove={(d) => moveSubtitle(i, d)}
-                      onRemove={() => removeRow(row)}
-                      onAnalyze={typeof inputs(row) === "object" ? () => analyzeRows([row]) : null}
-                      onExport={runsOf(row).analysis.status === "done" ? () => exportRows([row]) : null}
-                      onDetails={() => setDetails(row)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </main>
+            <label>
+              Titre :
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Français" disabled={busy !== null} />
+            </label>
+          </>
+        )}
+        <InfoTip>{hint}</InfoTip>
       </div>
 
-      {details && runsOf(details).analysis.result && !editingRow && (
-        <Dialog title={fileName(details.video ?? "")} onClose={() => setDetails(null)}>
-          <AnalysisView
-            analysis={runsOf(details).analysis.result!}
-            duration={analysisDuration(runsOf(details).analysis.result!)}
-            edited={runsOf(details).edited}
-            onEdit={busy ? undefined : () => setEditingRow(details)}
-          />
-        </Dialog>
-      )}
+      <section className="panel batch-jobs">
+        <div className="batch-jobs-header">
+          <h2>{kind === "pairs" ? "Paires" : "Fichiers"}</h2>
+          <button className="small-button" onClick={clear} disabled={busy !== null || rows.length === 0}>
+            Tout retirer
+          </button>
+        </div>
+
+        {/* Always shown, even empty: its header holds the buttons that add files. */}
+        <div className="batch-table-wrap list-scroll">
+          <table>
+            <colgroup>
+              <col className="batch-col-index" />
+              <col />
+              <col />
+              <col className="batch-col-status" />
+              <col className="batch-col-status" />
+              <col className="batch-col-folder" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="batch-index">#</th>
+                <th>
+                  <div className="batch-th-add">
+                    <span>{kind === "pairs" ? "Vidéo (référence)" : "Fichier"}</span>
+                    <button className="small-button" disabled={busy !== null} onClick={addVideos} title="Ajouter des vidéos">
+                      + Ajouter
+                    </button>
+                  </div>
+                </th>
+                <th>
+                  {kind === "pairs" ? (
+                    <div className="batch-th-add">
+                      <span>Sous-titres à corriger</span>
+                      <button className="small-button" disabled={busy !== null} onClick={addSubtitles} title="Ajouter des sous-titres à corriger (SRT/ASS)">
+                        + Ajouter
+                      </button>
+                    </div>
+                  ) : (
+                    "Piste à corriger"
+                  )}
+                </th>
+                <th>Analyse</th>
+                <th>Export</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="placeholder">
+                    {kind === "pairs"
+                      ? "Ajoute les vidéos et les sous-titres à corriger, un par épisode."
+                      : "Ajoute les fichiers à traiter : chacun contient la référence et la piste à corriger."}
+                  </td>
+                </tr>
+              )}
+              {rows.map((row, i) => (
+                <BatchRow
+                  key={`${row.key}#${i}`}
+                  index={i}
+                  row={row}
+                  kind={kind}
+                  runs={runsOf(row)}
+                  problem={typeof inputs(row) === "string" ? (inputs(row) as string) : null}
+                  targetLabel={kind === "multi" ? multiTargetLabel(probes[row.video ?? ""], language) : null}
+                  busy={busy !== null}
+                  canMoveUp={i > 0}
+                  canMoveDown={i < rows.length - 1}
+                  onMove={(d) => moveSubtitle(i, d)}
+                  onRemove={() => removeRow(row)}
+                  onEdit={() => setEditingRow(row)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="batch-footer panel">
+        <div className="batch-output">
+          <span className="batch-output-label">Sortie :</span>
+          <span className={folder ? "batch-output-dir batch-output-path" : "batch-output-dir"} title={folder ?? undefined}>
+            {folder ?? "à côté des originaux"}
+          </span>
+          <button
+            className="small-button"
+            disabled={busy !== null}
+            title="Dans un autre dossier que l'original, un export garde le nom de l'original (sauf si ce nom y est déjà pris) ; à côté de l'original, il prend le suffixe « .synced »."
+            onClick={async () => {
+              const dir = await pickFolder("Dossier de sortie");
+              if (dir) changeFolder(dir);
+            }}
+          >
+            Choisir un dossier…
+          </button>
+          {folder && (
+            <button className="small-button" disabled={busy !== null} onClick={() => changeFolder(null)} title="Écrire chaque export à côté de son original">
+              À côté des originaux
+            </button>
+          )}
+        </div>
+        <span className="batch-progress">
+          {rows.length} {kind === "pairs" ? `paire${rows.length > 1 ? "s" : ""}` : `fichier${rows.length > 1 ? "s" : ""}`}
+          {kind === "pairs"
+            ? ` · ${analyzed}/${analyzableRows.length} analysée${analyzed > 1 ? "s" : ""}`
+            : ` · ${analyzed}/${analyzableRows.length} piste${analyzableRows.length > 1 ? "s" : ""} analysée${analyzed > 1 ? "s" : ""}`}
+          {exported > 0 && ` · ${exported} exporté${kind === "pairs" ? "e" : ""}${exported > 1 ? "s" : ""}`}
+          {progress && ` · ${progress}`}
+        </span>
+        {busy === "analysis" ? (
+          <>
+            <button className="primary-button" disabled>
+              Analyse en cours...
+            </button>
+            <button className="export-cancel" onClick={cancel}>
+              Annuler
+            </button>
+          </>
+        ) : missing === 0 && analyzed > 0 ? (
+          <button
+            className="primary-button"
+            disabled={busy !== null}
+            title="Réanalyse tout, y compris ce qui l'est déjà : les modifications faites avec « Modifier » sont perdues."
+            onClick={() => analyzeRows(analyzableRows)}
+          >
+            Tout réanalyser
+          </button>
+        ) : (
+          <>
+            {analyzed > 0 && (
+              <button
+                className="small-button"
+                disabled={busy !== null}
+                title="Réanalyse tout, y compris ce qui l'est déjà : les modifications faites avec « Modifier » sont perdues."
+                onClick={() => analyzeRows(analyzableRows)}
+              >
+                Tout réanalyser
+              </button>
+            )}
+            <button
+              className="primary-button"
+              disabled={busy !== null || missing === 0}
+              title={analyzed > 0 ? `Analyse seulement les ${unit}s qui ne le sont pas encore ; les autres et leurs modifications sont gardées.` : undefined}
+              onClick={() => analyzeRows(pendingAnalysis)}
+            >
+              {analyzed > 0 ? (missing > 1 ? `Analyser les ${missing} ${unit}s restantes` : `Analyser la ${unit} restante`) : "Analyser tout"}
+            </button>
+          </>
+        )}
+        {busy === "render" ? (
+          <button className="export-cancel" onClick={cancel}>
+            Annuler l'export
+          </button>
+        ) : (
+          <button className="primary-button" onClick={() => exportRows(exportTodo)} disabled={busy !== null || !exportTodo.length}>
+            Exporter tout
+          </button>
+        )}
+      </div>
+
       {editingRow && runsOf(editingRow).analysis.result && (
         <SegmentEditor
           analysis={runsOf(editingRow).analysis.result!}
@@ -482,11 +519,11 @@ export default function BatchView({ modeSwitch, active }: { modeSwitch: React.Re
       )}
       <DropOverlay
         drag={drag}
-        blocked={busy ? "Attends la fin de la tâche en cours." : null}
-        label={kind === "pairs" ? "Ajouter des vidéos et des sous-titres" : "Ajouter des vidéos"}
-        hint="Fichiers ou dossiers"
+        blocked={busy ? "Import impossible pendant une analyse ou un export : attends sa fin." : null}
+        label="Déposer pour ajouter au lot"
+        hint="Un dossier ajoute ses fichiers, par ordre de nom"
       />
-    </div>
+    </main>
   );
 }
 
@@ -494,10 +531,14 @@ function multiTargetLabel(p: ProbeResponse | string | undefined, language: strin
   if (typeof p !== "object") return null;
   const index = trackInLanguage(p, language);
   const track = p.tracks.find((t) => t.index === index);
-  return track ? `#${track.index} · ${track.language} · ${track.codec}${track.title ? ` « ${track.title} »` : ""}` : null;
+  return track ? `@${track.index} ${track.language ?? "?"} (${track.codec})${track.title ? ` « ${track.title} »` : ""}` : null;
 }
 
+/** One row, as Bobine Audio's batch tables: the files (with the buttons
+ * that move or drop them), then the analysis with "Modifier", the export,
+ * and the written file's folder. */
 function BatchRow({
+  index,
   row,
   kind,
   runs,
@@ -508,10 +549,9 @@ function BatchRow({
   canMoveDown,
   onMove,
   onRemove,
-  onAnalyze,
-  onExport,
-  onDetails,
+  onEdit,
 }: {
+  index: number;
   row: Row;
   kind: Kind;
   runs: RowRuns;
@@ -522,9 +562,7 @@ function BatchRow({
   canMoveDown: boolean;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
-  onAnalyze: (() => void) | null;
-  onExport: (() => void) | null;
-  onDetails: () => void;
+  onEdit: () => void;
 }) {
   const { analysis, render } = runs;
   const result = analysis.result;
@@ -533,83 +571,81 @@ function BatchRow({
       result.warnings.length > 0 ||
       result.target_cues.some((c) => c.corrected === null)
     : false;
+  const analysisClass =
+    analysis.status === "idle" ? "pending" : analysis.status === "done" ? "done" : analysis.status === "running" ? "running" : analysis.status;
+  const renderClass = render.status === "idle" ? "pending" : render.status;
 
   return (
-    <tr className={problem ? "problem" : ""}>
-      <td className="file" title={row.video ?? ""}>
-        {row.video ? fileName(row.video) : <span className="muted">—</span>}
+    <tr className={problem ? "batch-row-flagged" : undefined}>
+      <td className="batch-index">{index + 1}</td>
+      <td className="batch-file">
+        <div className="batch-file-inner">
+          <span className="batch-filename" title={row.video ?? ""}>
+            {row.video ? fileName(row.video) : "—"}
+          </span>
+          <span className="batch-file-actions">
+            <button className="small-button" onClick={onRemove} disabled={busy} title="Retirer">
+              ✕
+            </button>
+          </span>
+        </div>
       </td>
-      <td className="file" title={row.subtitle ?? ""}>
-        {kind === "pairs" ? (
-          <div className="subtitle-cell">
-            <span className="subtitle-name">{row.subtitle ? fileName(row.subtitle) : <span className="muted">—</span>}</span>
-            {row.by === "order" && <span className="tag" title="Aucun numéro d'épisode commun : apparié par ordre">ordre</span>}
-            {row.by === "manual" && <span className="tag">manuel</span>}
-            <span className="move">
-              <button onClick={() => onMove(-1)} disabled={busy || !canMoveUp} title="Échanger avec la ligne du dessus">
-                ↑
+      {kind === "pairs" ? (
+        <td className="batch-file">
+          <div className="batch-file-inner">
+            <span className="batch-filename" title={row.subtitle ?? ""}>
+              {row.subtitle ? fileName(row.subtitle) : "—"}
+            </span>
+            {row.by === "order" && (
+              <span className="batch-track-status" title="Aucun numéro d'épisode commun : apparié dans l'ordre">
+                ordre
+              </span>
+            )}
+            {row.by === "manual" && <span className="batch-track-status">manuel</span>}
+            <span className="batch-file-actions">
+              <button className="small-button" onClick={() => onMove(-1)} disabled={busy || !canMoveUp} title="Monter">
+                {"↑︎"}
               </button>
-              <button onClick={() => onMove(1)} disabled={busy || !canMoveDown} title="Échanger avec la ligne du dessous">
-                ↓
+              <button className="small-button" onClick={() => onMove(1)} disabled={busy || !canMoveDown} title="Descendre">
+                {"↓︎"}
               </button>
             </span>
           </div>
-        ) : (
-          (targetLabel ?? <span className="muted">—</span>)
-        )}
-      </td>
-      <td className="status">
-        {problem && analysis.status === "idle" ? (
-          <span className={problem === "Lecture…" ? "muted" : "warning"}>{problem}</span>
-        ) : analysis.status === "idle" ? (
-          <span className="muted">À analyser</span>
-        ) : analysis.status === "running" ? (
-          <span className="muted">Analyse…</span>
-        ) : analysis.status === "error" ? (
-          <span className="error">{analysis.error}</span>
-        ) : analysis.status === "cancelled" ? (
-          <span className="muted">Annulé</span>
-        ) : (
-          <div className="result-cell">
-            <button className="link" onClick={onDetails} title="Voir le détail">
-              {summarize(result!)}
-              {result!.ratio_name && " · dérive"}
-              {runs.edited && " · modifié"}
-              {weak && <span className="warn-text"> ⚠ à vérifier</span>}
+        </td>
+      ) : (
+        <td className="batch-tracks-cell">{targetLabel ?? <span className="batch-track-status">{problem ?? "Lecture des pistes..."}</span>}</td>
+      )}
+      <td className={`batch-status batch-status-${problem && analysis.status === "idle" ? "error" : analysisClass}`}>
+        {problem && analysis.status === "idle" && problem}
+        {!problem && analysis.status === "idle" && "À analyser"}
+        {analysis.status === "running" && "Analyse en cours..."}
+        {analysis.status === "error" && (analysis.error ?? "Erreur")}
+        {analysis.status === "cancelled" && "Annulé"}
+        {analysis.status === "done" && result && (
+          <div className="batch-target">
+            {summarize(result)}
+            {result.ratio_name && " · dérive"}
+            {runs.edited && " · modifié"}
+            {weak && <span className="batch-issues"> ⚠ à vérifier</span>}
+            <button className="small-button" disabled={busy} onClick={onEdit}>
+              Modifier
             </button>
-            {render.status === "running" && <span className="muted">Export…</span>}
-            {render.status === "done" && (
-              <span className="success-text" title={render.result!.path}>
-                ✓ {fileName(render.result!.path)}{" "}
-                <button className="link" onClick={() => revealItemInDir(render.result!.path)}>
-                  Afficher
-                </button>
-              </span>
-            )}
-            {render.status === "error" && <span className="error">{render.error}</span>}
-            {render.status === "cancelled" && <span className="muted">Export annulé</span>}
           </div>
         )}
       </td>
-      <td className="actions-cell">
-        {onAnalyze && analysis.status !== "idle" && analysis.status !== "running" && (
-          <button onClick={onAnalyze} disabled={busy} title="Relancer l'analyse de cet épisode">
-            ↻ Analyse
+      <td className={`batch-status batch-status-${renderClass}`}>
+        {render.status === "idle" && "—"}
+        {render.status === "running" && "Export en cours..."}
+        {render.status === "done" && render.result && <span title={render.result.path}>{fileName(render.result.path)}</span>}
+        {render.status === "error" && (render.error ?? "Erreur")}
+        {render.status === "cancelled" && "Annulé"}
+      </td>
+      <td className="batch-row-actions">
+        {render.status === "done" && render.result && (
+          <button className="small-button" title="Ouvrir le dossier du fichier écrit" onClick={() => revealItemInDir(render.result!.path)}>
+            Dossier
           </button>
         )}
-        {onExport && render.status !== "idle" && render.status !== "running" && (
-          <button onClick={onExport} disabled={busy} title="Exporter à nouveau cet épisode (remplace le fichier)">
-            ↻ Export
-          </button>
-        )}
-        {onExport && render.status === "idle" && (
-          <button onClick={onExport} disabled={busy} title="Exporter cet épisode">
-            Exporter
-          </button>
-        )}
-        <button onClick={onRemove} disabled={busy} title="Retirer">
-          ✕
-        </button>
       </td>
     </tr>
   );

@@ -19,6 +19,7 @@ import { clock } from "./format";
 import { withSegments } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import Timeline, { type TimelineEditing } from "./Timeline";
+import { Dialog, DialogHeader } from "./Dialog";
 import { InfoTip } from "./InfoTip";
 import "./SegmentEditor.css";
 
@@ -30,13 +31,12 @@ function parseClock(text: string): number | null {
 }
 
 /** A number field committed on Enter or when leaving it, not on each key. */
-function LazyInput({ value, onCommit, width, title }: { value: string; onCommit: (text: string) => void; width: number; title?: string }) {
+function LazyInput({ value, onCommit, title }: { value: string; onCommit: (text: string) => void; title?: string }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   return (
     <input
-      className="lazy-input"
-      style={{ width }}
+      inputMode="decimal"
       value={text}
       title={title}
       onChange={(e) => setText(e.target.value)}
@@ -108,93 +108,93 @@ export default function SegmentEditor({
       } else if ((e.ctrlKey || e.metaKey) && (key === "y" || (key === "z" && e.shiftKey))) {
         e.preventDefault();
         setHistory(redo);
-      } else if (e.key === "Escape") {
-        if (confirmClose) setConfirmClose(false);
-        else if (dirty) setConfirmClose(true);
-        else onClose();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dirty, confirmClose, onClose]);
+  }, []);
 
   const unreliable = segments.some((s) => s.confidence < LOW_CONFIDENCE) && segments.length > 1;
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog editor" role="dialog" aria-label="Modifier les segments">
-        <div className="dialog-header">
-          <h2>
-            Modifier les segments{" "}
+    <Dialog
+      fill
+      onClose={onClose}
+      // Escape backs out of the "abandon changes?" question first.
+      onEscape={() => (confirmClose ? setConfirmClose(false) : close())}
+      className="editor-panel"
+    >
+      <DialogHeader
+        title={
+          <>
+            Corriger manuellement les segments{" "}
             <InfoTip>
               <ul>
-                <li>Glisse un segment vers le haut ou le bas pour changer son décalage ; glisse une poignée ● pour déplacer une frontière.</li>
-                <li>Double-clique sur le graphe, ou « ✂ Couper ici », pour couper un segment en deux.</li>
+                <li>Glisse un segment vers le haut ou le bas pour changer son décalage.</li>
+                <li>Glisse une poignée ● pour déplacer une frontière.</li>
+                <li>Double-clique sur le graphe, ou « ✂ Couper ici », pour couper un segment à cet endroit.</li>
                 <li>
-                  <strong>Aligner</strong> : dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même
-                  chose : tout son segment se décale pour qu'elles commencent ensemble.
+                  Aligner : dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même chose : tout son
+                  segment se décale pour qu'elles commencent ensemble.
                 </li>
-                <li>« Retirer » supprime un segment (une fausse détection) : son voisin s'étend sur sa durée, avec son propre décalage.</li>
-                <li>Décalage : + = les sous-titres à corriger sont en retard sur la référence, − = en avance. Ctrl+Z / Ctrl+Y : défaire / refaire.</li>
+                <li>Un segment marqué ⚠ est peu fiable : à vérifier.</li>
+                <li>« Retirer » supprime un segment (une fausse détection, par exemple) : son voisin s'étend sur sa durée, avec son propre décalage.</li>
+                <li>Ctrl+Z / Ctrl+Y : défaire / refaire.</li>
+                <li>Décalage : + = les sous-titres à corriger sont en retard sur la référence, − = en avance.</li>
               </ul>
             </InfoTip>
-          </h2>
-          <div className="editor-toolbar">
-            <button onClick={() => setHistory(undo)} disabled={!history.past.length} title="Ctrl+Z">
-              ↶ Défaire
+          </>
+        }
+      >
+        {confirmClose ? (
+          <div className="editor-confirm-close" role="alertdialog">
+            <span>Abandonner les modifications non enregistrées ?</span>
+            <button className="small-button export-cancel" onClick={onClose}>
+              Abandonner
             </button>
-            <button onClick={() => setHistory(redo)} disabled={!history.future.length} title="Ctrl+Y">
-              ↷ Refaire
-            </button>
-            <button onClick={() => apply(analysis.segments)} disabled={!dirty} title="Revenir aux segments de l'analyse">
-              Réinitialiser
-            </button>
-            <button onClick={() => apply(removeUnreliable(segments))} disabled={!unreliable} title="Retire chaque segment peu fiable (⚠) : son voisin s'étend sur sa durée">
-              Retirer les segments peu fiables
-            </button>
-            <span className="spacer" />
-            <button onClick={close}>Annuler</button>
-            <button className="primary" onClick={() => onSave(history.present)} disabled={!dirty}>
-              Enregistrer
-            </button>
-          </div>
-        </div>
-        {confirmClose && (
-          <div className="confirm-bar">
-            <span>Abandonner les modifications ?</span>
-            <button onClick={onClose}>Abandonner</button>
-            <button className="primary" onClick={() => setConfirmClose(false)}>
+            <button className="small-button" onClick={() => setConfirmClose(false)}>
               Continuer l'édition
             </button>
           </div>
+        ) : (
+          <button className="small-button" onClick={close} title="Fermer sans enregistrer (Échap)">
+            Annuler
+          </button>
         )}
-        <div className="dialog-body">
-          <section className="card">
+      </DialogHeader>
+
+      <div className="editor-columns">
+        <div className="editor-primary">
+          <div className="editor-timeline">
             <Timeline analysis={shown} duration={duration} editing={editing} />
-          </section>
-          <section className="card">
-            <table className="segments editor-table">
+          </div>
+          <div className="editor-table-wrap list-scroll">
+            <table className="editor-table">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>Début</th>
                   <th>Fin</th>
-                  <th>Décalage (ms)</th>
+                  <th title="Décalage au début du segment, en millisecondes">
+                    Décal. début <span className="th-unit">(ms)</span>
+                  </th>
+                  <th title="Décalage à la fin du segment, en millisecondes">
+                    Décal. fin <span className="th-unit">(ms)</span>
+                  </th>
                   <th>Confiance</th>
-                  <th />
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {segments.map((s, i) => (
-                  <tr key={i} className={s.confidence < LOW_CONFIDENCE ? "weak" : ""}>
+                  <tr key={i} className={s.confidence < LOW_CONFIDENCE ? "editor-row-low-confidence" : undefined}>
                     <td>{i + 1}</td>
                     <td>
                       {i === 0 ? (
-                        clock(0)
+                        clock(0, 2)
                       ) : (
                         <LazyInput
                           value={clock(s.start_s, 2)}
-                          width={110}
                           onCommit={(text) => {
                             const t = parseClock(text);
                             if (t !== null) apply(moveBoundary(segments, i, t));
@@ -203,11 +203,9 @@ export default function SegmentEditor({
                       )}
                     </td>
                     <td>{clock(Math.min(s.end_s, duration), 2)}</td>
-                    <td className="offsets">
+                    <td>
                       <LazyInput
                         value={ms(s.offset_start)}
-                        width={80}
-                        title={isDrift(s) ? "Décalage au début du segment" : "Décalage"}
                         onCommit={(text) => {
                           const v = Number(text.replace(",", "."));
                           if (isNaN(v)) return;
@@ -215,29 +213,30 @@ export default function SegmentEditor({
                           apply(isDrift(s) ? setOffsets(segments, i, value, s.offset_end) : setOffsets(segments, i, value, value));
                         }}
                       />
-                      {isDrift(s) && (
-                        <>
-                          <span className="muted"> → </span>
-                          <LazyInput
-                            value={ms(s.offset_end)}
-                            width={80}
-                            title="Décalage à la fin du segment"
-                            onCommit={(text) => {
-                              const v = Number(text.replace(",", "."));
-                              if (!isNaN(v)) apply(setOffsets(segments, i, s.offset_start, v / 1000));
-                            }}
-                          />
-                        </>
-                      )}
                     </td>
-                    <td className="num">
-                      {Math.round(s.confidence * 100)} %{s.confidence < LOW_CONFIDENCE && " ⚠"}
+                    <td>
+                      <LazyInput
+                        value={ms(s.offset_end)}
+                        onCommit={(text) => {
+                          const v = Number(text.replace(",", "."));
+                          if (!isNaN(v)) apply(setOffsets(segments, i, s.offset_start, v / 1000));
+                        }}
+                      />
                     </td>
-                    <td className="row-actions">
+                    <td className={s.confidence < LOW_CONFIDENCE ? "editor-confidence-cell low" : "editor-confidence-cell"}>
+                      {s.confidence < LOW_CONFIDENCE ? "⚠ " : ""}
+                      {Math.round(s.confidence * 100)}%
+                    </td>
+                    <td>
                       <button
+                        className="small-button"
                         onClick={() => apply(remove(segments, i))}
                         disabled={segments.length < 2}
-                        title={segments.length < 2 ? "Le seul segment ne peut pas être retiré." : "Retirer ce segment : son voisin s'étend sur sa durée"}
+                        title={
+                          segments.length < 2
+                            ? "Le seul segment ne peut pas être retiré."
+                            : `Retire le segment ${i + 1} (une fausse détection, par exemple) : le segment ${i < segments.length - 1 ? i + 2 : i} s'étend sur sa durée, avec son propre décalage.`
+                        }
                       >
                         Retirer
                       </button>
@@ -246,9 +245,34 @@ export default function SegmentEditor({
                 ))}
               </tbody>
             </table>
-          </section>
+          </div>
         </div>
       </div>
-    </div>
+
+      <div className="editor-actions">
+        <div className="editor-history">
+          <button className="small-button" onClick={() => setHistory(undo)} disabled={!history.past.length} title="Ctrl+Z">
+            ↶ Défaire
+          </button>
+          <button className="small-button" onClick={() => setHistory(redo)} disabled={!history.future.length} title="Ctrl+Y">
+            ↷ Refaire
+          </button>
+          <button className="small-button" onClick={() => apply(analysis.segments)} disabled={!dirty} title="Revient aux segments tels qu'à l'ouverture de l'éditeur.">
+            Réinitialiser
+          </button>
+        </div>
+        <button
+          className="small-button"
+          onClick={() => apply(removeUnreliable(segments))}
+          disabled={!unreliable}
+          title="Retire chaque segment peu fiable (⚠), comme « Retirer » sur chacun : son voisin s'étend sur sa durée."
+        >
+          Retirer les segments peu fiables
+        </button>
+        <button className="primary-button" onClick={() => onSave(history.present)}>
+          Enregistrer
+        </button>
+      </div>
+    </Dialog>
   );
 }

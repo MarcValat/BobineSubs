@@ -1,117 +1,510 @@
-.batch-card {
-  gap: 12px;
+/* Not just .app-main plus overrides: relying on cascade order between two
+   same-specificity classes from two different stylesheets is fragile (it
+   silently depends on CSS import/bundling order) -- .batch-main instead
+   defines everything it needs on its own. Fits the window like the
+   single-file view: settings on top, the pairs table taking the height
+   left (and scrolling in its own frame when long), actions at the bottom.
+   Nothing else scrolls. */
+.batch-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  overflow: hidden;
 }
 
-.batch-head {
+.batch-config {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 1.2em;
+  flex-wrap: wrap;
 }
-.batch-head h2 {
+
+.batch-config label {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+}
+
+.batch-config input[type="number"] {
+  width: 4em;
+  padding: 0.35em 0.5em;
+}
+
+/* "Vérifier toutes les pistes" at the far right. */
+.batch-config > button:last-child {
+  margin-left: auto;
+}
+
+.batch-jobs {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.batch-jobs-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-bottom: 0.7em;
+}
+
+/* More specific than App.css's `.panel h2`, whose bottom margin would
+   otherwise push the title above the buttons' center line. */
+.panel .batch-jobs-header h2 {
   margin: 0;
 }
 
-.button-row {
-  display: flex;
-  gap: 8px;
-}
-.button-row button {
-  flex: 1;
-}
-
-table.batch-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-table.batch-table th {
-  text-align: left;
-  font-weight: 500;
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-}
-table.batch-table th:nth-child(1),
-table.batch-table th:nth-child(2) {
-  width: 30%;
-}
-table.batch-table th:nth-child(4) {
-  width: 210px;
-}
-table.batch-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-table.batch-table td.file {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-table.batch-table tr.problem td.file {
-  color: var(--text-muted);
-}
-
-.subtitle-cell {
+.batch-footer {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.8em;
+  padding-top: 0.7em;
+  padding-bottom: 0.7em;
+}
+
+.batch-progress {
+  flex: 1 1 auto;
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.batch-table-wrap {
+  flex: 0 1 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* table-layout: fixed makes the filename column (the only one below with
+   no explicit width) claim every pixel the # and actions columns don't
+   need, instead of auto layout's shrink-to-fit sizing -- that previously
+   left the filename truncating well before the panel's actual edge. */
+.batch-table-wrap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  font-size: 0.85em;
+}
+
+/* Headers stay in view when the table scrolls (.list-scroll). */
+.batch-table-wrap th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.4em;
+  text-align: left;
+  font-size: 0.75em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+.batch-table-wrap td {
+  padding: 0.45em 0.5em;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Vertical rules between columns, for reading a wide row across. */
+.batch-table-wrap th + th,
+.batch-table-wrap td + td {
+  border-left: 1px solid var(--border);
+}
+
+.batch-table-wrap tr:last-child td {
+  border-bottom: none;
+}
+
+.batch-table-wrap tbody tr:nth-child(even) {
+  background: var(--surface-sunken);
+}
+
+.batch-col-index {
+  width: 2.5em;
+}
+
+.batch-col-status {
+  width: 20%;
+}
+
+.batch-col-actions {
+  width: 10.5em;
+}
+
+.batch-table-wrap td {
+  vertical-align: top;
+}
+
+/* A file of a pair: its name (cut short with "…" when needed, the full
+   path on hover) and the buttons that move it within its column. */
+.batch-file-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
   min-width: 0;
 }
-.subtitle-name {
-  flex: 1;
+
+.batch-file-inner .batch-filename {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.batch-file-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.15em;
+}
+
+.batch-file-actions button {
+  padding: 0.1em 0.4em;
+}
+
+/* A column's name with its "+ Ajouter" button. */
+.batch-th-add {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.batch-th-add button {
+  padding: 0.15em 0.6em;
+  font-size: 1.15em;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.batch-file-missing {
+  color: var(--text-muted);
+}
+
+/* A row one column has no file for: nothing to pair it with yet. */
+.batch-row-unpaired td.batch-status {
+  color: var(--error);
+}
+
+.batch-index {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+td.batch-index {
+  color: var(--text-muted);
+}
+
+/* .batch-table-wrap th's own text-align: left would otherwise outrank
+   .batch-index's (one extra class in the selector beats one). */
+.batch-table-wrap th.batch-index {
+  text-align: center;
+}
+
+.batch-filename {
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.move {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.actions-cell {
-  text-align: right;
   white-space: nowrap;
 }
-.actions-cell button + button {
-  margin-left: 4px;
-}
-.move button,
-.actions-cell button {
-  padding: 0 7px;
-  font-size: 12px;
-  line-height: 22px;
+
+.batch-row-actions {
+  white-space: nowrap;
+  text-align: right;
 }
 
-.tag {
-  flex-shrink: 0;
-  font-size: 11px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--warn-soft);
-  color: var(--warn);
+/* .batch-table-wrap td's own padding shorthand would otherwise outrank
+   this single-class rule (one extra class in the selector beats one). */
+.batch-table-wrap td.batch-row-actions {
+  padding-right: 1em;
 }
 
-.result-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+.batch-row-actions button {
+  padding: 0.15em 0.5em;
+  margin-left: 0.2em;
 }
 
-button.link {
-  background: none;
-  border: none;
-  padding: 0;
+.batch-track-status {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.batch-track-status-error {
+  color: var(--error);
+}
+
+.batch-status {
+  font-size: 0.9em;
+}
+
+.batch-status-pending {
+  color: var(--text-muted);
+}
+
+.batch-status-running {
   color: var(--accent);
-  text-align: left;
-}
-button.link:hover:not(:disabled) {
-  text-decoration: underline;
 }
 
-.success-text {
+.batch-status-done {
   color: var(--success);
+}
+
+.batch-status-error {
+  color: var(--error);
+}
+
+.batch-status-cancelled {
+  color: var(--text-muted);
+}
+
+/* "Vérifier toutes les pistes" (a Dialog): both columns of files side by side. */
+.batch-tracks-panel {
+  max-width: 1100px;
+}
+
+/* Stacks to one column on a narrow window instead of squeezing both
+   side-by-side unreadably -- the app window is user-resizable, this modal
+   isn't a fixed-size dialog. */
+.batch-tracks-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5em;
+  /* Same-shape bug as .batch-filename hit earlier: a nowrap+ellipsis
+     paragraph's implicit minimum width is its full, untruncated text
+     width, and a grid item's default min-width: auto respects that --
+     without this, the filename below never actually gets to truncate, it
+     just forces this whole grid (and the modal panel it's in) wider than
+     the window instead. */
+  min-width: 0;
+}
+
+.batch-tracks-side {
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .batch-tracks-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.batch-tracks-side h3 {
+  margin: 0 0 0.6em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.batch-tracks-file {
+  margin-bottom: 1em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid var(--border);
+}
+
+.batch-tracks-file:last-child {
+  border-bottom: none;
+}
+
+.batch-tracks-filename {
+  margin: 0 0 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-tracks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.batch-tracks-table th {
+  padding: 0.3em 0.5em;
+  text-align: left;
+  font-size: 0.75em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+}
+
+.batch-tracks-table td {
+  padding: 0.3em 0.5em;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Radio buttons and checkboxes centered under their header, as in the
+   single-file tracks table. */
+.batch-tracks-table .track-pick {
+  text-align: center;
+}
+
+/* Fichiers multipistes / Paires de fichiers, first in the settings bar. */
+.batch-mode {
+  margin-right: 0.6em;
+}
+
+/* The languages to correct, one checkbox each. */
+.batch-languages {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3em 0.9em;
+  font-size: 0.9em;
+}
+
+.batch-languages label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.batch-col-tracks {
+  width: 24%;
+}
+
+.batch-col-folder {
+  width: 6.5em;
+}
+
+/* A file's tracks: which are used, what's off (⚠), and "Choisir". */
+.batch-tracks-cell {
+  font-size: 0.95em;
+}
+
+/* The tracks used, with "Choisir" at the right of the same line. */
+.batch-tracks-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.batch-tracks-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.batch-issues {
+  display: block;
+  color: var(--error);
+  font-size: 0.9em;
+}
+
+.batch-tracks-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.3em;
+}
+
+.batch-tracks-actions button,
+.batch-target button {
+  padding: 0.1em 0.5em;
+}
+
+/* One line per corrected track of a file. */
+.batch-target + .batch-target {
+  margin-top: 0.3em;
+}
+
+.batch-target-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.batch-target button {
+  margin-left: 0.4em;
+}
+
+.batch-row-flagged td.batch-index {
+  color: var(--error);
+}
+
+/* Where the exports go, left of the progress line. */
+.batch-output {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.9em;
+}
+
+.batch-output-label {
+  color: var(--text-muted);
+}
+
+/* Monospace only for an actual folder path, not "à côté des originaux". */
+.batch-output-path {
+  font-family: var(--font-mono);
+}
+
+.batch-output-dir {
+  min-width: 0;
+  max-width: 22em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-output button {
+  flex: 0 0 auto;
+  padding: 0.25em 0.7em;
+}
+
+.batch-footer {
+  flex-wrap: wrap;
+}
+
+/* "Choisir": a file's tracks, picked by hand. */
+.batch-choice-panel {
+  max-width: 640px;
+}
+
+.batch-choice-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1em;
+}
+
+/* "Choisir": the subtitle tracks retimed with each corrected track. */
+.batch-choice-subs {
+  margin-top: 1em;
+}
+
+.batch-choice-subs h3 {
+  margin: 0 0 0.5em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.batch-choice-subs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em 0.9em;
+  font-size: 0.9em;
+}
+
+.batch-choice-subs-row + .batch-choice-subs-row {
+  margin-top: 0.4em;
+}
+
+.batch-choice-subs-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
 }

@@ -56,14 +56,15 @@ export default function Timeline({ analysis, duration, editing }: Props) {
       />
       <div className="timeline-controls">
         <div className="button-group">
-          <button onClick={() => goToJump(-1)} disabled={!boundaries.some((b) => b < centre - 0.01)}>
+          <span className="toolbar-label">Aller à :</span>
+          <button className="small-button" onClick={() => goToJump(-1)} disabled={!boundaries.some((b) => b < centre - 0.01)}>
             ← Saut précédent
           </button>
-          <button onClick={() => goToJump(1)} disabled={!boundaries.some((b) => b > centre + 0.01)}>
+          <button className="small-button" onClick={() => goToJump(1)} disabled={!boundaries.some((b) => b > centre + 0.01)}>
             Saut suivant →
           </button>
           {editing && (
-            <button onClick={() => editing.onSplit(centre)} title="Couper le segment au centre de la loupe">
+            <button className="small-button" onClick={() => editing.onSplit(centre)} title="Couper le segment au centre de la loupe">
               ✂ Couper ici
             </button>
           )}
@@ -72,8 +73,9 @@ export default function Timeline({ analysis, duration, editing }: Props) {
           {clock(windowStart, 0)} – {clock(windowEnd, 0)}
         </span>
         <div className="button-group">
+          <span className="toolbar-label">Zoom :</span>
           {ZOOMS.map((z) => (
-            <button key={z} className={z === zoom ? "active" : ""} onClick={() => setZoom(z)}>
+            <button key={z} className={z === zoom ? "small-button primary-button" : "small-button"} onClick={() => setZoom(z)}>
               {z < 60 ? `${z} s` : `${z / 60} min`}
             </button>
           ))}
