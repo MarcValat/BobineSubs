@@ -1,6 +1,6 @@
-# SyncSubtitles (app)
+# Bobine Subs (app)
 
-L'application de [SyncSubtitles](../README.fr.md) (Tauri v2 + React/TypeScript) : ouvrir une vidéo ou une série, analyser, vérifier et corriger les segments, exporter.
+L'application de [Bobine Subs](../README.fr.md) (Tauri v2 + React/TypeScript) : ouvrir une vidéo ou une série, analyser, vérifier et corriger les segments, exporter.
 
 Elle ne contient aucune logique de détection ni de recalage : elle pilote le moteur Python (`../engine/`), lancé au démarrage comme processus séparé exposant une API HTTP + WebSocket locale (`127.0.0.1:8757`, 8756 étant celui de SyncAudio). Voir [`engine/README.md`](../engine/README.md).
 

@@ -69,7 +69,7 @@ jobs:
         # can be missing from it yet (seen in SyncAudio: its v1.4.0 builds then
         # quietly published nothing).
         run: |
-          id=$(gh api -X POST "repos/$GH_REPO/releases" -f tag_name="$TAG" -f name="SyncSubtitles $TAG" -F draft=true --jq .id)
+          id=$(gh api -X POST "repos/$GH_REPO/releases" -f tag_name="$TAG" -f name="Bobine Subs $TAG" -F draft=true --jq .id)
           test -n "$id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
