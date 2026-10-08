@@ -831,6 +831,19 @@ function ChooseTracksDialog({
   );
 }
 
+/** Where a row stands, for the colored bar at its left (as Bobine Audio's
+ * analyzed tracks): running, waiting, analyzed, exported, failed, or
+ * nothing done yet. */
+function rowState(runs: RowRuns, problem: string | null): string {
+  const { analysis, render } = runs;
+  if (analysis.status === "running" || render.status === "running") return "running";
+  if (runs.queued) return "queued";
+  if (analysis.status === "error" || render.status === "error" || (problem && problem !== "Lecture…")) return "error";
+  if (render.status === "done") return "exported";
+  if (analysis.status === "done") return "analyzed";
+  return "idle";
+}
+
 /** One row, as Bobine Audio's batch tables: the files (with the buttons
  * that move or drop them), then the analysis with "Modifier", the export,
  * and the written file's folder. */
@@ -899,7 +912,7 @@ function BatchRow({
   const renderClass = render.status === "idle" ? "pending" : render.status;
 
   return (
-    <tr className={problem ? "batch-row-flagged" : undefined}>
+    <tr className={`batch-row-state-${rowState(runs, problem)}${problem ? " batch-row-flagged" : ""}`}>
       <td className="batch-index">{index + 1}</td>
       <td className="batch-file">
         <div className="batch-file-inner">

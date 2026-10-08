@@ -1285,3 +1285,30 @@ button:focus-visible {
   width: 1em;
   margin-left: -0.2em;
 }
+
+/* Batch: where each row stands, a bar at its left (as Bobine Audio's
+   analyzed tracks): running blue, waiting pale blue, analyzed pale green,
+   exported green, failed red. */
+.batch-table-wrap tbody tr > td:first-child {
+  box-shadow: inset 3px 0 0 var(--row-state, transparent);
+}
+
+.batch-row-state-running {
+  --row-state: var(--accent);
+}
+
+.batch-row-state-queued {
+  --row-state: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.batch-row-state-analyzed {
+  --row-state: color-mix(in srgb, var(--success) 45%, transparent);
+}
+
+.batch-row-state-exported {
+  --row-state: var(--success);
+}
+
+.batch-row-state-error {
+  --row-state: var(--error);
+}
