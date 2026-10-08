@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SyncSubtitles",
+  "productName": "Bobine Subs",
   "version": "1.0.0",
   "identifier": "com.syncsubtitles.app",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "SyncSubtitles",
+        "title": "Bobine Subs",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -52,13 +52,19 @@
     },
     "shortDescription": "Recale des sous-titres sur ceux de référence d'une vidéo",
     "publisher": "Marc Valat",
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "linux": {
+      "deb": {
+        "conflicts": ["sync-subtitles"],
+        "replaces": ["sync-subtitles"]
+      }
+    }
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5RDkwODY0RkE5ODIyQkYKUldTL0lwajZaQWpaK1ltUzZ4UVp0WXlLUWtHVDJDV1lLMFh6amJUSENsMUZjYmhtbWFsV1pyTzAK",
       "endpoints": [
-        "https://github.com/MarcValat/SyncSubtitles/releases/latest/download/latest.json"
+        "https://github.com/MarcValat/BobineSubs/releases/latest/download/latest.json"
       ]
     }
   }

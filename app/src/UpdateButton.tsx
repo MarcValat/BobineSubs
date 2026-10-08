@@ -131,7 +131,7 @@ export function UpdateButton() {
       </button>
       {open && (
         <div className="update-menu" role="dialog">
-          <p className="update-menu-title">{failed ? "La mise à jour a échoué" : `SyncSubtitles ${update.version} est disponible`}</p>
+          <p className="update-menu-title">{failed ? "La mise à jour a échoué" : `Bobine Subs ${update.version} est disponible`}</p>
           {phase === "available" && (
             <>
               <p className="muted">L'application redémarrera une fois la mise à jour installée.</p>
