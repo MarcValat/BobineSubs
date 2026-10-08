@@ -40,7 +40,7 @@ Or la vidéo contient souvent déjà des sous-titres bien calés, dans une autre
 - 👀 **Vérifier avant d'exporter** : la courbe des décalages, et une loupe qui montre côte à côte les répliques de la référence et celles à corriger, avant et après, avec leur texte.
 - ✏️ **Corriger à la main si besoin** : glisser un segment ou une frontière, couper, retirer une fausse détection, **aligner** une réplique sur la bonne d'un clic, défaire / refaire.
 - 📦 **Un export propre** : un nouveau MKV où la piste corrigée remplace l'originale ou s'ajoute, sans rien réencoder, ou le fichier de sous-titres seul. Le fichier d'origine n'est jamais modifié.
-- 🗂️ **Une série entière en une passe** : des vidéos et leurs fichiers de sous-titres, associés d'après le numéro d'épisode (`S01E03`, `1x03`…), ou des vidéos contenant chacune les deux pistes.
+- 🗂️ **Une série entière en une passe** : des vidéos et leurs sous-titres à corriger (fichiers SRT/ASS ou autres vidéos), associés d'après le numéro d'épisode (`S01E03`, `1x03`…), ou des vidéos contenant chacune les deux pistes ; pistes choisies par langue, ou à la main fichier par fichier.
 - 🖱️ **Glisser-déposer** de fichiers ou de dossiers entiers, thème clair ou sombre, mises à jour automatiques.
 
 ## Installation
@@ -59,9 +59,9 @@ Rien d'autre à installer : le moteur d'analyse et ffmpeg sont fournis avec l'ap
 
 ## Comment ça marche
 
-1. **Ouvre la vidéo** (ou dépose-la sur la fenêtre) : ses sous-titres bien calés servent de **référence**. Choisis les sous-titres **à corriger** : une autre piste de la même vidéo, ou un fichier SRT/ASS à part.
+1. **Ouvre la vidéo** (ou dépose-la sur la fenêtre) : dans le tableau de ses pistes, coche la **référence** (ses sous-titres bien calés) et les sous-titres **à corriger** : une autre piste de la même vidéo, ou un fichier SRT/ASS à part, ajouté avec « + Ajouter des sous-titres ».
 2. **Analyse** : la courbe montre les segments trouvés. Vérifie dans la loupe que les répliques tombent en face des bonnes, et ajuste les segments à la main si quelque chose cloche.
-3. **Exporte** : un nouveau MKV à côté de l'original (`Film.synced.mkv`), ou les sous-titres seuls.
+3. **Exporte** : un nouveau MKV (proposé à côté de l'original : `Film.synced.mkv`), ou les sous-titres seuls.
 
 📖 Le [guide d'utilisation](docs/guide.fr.md) détaille tout : lire le résultat, l'éditeur de segments, le mode série, les questions fréquentes.
 

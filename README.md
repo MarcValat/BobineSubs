@@ -43,7 +43,7 @@ The interface is in French for now.
 - 👀 **Check before exporting**: the offset curve, and a close-up showing the reference's lines next to the ones to fix, before and after, with their text.
 - ✏️ **Correct by hand if needed**: drag a segment or a boundary, split, remove a false detection, **align** a line on the right one in one click, undo / redo.
 - 📦 **A clean export**: a new MKV where the corrected track replaces the original or is added, nothing re-encoded, or the subtitle file alone. The original file is never changed.
-- 🗂️ **A whole series in one pass**: videos and their subtitle files, matched by episode number (`S01E03`, `1x03`…), or videos that each hold both tracks.
+- 🗂️ **A whole series in one pass**: videos and the subtitles to fix (SRT/ASS files or other videos), matched by episode number (`S01E03`, `1x03`…), or videos that each hold both tracks; tracks picked by language, or by hand file by file.
 - 🖱️ **Drag and drop** files or whole folders, light or dark theme, automatic updates.
 
 ## Install
@@ -62,9 +62,9 @@ Nothing else to install: the analysis engine and ffmpeg come with the app. When 
 
 ## How it works
 
-1. **Open the video** (or drop it on the window): its well-timed subtitles are the **reference**. Pick the subtitles **to fix**: another track of the same video, or a separate SRT/ASS file.
+1. **Open the video** (or drop it on the window): in its tracks table, tick the **reference** (its well-timed subtitles) and the subtitles **to fix**: another track of the same video, or a separate SRT/ASS file, added with "+ Ajouter des sous-titres".
 2. **Analyze**: the curve shows the segments found. Check in the close-up that lines fall in front of the right ones, and adjust the segments by hand if something's off.
-3. **Export**: a new MKV next to the original (`Film.synced.mkv`), or the subtitles alone.
+3. **Export**: a new MKV (suggested next to the original: `Film.synced.mkv`), or the subtitles alone.
 
 📖 The [user guide](docs/guide.md) covers everything in detail: reading the result, the segment editor, series mode, FAQ.
 
