@@ -1,6 +1,6 @@
 [package]
 name = "syncsubtitles"
-version = "1.0.0"
+version = "1.1.0"
 description = "Recale une piste de sous-titres sur les sous-titres de référence d'un MKV"
 authors = ["Marc Valat"]
 edition = "2024"
