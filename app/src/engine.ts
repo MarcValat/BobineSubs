@@ -1,7 +1,22 @@
 import { useSyncExternalStore } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
-/** The engine sidecar's local address (see src-tauri/src/lib.rs). */
-export const ENGINE_URL = "http://127.0.0.1:8757";
+/** The engine's usual port, `syncsubtitles serve`'s default: where a plain
+ * browser on the dev server finds it. The app starts it there when it's
+ * free, on another free port otherwise. */
+const DEFAULT_PORT = 8757;
+
+let engineUrl: string | null = null;
+
+/** The engine sidecar's local address, asked once to the app (see
+ * src-tauri/src/lib.rs's free_port). */
+export async function getEngineUrl(): Promise<string> {
+  if (engineUrl === null) {
+    const port = isTauri() ? await invoke<number>("engine_port") : DEFAULT_PORT;
+    engineUrl = `http://127.0.0.1:${port}`;
+  }
+  return engineUrl;
+}
 
 const HEALTH_POLL_INTERVAL_MS = 100;
 const HEALTH_POLL_ATTEMPTS = 300; // 30 s before giving up
@@ -20,7 +35,7 @@ function setStatus(next: EngineStatus): void {
 
 async function healthy(): Promise<boolean> {
   try {
-    return (await fetch(`${ENGINE_URL}/health`)).ok;
+    return (await fetch(`${await getEngineUrl()}/health`)).ok;
   } catch {
     return false;
   }
