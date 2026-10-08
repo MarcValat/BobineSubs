@@ -7,8 +7,8 @@
 <radialGradient id="glow" cx=".5" cy=".52" r=".42"><stop offset="0" stop-color="#22c79e" stop-opacity="0.34"/><stop offset="1" stop-color="#22c79e" stop-opacity="0"/></radialGradient>
 </defs>
 <rect width="100" height="100" rx="22" fill="url(#tile)"/>
-<rect x=".75" y=".75" width="98.5" height="98.5" rx="21.3" fill="none" stroke="url(#edge)" stroke-width="1.5"/>
+<rect x="1.5" y="1.5" width="97" height="97" rx="20.5" fill="none" stroke="url(#edge)" stroke-width="3"/>
 <circle cx="50" cy="50" r="40" fill="url(#glow)"/>
-<g fill="url(#perf)"><rect x="13" y="7" width="10" height="7" rx="2"/><rect x="29" y="7" width="10" height="7" rx="2"/><rect x="45" y="7" width="10" height="7" rx="2"/><rect x="61" y="7" width="10" height="7" rx="2"/><rect x="77" y="7" width="10" height="7" rx="2"/><rect x="13" y="86" width="10" height="7" rx="2"/><rect x="29" y="86" width="10" height="7" rx="2"/><rect x="45" y="86" width="10" height="7" rx="2"/><rect x="61" y="86" width="10" height="7" rx="2"/><rect x="77" y="86" width="10" height="7" rx="2"/></g>
-<path d="M30 37 H70 M37 30 L30 37 L37 44 M63 30 L70 37 L63 44" fill="none" stroke="url(#main)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><rect x="26" y="53" width="48" height="7" rx="3.5" fill="url(#main)"/><rect x="34" y="65" width="32" height="6" rx="3" fill="url(#main)" opacity=".6"/>
+<g fill="url(#perf)"><rect x="13" y="7" width="10" height="7" rx="2"/><rect x="45" y="7" width="10" height="7" rx="2"/><rect x="77" y="7" width="10" height="7" rx="2"/><rect x="13" y="86" width="10" height="7" rx="2"/><rect x="45" y="86" width="10" height="7" rx="2"/><rect x="77" y="86" width="10" height="7" rx="2"/></g>
+<path d="M30 36 H70 M38 28 L30 36 L38 44 M62 28 L70 36 L62 44" fill="none" stroke="url(#main)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><rect x="24" y="52" width="52" height="9" rx="4.5" fill="url(#main)"/><rect x="32" y="66" width="36" height="8" rx="4" fill="url(#main)" opacity=".6"/>
 </svg>
