@@ -63,12 +63,23 @@ const NO_RUNS: RowRuns = { analysis: IDLE, render: IDLE };
 /** The folder batch exports go to (null: next to each original), kept for the next session. */
 const OUTPUT_DIR_KEY = "syncsubtitles.batchOutputDir";
 
-/** The track of `probe` in `language` to correct: a full one before a forced one. */
-function trackInLanguage(probe: ProbeResponse | undefined, language: string | null): number | null {
-  const candidates = textTracks(probe ?? null).filter((t) => t.language === language);
+/** The track of `probe` in `language` to correct: a full one before a
+ * forced one; never `exclude` (the reference). */
+function trackInLanguage(probe: ProbeResponse | undefined, language: string | null, exclude: number | null = null): number | null {
+  const candidates = textTracks(probe ?? null).filter((t) => t.language === language && t.index !== exclude);
   candidates.sort((a, b) => Number(a.forced) - Number(b.forced));
   return candidates[0]?.index ?? null;
 }
+
+/** The reference track of `probe` in `language`: a full one before a forced
+ * one, text before image (both can be a reference). */
+function referenceInLanguage(probe: ProbeResponse, language: string): number | null {
+  const candidates = probe.tracks.filter((t) => t.format !== null && t.language === language);
+  candidates.sort((a, b) => Number(a.forced) - Number(b.forced) || Number(isImage(a.format)) - Number(isImage(b.format)));
+  return candidates[0]?.index ?? null;
+}
+
+const isImage = (format: string | null) => format === "pgs" || format === "vobsub";
 
 export default function BatchView({
   active,
@@ -88,6 +99,8 @@ export default function BatchView({
   const [language, setLanguage] = useState<string | null>(null);
   // Pairs: the language of the track to correct in the videos to correct.
   const [targetLanguage, setTargetLanguage] = useState<string | null>(null);
+  // Both: the reference track's language; null: chosen by the engine (the most complete).
+  const [referenceLanguage, setReferenceLanguage] = useState<string | null>(null);
   // Pairs: videos and subtitle files, paired by episode number.
   const [pairRows, setPairRows] = useState<Row[]>([]);
   // Results by what was analyzed (video + target): kept across re-pairings.
@@ -109,27 +122,39 @@ export default function BatchView({
 
   // --- rows ---------------------------------------------------------------
 
+  // The tracks used are part of a row's key: other tracks, another analysis.
   const multiRows: Row[] = multiVideos.map((video) => {
-    const p = probes[video];
-    const index = typeof p === "object" ? trackInLanguage(p, language) : null;
-    return { key: `${video}@${index}`, video, target: null, by: null };
+    const reference = referenceOf(video);
+    const index = trackOf(video, language, typeof reference === "number" ? reference : null);
+    return { key: `${video}@${reference}>${index}`, video, target: null, by: null };
   });
-  // A video to correct: its track in the language picked, part of the key
-  // (another track is another analysis).
   const pairTargetVideos = pairRows.flatMap((r) => (r.target && !isSubtitleFile(r.target) ? [r.target] : []));
-  const shownPairRows: Row[] = pairRows.map((r) =>
-    r.target && !isSubtitleFile(r.target) ? { ...r, key: `${r.key}@${trackOf(r.target, targetLanguage)}` } : r,
-  );
+  const pairReferences = pairRows.flatMap((r) => (r.video ? [r.video] : []));
+  const shownPairRows: Row[] = pairRows.map((r) => {
+    const target = r.target && !isSubtitleFile(r.target) ? `@${trackOf(r.target, targetLanguage)}` : "";
+    return { ...r, key: `${r.key}${target}<${r.video ? referenceOf(r.video) : ""}` };
+  });
   const rows = kind === "multi" ? multiRows : shownPairRows;
 
   /** The track of `path` (a probed video) in `lang` to correct. */
-  function trackOf(path: string, lang: string | null): number | null {
+  function trackOf(path: string, lang: string | null, exclude: number | null = null): number | null {
     const p = probes[path];
-    return typeof p === "object" ? trackInLanguage(p, lang) : null;
+    return typeof p === "object" ? trackInLanguage(p, lang, exclude) : null;
+  }
+
+  /** The reference track of `video`: null when the engine picks it (no
+   * language chosen), or why there's none. */
+  function referenceOf(video: string): number | null | string {
+    if (referenceLanguage === null) return null;
+    const p = probes[video];
+    if (p === undefined) return "Lecture…";
+    if (typeof p === "string") return p;
+    return referenceInLanguage(p, referenceLanguage) ?? `Pas de référence ${languageName(referenceLanguage)}`;
   }
 
   const languages = useLanguages(multiVideos, probes);
   const targetLanguages = useLanguages(pairTargetVideos, probes);
+  const referenceLanguages = useLanguages(kind === "multi" ? multiVideos : pairReferences, probes, true);
 
   useEffect(() => {
     if (language === null && languages.length) setLanguage(defaultLanguage(languages));
@@ -141,22 +166,26 @@ export default function BatchView({
   /** Why a row can't be analyzed, or its tracks. */
   function inputs(row: Row): { reference: TrackRef; target: TrackRef } | string {
     if (!row.video) return "Pas de vidéo";
+    const index = referenceOf(row.video);
+    if (typeof index === "string") return index;
+    const reference = { path: row.video, index };
     if (kind === "pairs") {
       if (!row.target) return "Rien à corriger";
-      if (isSubtitleFile(row.target)) return { reference: { path: row.video, index: null }, target: { path: row.target, index: null } };
-      const index = trackIn(row.target, targetLanguage);
-      return typeof index === "string" ? index : { reference: { path: row.video, index: null }, target: { path: row.target, index } };
+      if (isSubtitleFile(row.target)) return { reference, target: { path: row.target, index: null } };
+      const target = trackIn(row.target, targetLanguage);
+      return typeof target === "string" ? target : { reference, target: { path: row.target, index: target } };
     }
-    const index = trackIn(row.video, language);
-    return typeof index === "string" ? index : { reference: { path: row.video, index: null }, target: { path: row.video, index } };
+    const target = trackIn(row.video, language, index);
+    return typeof target === "string" ? target : { reference, target: { path: row.video, index: target } };
   }
 
-  /** The track to correct in a probed video, or why there's none. */
-  function trackIn(path: string, lang: string | null): number | string {
+  /** The track to correct in a probed video (never `exclude`, the
+   * reference), or why there's none. */
+  function trackIn(path: string, lang: string | null, exclude: number | null = null): number | string {
     const p = probes[path];
     if (p === undefined) return "Lecture…";
     if (typeof p === "string") return p;
-    return trackInLanguage(p, lang) ?? `Pas de piste ${languageName(lang)}`;
+    return trackInLanguage(p, lang, exclude) ?? `Pas de piste ${languageName(lang)}`;
   }
 
   const runsOf = (row: Row) => runs[row.key] ?? NO_RUNS;
@@ -188,7 +217,7 @@ export default function BatchView({
     }
     const references = side === "left" ? files.filter((f) => !isSubtitleFile(f)) : [];
     const targets = side === "left" ? files.filter(isSubtitleFile) : files;
-    probeVideos(targets.filter((f) => !isSubtitleFile(f)));
+    probeVideos([...references, ...targets.filter((f) => !isSubtitleFile(f))]);
     const allReferences = [...new Set([...pairRows.flatMap((r) => (r.video ? [r.video] : [])), ...references])];
     const allTargets = [...new Set([...pairRows.flatMap((r) => (r.target ? [r.target] : [])), ...targets])];
     const pairs = await pairFiles(allReferences, allTargets);
@@ -329,6 +358,22 @@ export default function BatchView({
   return (
     <main className="batch-main" hidden={!active}>
       <div className="batch-config panel">
+        <label>
+          Référence :
+          <select
+            value={referenceLanguage ?? ""}
+            onChange={(e) => setReferenceLanguage(e.target.value || null)}
+            disabled={busy !== null}
+            title="La piste de sous-titres déjà bien calée de chaque vidéo : par défaut la plus complète, ou celle d'une langue (complète plutôt que forcée)."
+          >
+            <option value="">Automatique (la plus complète)</option>
+            {referenceLanguages.map(([lang, n]) => (
+              <option key={lang} value={lang}>
+                {languageName(lang)} ({lang}) · {n} fichier{n > 1 ? "s" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
         {kind === "multi" && <LanguageSelect value={language} languages={languages} onChange={setLanguage} disabled={busy !== null} />}
         {kind === "pairs" && pairTargetVideos.length > 0 && (
           <LanguageSelect value={targetLanguage} languages={targetLanguages} onChange={setTargetLanguage} disabled={busy !== null} />
@@ -412,7 +457,7 @@ export default function BatchView({
                       </button>
                     </div>
                   ) : (
-                    "Piste à corriger"
+                    "Pistes"
                   )}
                 </th>
                 <th>Analyse</th>
@@ -442,7 +487,7 @@ export default function BatchView({
                   problem={typeof inputs(row) === "string" ? (inputs(row) as string) : null}
                   targetLabel={
                     kind === "multi"
-                      ? multiTargetLabel(probes[row.video ?? ""], language)
+                      ? multiTracksLabel(probes[row.video ?? ""], referenceOf(row.video ?? ""), language)
                       : row.target && !isSubtitleFile(row.target)
                         ? multiTargetLabel(probes[row.target], targetLanguage)
                         : null
@@ -573,17 +618,19 @@ export default function BatchView({
 /** Pairs: what the "À corriger" column takes. */
 const TARGET_FILTER = { name: "Sous-titres ou vidéos", extensions: [...SUBTITLE_EXTENSIONS, ...VIDEO_EXTENSIONS] };
 
-/** The languages of the text tracks in `videos`, most common first. */
-function useLanguages(videos: string[], probes: Record<string, ProbeResponse | string>): [string, number][] {
+/** The languages of the text tracks in `videos` (with `images`, of every
+ * usable track: a reference may be PGS/VobSub), most common first. */
+function useLanguages(videos: string[], probes: Record<string, ProbeResponse | string>, images = false): [string, number][] {
   return useMemo(() => {
     const count = new Map<string, number>();
     for (const video of new Set(videos)) {
       const p = probes[video];
       if (typeof p !== "object") continue;
-      for (const lang of new Set(textTracks(p).map((t) => t.language ?? "?"))) count.set(lang, (count.get(lang) ?? 0) + 1);
+      const tracks = images ? p.tracks.filter((t) => t.format !== null) : textTracks(p);
+      for (const lang of new Set(tracks.map((t) => t.language ?? "?"))) count.set(lang, (count.get(lang) ?? 0) + 1);
     }
     return [...count.entries()].sort((a, b) => b[1] - a[1]);
-  }, [videos, probes]);
+  }, [videos, probes, images]);
 }
 
 /** French when there is, else the second most common (the first being the
@@ -619,9 +666,19 @@ function LanguageSelect({
   );
 }
 
-function multiTargetLabel(p: ProbeResponse | string | undefined, language: string | null): string | null {
+/** Multi: "@0 eng → @2 fre (subrip)", the reference "auto" when the engine
+ * picks it (as Bobine Audio's "Pistes" column). */
+function multiTracksLabel(p: ProbeResponse | string | undefined, reference: number | null | string, language: string | null): string | null {
+  if (typeof p !== "object" || typeof reference === "string") return null;
+  const target = multiTargetLabel(p, language, reference);
+  if (target === null) return null;
+  const ref = reference === null ? null : p.tracks.find((t) => t.index === reference);
+  return `${ref ? `@${ref.index} ${ref.language ?? "?"}` : "Réf. auto"} → ${target}`;
+}
+
+function multiTargetLabel(p: ProbeResponse | string | undefined, language: string | null, exclude: number | null = null): string | null {
   if (typeof p !== "object") return null;
-  const index = trackInLanguage(p, language);
+  const index = trackInLanguage(p, language, exclude);
   const track = p.tracks.find((t) => t.index === index);
   return track ? `@${track.index} ${track.language ?? "?"} (${track.codec})${track.title ? ` « ${track.title} »` : ""}` : null;
 }
