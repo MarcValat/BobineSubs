@@ -1093,36 +1093,49 @@ button:focus-visible {
   margin-top: 0.7em;
 }
 
-/* Batch: a row analyzed again on its own, under its result. */
-.batch-reanalyze {
-  margin-top: 0.3em;
+/* Batch: a row's result on the left, its buttons on the right. */
+.batch-analysis-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
-/* Single file: the reference and the track to correct, one list each, its
-   name above it; one line per choice, cut short with "…" (the full text in
-   the open list). */
-.track-pickers {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7em;
-  margin-top: 0.2em;
+.batch-analysis-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.track-picker {
+.batch-analysis-text .batch-issues {
+  display: block;
+}
+
+.batch-row-buttons {
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.3em;
 }
 
-.track-picker > span {
-  font-size: 0.85em;
-  color: var(--text-muted);
+/* A small button holding an icon only (Réanalyser). */
+.icon-small-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25em 0.45em;
 }
 
-.track-picker select {
-  width: 100%;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.icon-small-button svg {
+  width: 1.05em;
+  height: 1.05em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Single file: a forced subtitle track, "(F)" after its language. */
+.track-forced {
+  color: var(--text-muted);
+  font-size: 0.85em;
 }

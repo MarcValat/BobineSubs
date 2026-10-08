@@ -21,6 +21,7 @@ import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, type DropSide, useFileDrop } from "./FileDrop";
 import { DropZone } from "./DropZone";
 import { fileName, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
+import { RedoIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
 import {
@@ -774,32 +775,41 @@ function BatchRow({
         <td className="batch-tracks-cell">{targetLabel ?? <span className="batch-track-status">{problem ?? "Lecture des pistes..."}</span>}</td>
       )}
       <td className={`batch-status batch-status-${problem && analysis.status === "idle" ? "error" : analysisClass}`}>
-        {problem && analysis.status === "idle" && problem}
-        {!problem && analysis.status === "idle" && "À analyser"}
-        {analysis.status === "running" && "Analyse en cours..."}
-        {analysis.status === "error" && (analysis.error ?? "Erreur")}
-        {analysis.status === "cancelled" && "Annulé"}
-        {analysis.status === "done" && result && (
-          <div className="batch-target">
-            {summarize(result)}
-            {result.ratio_name && " · dérive"}
-            {runs.edited && " · modifié"}
-            {weak && <span className="batch-issues"> ⚠ à vérifier</span>}
-            <button className="small-button" disabled={busy} onClick={onEdit}>
-              Modifier
-            </button>
+        <div className="batch-analysis-cell">
+          <div className="batch-analysis-text">
+            {problem && analysis.status === "idle" && problem}
+            {!problem && analysis.status === "idle" && "À analyser"}
+            {analysis.status === "running" && "Analyse en cours..."}
+            {analysis.status === "error" && (analysis.error ?? "Erreur")}
+            {analysis.status === "cancelled" && "Annulé"}
+            {analysis.status === "done" && result && (
+              <>
+                {summarize(result)}
+                {result.ratio_name && " · dérive"}
+                {runs.edited && " · modifié"}
+                {weak && <span className="batch-issues">⚠ à vérifier</span>}
+              </>
+            )}
           </div>
-        )}
-        {onReanalyze && (analysis.status === "done" || analysis.status === "error" || analysis.status === "cancelled") && (
-          <button
-            className="small-button batch-reanalyze"
-            disabled={busy}
-            onClick={onReanalyze}
-            title={runs.edited ? "Réanalyse cette ligne seule : ses modifications faites avec « Modifier » sont perdues." : "Réanalyse cette ligne seule."}
-          >
-            Réanalyser
-          </button>
-        )}
+          <div className="batch-row-buttons">
+            {analysis.status === "done" && result && (
+              <button className="small-button" disabled={busy} onClick={onEdit}>
+                Modifier
+              </button>
+            )}
+            {onReanalyze && (analysis.status === "done" || analysis.status === "error" || analysis.status === "cancelled") && (
+              <button
+                className="small-button icon-small-button"
+                disabled={busy}
+                onClick={onReanalyze}
+                aria-label="Réanalyser"
+                title={runs.edited ? "Réanalyser cette ligne seule : ses modifications faites avec « Modifier » sont perdues." : "Réanalyser cette ligne seule"}
+              >
+                <RedoIcon />
+              </button>
+            )}
+          </div>
+        </div>
       </td>
       <td className={`batch-status batch-status-${renderClass}`}>
         {render.status === "idle" && "—"}

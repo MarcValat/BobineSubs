@@ -25,7 +25,7 @@ import { clock, fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
 import { PillSwitch } from "./PillSwitch";
-import { errorMessage, IDLE, LANGUAGES, languageName, pickFile, type Run, textTracks } from "./shared";
+import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
 
 const EXPORT_KINDS = [
   ["mkv", "Nouveau MKV"],
@@ -40,7 +40,8 @@ type Source = "same" | "file";
  * the right, the analysis. */
 export default function SingleView({ active }: { active: boolean }) {
   const [reference, setReference] = useState<ProbeResponse | null>(null);
-  const [referenceIndex, setReferenceIndex] = useState<number | null>(null); // null: automatic
+  // Checked in the tracks table; null only for a subtitle file (no tracks).
+  const [referenceIndex, setReferenceIndex] = useState<number | null>(null);
   const [targetMode, setTargetMode] = useState<Source>("file");
   const [targetFile, setTargetFile] = useState<ProbeResponse | null>(null);
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
@@ -81,18 +82,14 @@ export default function SingleView({ active }: { active: boolean }) {
       if (probed.kind === "container" && probed.tracks.length === 0) throw new Error(`${fileName(path)} ne contient aucune piste de sous-titres.`);
       if (role === "reference") {
         setReference(probed);
-        setReferenceIndex(null);
         setTargetFile(null);
         // A video with a second text track: correcting one of its own
         // tracks is the likely intent.
         const text = textTracks(probed);
-        if (probed.kind === "container" && text.length >= 2) {
-          setTargetMode("same");
-          setTargetIndex(text.find((t) => t.default)?.index ?? text[text.length - 1].index);
-        } else {
-          setTargetMode("file");
-          setTargetIndex(null);
-        }
+        const target = probed.kind === "container" && text.length >= 2 ? (text.find((t) => t.default)?.index ?? text[text.length - 1].index) : null;
+        setTargetMode(target !== null ? "same" : "file");
+        setTargetIndex(target);
+        setReferenceIndex(probed.kind === "container" ? defaultReference(probed, target) : null);
       } else {
         setTargetFile(probed);
         setTargetMode("file");
@@ -165,8 +162,8 @@ export default function SingleView({ active }: { active: boolean }) {
           <h2>
             Pistes{" "}
             <InfoTip>
-              La référence : une piste de sous-titres déjà bien calée (choisie automatiquement : la plus complète). À corriger : une piste du même
-              fichier, ou d'un fichier ajouté (SRT/ASS, ou une vidéo qui la contient).
+              Réf. : la piste de sous-titres déjà bien calée, qui sert de modèle. À corriger : une piste du même fichier, ou d'un fichier ajouté
+              (SRT/ASS, ou une vidéo qui la contient). Survole une piste pour voir son titre ; (F) : sous-titres forcés.
             </InfoTip>
           </h2>
           {reference && (
@@ -180,40 +177,31 @@ export default function SingleView({ active }: { active: boolean }) {
           {openError && <p className="error">{openError}</p>}
           {reference && (
             <>
-              {nothingToCorrect ? (
-                <>
-                  <TrackPickers
-                    reference={reference}
-                    referenceIndex={referenceIndex}
-                    targetFile={null}
-                    targetMode={targetMode}
-                    targetIndex={targetIndex}
-                    disabled={running}
-                    onReference={setReferenceIndex}
-                    onTarget={() => {}}
-                    onAddTarget={addTarget}
-                    referenceOnly
-                  />
-                  <button className="tracks-add-main" onClick={addTarget} disabled={opening !== null || running}>
-                    {opening === "target" ? "Lecture..." : "Ajouter les sous-titres à corriger…"}
-                  </button>
-                </>
-              ) : (
-                <TrackPickers
+              <div className="tracks-table-wrap list-scroll">
+                <SubtitleTrackTable
                   reference={reference}
                   referenceIndex={referenceIndex}
                   targetFile={targetFile}
                   targetMode={targetMode}
                   targetIndex={targetIndex}
-                  disabled={running || opening !== null}
+                  disabled={running}
                   onReference={setReferenceIndex}
                   onTarget={(mode, index) => {
                     setTargetMode(mode);
                     setTargetIndex(index);
+                    // Its own track to correct can't stay the reference.
+                    if (mode === "same" && index === referenceIndex) setReferenceIndex(defaultReference(reference, index));
                   }}
-                  onAddTarget={addTarget}
                 />
-              )}
+              </div>
+              <button
+                className="tracks-add-main"
+                onClick={addTarget}
+                disabled={opening !== null || running}
+                title="Ajouter les sous-titres à corriger : un SRT/ASS, ou une vidéo qui contient la piste à corriger"
+              >
+                {opening === "target" ? "Lecture..." : "+ Ajouter des sous-titres"}
+              </button>
               {sameTrack && <p className="error">La référence et la piste à corriger sont la même piste.</p>}
               <div className="tracks-actions">
                 <button
@@ -296,6 +284,15 @@ export default function SingleView({ active }: { active: boolean }) {
   );
 }
 
+/** The reference checked when a video is opened: a full track before a
+ * forced one, text before image, never the track to correct. */
+function defaultReference(probe: ProbeResponse, target: number | null): number | null {
+  const usable = probe.tracks.filter((t) => t.format !== null && t.index !== target);
+  const image = (t: TrackInfo) => t.format === "pgs" || t.format === "vobsub";
+  usable.sort((a, b) => Number(a.forced) - Number(b.forced) || Number(image(a)) - Number(image(b)) || a.index - b.index);
+  return usable[0]?.index ?? null;
+}
+
 /** "Piste @2 (fre) · référence @0 (eng)", as Bobine Audio's panel title. */
 function heading(analysis: Analysis, reference: ProbeResponse | null, targetSource: ProbeResponse | null): string {
   const label = (probe: ProbeResponse | null, index: number | null) => {
@@ -308,20 +305,10 @@ function heading(analysis: Analysis, reference: ProbeResponse | null, targetSour
   return `Piste ${label(targetSource, analysis.target.index)} · référence ${label(reference, Number.isNaN(chosen) ? null : chosen)}`;
 }
 
-/** "Piste @1 · Français · ASS · « Titre » · forcés": what tells tracks apart. */
-function trackOption(track: TrackInfo): string {
-  const parts = [`@${track.index}`, track.language ? `${languageName(track.language)}` : "langue inconnue", track.codec.toUpperCase()];
-  if (track.title) parts.push(`« ${track.title} »`);
-  if (track.forced) parts.push("forcés");
-  if (track.format === "pgs" || track.format === "vobsub") parts.push("image");
-  return parts.join(" · ");
-}
-
-/** The reference and the track to correct, one list each: a single pick
- * each (unlike Bobine Audio's several tracks to correct, hence not its
- * track table). The track to correct can come from the opened file or
- * from another one, added from the list itself ("Autre fichier…"). */
-function TrackPickers({
+/** The opened file's subtitle tracks, then those of the file added to
+ * correct: Bobine Audio's track table, with the reference and the track
+ * to correct picked by radio (one of each). */
+function SubtitleTrackTable({
   reference,
   referenceIndex,
   targetFile,
@@ -330,8 +317,6 @@ function TrackPickers({
   disabled,
   onReference,
   onTarget,
-  onAddTarget,
-  referenceOnly = false,
 }: {
   reference: ProbeResponse;
   referenceIndex: number | null;
@@ -339,81 +324,72 @@ function TrackPickers({
   targetMode: Source;
   targetIndex: number | null;
   disabled: boolean;
-  /** null: automatic (the engine's pick). */
-  onReference: (index: number | null) => void;
+  onReference: (index: number) => void;
   onTarget: (mode: Source, index: number | null) => void;
-  onAddTarget: () => void;
-  /** Nothing to correct yet: the reference's list only. */
-  referenceOnly?: boolean;
 }) {
-  const usable = reference.tracks.filter((t) => t.format !== null);
-  const ownText = textTracks(reference);
-  const targetValue = targetMode === "same" ? `same:${targetIndex}` : targetFile ? `file:${targetFile.kind === "subtitles" ? "" : targetIndex}` : "";
-
-  function pickTarget(value: string) {
-    if (value === "add") return onAddTarget();
-    const [mode, index] = value.split(":");
-    onTarget(mode as Source, index === "" ? null : Number(index));
-  }
-
+  const textOnly = (t: TrackInfo) => t.format === "srt" || t.format === "ass";
+  const rows: { key: string; source: Source; track: TrackInfo | null; probe: ProbeResponse }[] = [
+    ...(reference.kind === "subtitles"
+      ? [{ key: "ref", source: "same" as const, track: null, probe: reference }]
+      : reference.tracks.map((t) => ({ key: `ref${t.index}`, source: "same" as const, track: t, probe: reference }))),
+    ...(targetFile
+      ? targetFile.kind === "subtitles"
+        ? [{ key: "file", source: "file" as const, track: null, probe: targetFile }]
+        : targetFile.tracks.filter(textOnly).map((t) => ({ key: `file${t.index}`, source: "file" as const, track: t, probe: targetFile }))
+      : []),
+  ];
   return (
-    <div className="track-pickers">
-      <label className="track-picker">
-        <span>Référence</span>
-        {reference.kind === "subtitles" ? (
-          <select disabled>
-            <option>{fileName(reference.path)}</option>
-          </select>
-        ) : (
-          <select
-            value={referenceIndex ?? "auto"}
-            onChange={(e) => onReference(e.target.value === "auto" ? null : Number(e.target.value))}
-            disabled={disabled}
-          >
-            <option value="auto">Automatique (la plus complète)</option>
-            {usable.map((t) => (
-              <option key={t.index} value={t.index}>
-                {trackOption(t)}
-              </option>
-            ))}
-          </select>
-        )}
-      </label>
-      {!referenceOnly && (
-      <label className="track-picker">
-        <span>À corriger</span>
-        <select value={targetValue} onChange={(e) => pickTarget(e.target.value)} disabled={disabled}>
-          {targetValue === "" && <option value="">—</option>}
-          {ownText.length > 0 && (
-            <optgroup label={fileName(reference.path)}>
-              {ownText.map((t) => (
-                <option key={t.index} value={`same:${t.index}`} disabled={t.index === referenceIndex}>
-                  {trackOption(t)}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {targetFile && (
-            <optgroup label={fileName(targetFile.path)}>
-              {targetFile.kind === "subtitles" ? (
-                <option value="file:">
-                  {fileName(targetFile.path)}
-                  {targetFile.cue_count !== null && ` · ${targetFile.cue_count} répliques`}
-                </option>
-              ) : (
-                textTracks(targetFile).map((t) => (
-                  <option key={t.index} value={`file:${t.index}`}>
-                    {trackOption(t)}
-                  </option>
-                ))
-              )}
-            </optgroup>
-          )}
-          <option value="add">Autre fichier…</option>
-        </select>
-      </label>
-      )}
-    </div>
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Piste</th>
+          <th>Langue</th>
+          <th>Format</th>
+          <th className="track-pick">Réf.</th>
+          <th className="track-pick">À corriger</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(({ key, source, track, probe }) => {
+          const isRefFile = source === "same";
+          const standalone = track === null;
+          const isReference = isRefFile && (standalone || referenceIndex === track.index);
+          const isTarget = targetMode === source && (standalone ? source === "file" : targetIndex === track.index);
+          return (
+            <tr
+              key={key}
+              className={source === "file" ? "added-file" : ""}
+              title={track ? [track.title && `« ${track.title} »`, track.forced && "sous-titres forcés"].filter(Boolean).join(" · ") || undefined : undefined}
+            >
+              <td title={probe.path}>{standalone ? fileName(probe.path) : `${source === "file" ? `${fileName(probe.path)} ` : ""}@${track.index}`}</td>
+              <td>
+                {track ? (track.language ?? "?") : "?"}
+                {track?.forced && <span className="track-forced"> (F)</span>}
+              </td>
+              <td>{track ? track.codec : (probe.path.split(".").pop() ?? "?")}</td>
+              <td className="track-pick">
+                <input
+                  type="radio"
+                  name="reference"
+                  checked={isReference}
+                  disabled={disabled || !isRefFile || standalone || track.format === null}
+                  onChange={() => track && onReference(track.index)}
+                />
+              </td>
+              <td className="track-pick">
+                <input
+                  type="radio"
+                  name="target"
+                  checked={isTarget}
+                  disabled={disabled || (isRefFile && (standalone || !textOnly(track!)))}
+                  onChange={() => onTarget(source, track?.index ?? null)}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
