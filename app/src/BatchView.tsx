@@ -21,6 +21,8 @@ import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, type DropSide, useFileDrop } from "./FileDrop";
 import { DropZone } from "./DropZone";
 import { fileName, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
+import { Dialog, DialogHeader } from "./Dialog";
+import { FolderIcon, RedoIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
 import {
@@ -101,6 +103,10 @@ export default function BatchView({
   const [targetLanguage, setTargetLanguage] = useState<string | null>(null);
   // Both: the reference track's language; null: chosen by the engine (the most complete).
   const [referenceLanguage, setReferenceLanguage] = useState<string | null>(null);
+  // Tracks picked by hand ("Choisir"), by row (choiceKey): over the
+  // languages' rule for that row only.
+  const [choices, setChoices] = useState<Record<string, TrackChoice>>({});
+  const [choosing, setChoosing] = useState<Row | null>(null);
   // Pairs: videos and subtitle files, paired by episode number.
   const [pairRows, setPairRows] = useState<Row[]>([]);
   // Results by what was analyzed (video + target): kept across re-pairings.
@@ -123,24 +129,15 @@ export default function BatchView({
   // --- rows ---------------------------------------------------------------
 
   // The tracks used are part of a row's key: other tracks, another analysis.
-  const multiRows: Row[] = multiVideos.map((video) => {
-    const reference = referenceOf(video);
-    const index = trackOf(video, language, typeof reference === "number" ? reference : null);
-    return { key: `${video}@${reference}>${index}`, video, target: null, by: null };
-  });
+  const withKey = (row: Row): Row => {
+    const tracks = resolve(row.video, row.target);
+    const used = typeof tracks === "string" ? "!" : `@${tracks.reference.index}>${tracks.target.path}#${tracks.target.index}`;
+    return { ...row, key: `${row.key}${used}` };
+  };
+  const multiRows: Row[] = multiVideos.map((video) => withKey({ key: video, video, target: null, by: null }));
   const pairTargetVideos = pairRows.flatMap((r) => (r.target && !isSubtitleFile(r.target) ? [r.target] : []));
   const pairReferences = pairRows.flatMap((r) => (r.video ? [r.video] : []));
-  const shownPairRows: Row[] = pairRows.map((r) => {
-    const target = r.target && !isSubtitleFile(r.target) ? `@${trackOf(r.target, targetLanguage)}` : "";
-    return { ...r, key: `${r.key}${target}<${r.video ? referenceOf(r.video) : ""}` };
-  });
-  const rows = kind === "multi" ? multiRows : shownPairRows;
-
-  /** The track of `path` (a probed video) in `lang` to correct. */
-  function trackOf(path: string, lang: string | null, exclude: number | null = null): number | null {
-    const p = probes[path];
-    return typeof p === "object" ? trackInLanguage(p, lang, exclude) : null;
-  }
+  const rows = kind === "multi" ? multiRows : pairRows.map(withKey);
 
   /** The reference track of `video`: null when the engine picks it (no
    * language chosen), or why there's none. */
@@ -164,19 +161,25 @@ export default function BatchView({
   }, [targetLanguages, targetLanguage]);
 
   /** Why a row can't be analyzed, or its tracks. */
-  function inputs(row: Row): { reference: TrackRef; target: TrackRef } | string {
-    if (!row.video) return "Pas de vidéo";
-    const index = referenceOf(row.video);
+  const inputs = (row: Row) => resolve(row.video, row.target);
+
+  /** A row's tracks -- picked by hand ("Choisir"), else by the languages --
+   * or why there are none. Pairs: `target` is the file to correct; multi:
+   * null (the track is in `video`). */
+  function resolve(video: string | null, target: string | null): { reference: TrackRef; target: TrackRef } | string {
+    if (!video) return "Pas de vidéo";
+    const manual = choices[choiceKey(video, target)];
+    const index = manual ? manual.reference : referenceOf(video);
     if (typeof index === "string") return index;
-    const reference = { path: row.video, index };
+    const reference = { path: video, index };
     if (kind === "pairs") {
-      if (!row.target) return "Rien à corriger";
-      if (isSubtitleFile(row.target)) return { reference, target: { path: row.target, index: null } };
-      const target = trackIn(row.target, targetLanguage);
-      return typeof target === "string" ? target : { reference, target: { path: row.target, index: target } };
+      if (!target) return "Rien à corriger";
+      if (isSubtitleFile(target)) return { reference, target: { path: target, index: null } };
+      const track = manual?.target ?? trackIn(target, targetLanguage);
+      return typeof track === "string" ? track : { reference, target: { path: target, index: track } };
     }
-    const target = trackIn(row.video, language, index);
-    return typeof target === "string" ? target : { reference, target: { path: row.video, index: target } };
+    const track = manual?.target ?? trackIn(video, language, index);
+    return typeof track === "string" ? track : { reference, target: { path: video, index: track } };
   }
 
   /** The track to correct in a probed video (never `exclude`, the
@@ -485,12 +488,15 @@ export default function BatchView({
                   kind={kind}
                   runs={runsOf(row)}
                   problem={typeof inputs(row) === "string" ? (inputs(row) as string) : null}
-                  targetLabel={
-                    kind === "multi"
-                      ? multiTracksLabel(probes[row.video ?? ""], referenceOf(row.video ?? ""), language)
-                      : row.target && !isSubtitleFile(row.target)
-                        ? multiTargetLabel(probes[row.target], targetLanguage)
-                        : null
+                  targetLabel={tracksLabel(row, inputs(row), probes, kind)}
+                  manual={choices[choiceKey(row.video, row.target)] !== undefined}
+                  onChoose={row.video && typeof probes[row.video] === "object" ? () => setChoosing(row) : null}
+                  onByLanguage={() =>
+                    setChoices((all) => {
+                      const next = { ...all };
+                      delete next[choiceKey(row.video, row.target)];
+                      return next;
+                    })
                   }
                   busy={busy !== null}
                   canMoveUp={i > 0}
@@ -498,6 +504,7 @@ export default function BatchView({
                   onMove={(d) => moveSubtitle(i, d)}
                   onRemove={() => removeRow(row)}
                   onEdit={() => setEditingRow(row)}
+                  onReanalyze={typeof inputs(row) === "object" ? () => analyzeRows([row]) : null}
                 />
               ))}
             </tbody>
@@ -587,6 +594,27 @@ export default function BatchView({
         )}
       </div>
 
+      {choosing && choosing.video && typeof probes[choosing.video] === "object" && (
+        <ChooseTracksDialog
+          reference={probes[choosing.video] as ProbeResponse}
+          target={
+            kind === "multi"
+              ? (probes[choosing.video] as ProbeResponse)
+              : choosing.target && !isSubtitleFile(choosing.target) && typeof probes[choosing.target] === "object"
+                ? (probes[choosing.target] as ProbeResponse)
+                : null
+          }
+          current={(() => {
+            const tracks = inputs(choosing);
+            return typeof tracks === "string" ? null : { reference: tracks.reference.index, target: tracks.target.index };
+          })()}
+          onClose={() => setChoosing(null)}
+          onSave={(choice) => {
+            setChoices((all) => ({ ...all, [choiceKey(choosing.video, choosing.target)]: choice }));
+            setChoosing(null);
+          }}
+        />
+      )}
       {editingRow && runsOf(editingRow).analysis.result && (
         <SegmentEditor
           analysis={runsOf(editingRow).analysis.result!}
@@ -666,21 +694,132 @@ function LanguageSelect({
   );
 }
 
-/** Multi: "@0 eng → @2 fre (subrip)", the reference "auto" when the engine
- * picks it (as Bobine Audio's "Pistes" column). */
-function multiTracksLabel(p: ProbeResponse | string | undefined, reference: number | null | string, language: string | null): string | null {
-  if (typeof p !== "object" || typeof reference === "string") return null;
-  const target = multiTargetLabel(p, language, reference);
-  if (target === null) return null;
-  const ref = reference === null ? null : p.tracks.find((t) => t.index === reference);
-  return `${ref ? `@${ref.index} ${ref.language ?? "?"}` : "Réf. auto"} → ${target}`;
+/** Tracks picked by hand for a row: the reference's index, and the track
+ * to correct's (null: the file to correct is a subtitle file). */
+interface TrackChoice {
+  reference: number;
+  target: number | null;
 }
 
-function multiTargetLabel(p: ProbeResponse | string | undefined, language: string | null, exclude: number | null = null): string | null {
-  if (typeof p !== "object") return null;
-  const index = trackInLanguage(p, language, exclude);
-  const track = p.tracks.find((t) => t.index === index);
-  return track ? `@${track.index} ${track.language ?? "?"} (${track.codec})${track.title ? ` « ${track.title} »` : ""}` : null;
+/** Where a row's hand-picked tracks are kept: its files. */
+const choiceKey = (video: string | null, target: string | null) => `${video}|${target ?? ""}`;
+
+/** "@0 eng → @2 fre (subrip) « Titre »", the reference "Réf. auto" when the
+ * engine picks it (as Bobine Audio's "Pistes" column); pairs: the target
+ * track only for a video to correct, nothing for a subtitle file. */
+function tracksLabel(
+  row: Row,
+  tracks: { reference: TrackRef; target: TrackRef } | string,
+  probes: Record<string, ProbeResponse | string>,
+  kind: Kind,
+): string | null {
+  if (typeof tracks === "string" || !row.video) return null;
+  const describe = (path: string, index: number | null, full: boolean) => {
+    const p = probes[path];
+    const t = typeof p === "object" ? p.tracks.find((x) => x.index === index) : undefined;
+    if (!t) return index === null ? "Réf. auto" : `@${index}`;
+    return full ? `@${t.index} ${t.language ?? "?"} (${t.codec})${t.title ? ` « ${t.title} »` : ""}${t.forced ? " forcés" : ""}` : `@${t.index} ${t.language ?? "?"}`;
+  };
+  const reference = describe(row.video, tracks.reference.index, false);
+  if (kind === "multi") return `${reference} → ${describe(row.video, tracks.target.index, true)}`;
+  const target = tracks.target.index === null ? fileName(tracks.target.path) : describe(tracks.target.path, tracks.target.index, true);
+  return `${reference} → ${target}`;
+}
+
+/** "Choisir": a row's tracks picked by hand, from Bobine Audio's track
+ * table -- the reference among the reference video's tracks, the track to
+ * correct among `target`'s (the same video in multi; none when the file to
+ * correct is a subtitle file). */
+function ChooseTracksDialog({
+  reference,
+  target,
+  current,
+  onClose,
+  onSave,
+}: {
+  reference: ProbeResponse;
+  target: ProbeResponse | null;
+  current: { reference: number | null; target: number | null } | null;
+  onClose: () => void;
+  onSave: (choice: TrackChoice) => void;
+}) {
+  const usable = reference.tracks.filter((t) => t.format !== null);
+  const sameFile = target?.path === reference.path;
+  const [ref, setRef] = useState<number | null>(current?.reference ?? usable.find((t) => !t.forced)?.index ?? usable[0]?.index ?? null);
+  const [tgt, setTgt] = useState<number | null>(current?.target ?? null);
+  const targets = textTracks(target);
+  const valid = ref !== null && (target === null || (tgt !== null && !(sameFile && tgt === ref)));
+
+  const table = (probe: ProbeResponse, pickReference: boolean, pickTarget: boolean, name: string) => (
+    <div className="tracks-table-wrap">
+      <table className="batch-tracks-table">
+        <thead>
+          <tr>
+            <th>Piste</th>
+            <th>Langue</th>
+            <th>Format</th>
+            <th>Titre</th>
+            {pickReference && <th className="track-pick">Réf.</th>}
+            {pickTarget && <th className="track-pick">À corriger</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {probe.tracks.map((t) => (
+            <tr key={t.index}>
+              <td>@{t.index}</td>
+              <td>
+                {t.language ?? "?"}
+                {t.forced && <span className="track-forced"> (F)</span>}
+              </td>
+              <td>{t.codec}</td>
+              <td className="batch-choice-title">{t.title ?? ""}</td>
+              {pickReference && (
+                <td className="track-pick">
+                  <input type="radio" name={`${name}-ref`} checked={ref === t.index} disabled={t.format === null} onChange={() => setRef(t.index)} />
+                </td>
+              )}
+              {pickTarget && (
+                <td className="track-pick">
+                  <input
+                    type="radio"
+                    name={`${name}-target`}
+                    checked={tgt === t.index}
+                    disabled={!targets.some((x) => x.index === t.index) || (sameFile && ref === t.index)}
+                    onChange={() => setTgt(t.index)}
+                  />
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <Dialog onClose={onClose} className="batch-choice-panel" labelledBy="choice-title">
+      <DialogHeader id="choice-title" title={`Pistes de ${fileName(reference.path)}`} titleTooltip={reference.path} onClose={onClose} closeLabel="Annuler" />
+      {sameFile ? (
+        table(reference, true, true, "multi")
+      ) : (
+        <>
+          <h3 className="batch-choice-heading">Référence · {fileName(reference.path)}</h3>
+          {table(reference, true, false, "ref")}
+          {target && (
+            <>
+              <h3 className="batch-choice-heading">À corriger · {fileName(target.path)}</h3>
+              {table(target, false, true, "target")}
+            </>
+          )}
+        </>
+      )}
+      <div className="batch-choice-actions">
+        <button className="primary-button" disabled={!valid} onClick={() => valid && onSave({ reference: ref!, target: target ? tgt : null })}>
+          Valider
+        </button>
+      </div>
+    </Dialog>
+  );
 }
 
 /** One row, as Bobine Audio's batch tables: the files (with the buttons
@@ -699,6 +838,10 @@ function BatchRow({
   onMove,
   onRemove,
   onEdit,
+  onReanalyze,
+  manual,
+  onChoose,
+  onByLanguage,
 }: {
   index: number;
   row: Row;
@@ -712,7 +855,26 @@ function BatchRow({
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
   onEdit: () => void;
+  /** Analyzes this row alone again (its hand edits are lost). */
+  onReanalyze: (() => void) | null;
+  /** Its tracks were picked by hand. */
+  manual: boolean;
+  /** Picks its tracks by hand (null until its video's tracks are read). */
+  onChoose: (() => void) | null;
+  onByLanguage: () => void;
 }) {
+  const chooseButtons = (
+    <span className="batch-tracks-actions">
+      <button className="small-button" disabled={busy || !onChoose} onClick={() => onChoose?.()} title="Choisir à la main la référence et la piste à corriger de cette ligne">
+        Choisir
+      </button>
+      {manual && (
+        <button className="small-button" disabled={busy} onClick={onByLanguage} title="Revenir au choix par langue">
+          Par langue
+        </button>
+      )}
+    </span>
+  );
   const { analysis, render } = runs;
   const result = analysis.result;
   const weak = result
@@ -760,32 +922,61 @@ function BatchRow({
               </button>
             </span>
           </div>
-          {row.target && !isSubtitleFile(row.target) && (
-            <div className={targetLabel ? "batch-target-track" : "batch-target-track batch-track-status-error"}>
+          <div className="batch-tracks-line batch-target-track">
+            <span className={targetLabel || !problem ? "batch-tracks-summary" : "batch-tracks-summary batch-track-status-error"}>
               {targetLabel ?? problem ?? "Lecture des pistes..."}
-            </div>
-          )}
+              {manual && <span className="batch-track-status"> (manuel)</span>}
+            </span>
+            {chooseButtons}
+          </div>
         </td>
       ) : (
-        <td className="batch-tracks-cell">{targetLabel ?? <span className="batch-track-status">{problem ?? "Lecture des pistes..."}</span>}</td>
+        <td className="batch-tracks-cell">
+          <div className="batch-tracks-line">
+            <span className="batch-tracks-summary">
+              {targetLabel ?? <span className="batch-track-status">{problem ?? "Lecture des pistes..."}</span>}
+              {manual && <span className="batch-track-status"> (manuel)</span>}
+            </span>
+            {chooseButtons}
+          </div>
+        </td>
       )}
       <td className={`batch-status batch-status-${problem && analysis.status === "idle" ? "error" : analysisClass}`}>
-        {problem && analysis.status === "idle" && problem}
-        {!problem && analysis.status === "idle" && "À analyser"}
-        {analysis.status === "running" && "Analyse en cours..."}
-        {analysis.status === "error" && (analysis.error ?? "Erreur")}
-        {analysis.status === "cancelled" && "Annulé"}
-        {analysis.status === "done" && result && (
-          <div className="batch-target">
-            {summarize(result)}
-            {result.ratio_name && " · dérive"}
-            {runs.edited && " · modifié"}
-            {weak && <span className="batch-issues"> ⚠ à vérifier</span>}
-            <button className="small-button" disabled={busy} onClick={onEdit}>
-              Modifier
-            </button>
+        <div className="batch-analysis-cell">
+          <div className="batch-analysis-text">
+            {problem && analysis.status === "idle" && problem}
+            {!problem && analysis.status === "idle" && "À analyser"}
+            {analysis.status === "running" && "Analyse en cours..."}
+            {analysis.status === "error" && (analysis.error ?? "Erreur")}
+            {analysis.status === "cancelled" && "Annulé"}
+            {analysis.status === "done" && result && (
+              <>
+                {summarize(result)}
+                {result.ratio_name && " · dérive"}
+                {runs.edited && " · modifié"}
+                {weak && <span className="batch-issues">⚠ à vérifier</span>}
+              </>
+            )}
           </div>
-        )}
+          <div className="batch-row-buttons">
+            {analysis.status === "done" && result && (
+              <button className="small-button" disabled={busy} onClick={onEdit}>
+                Modifier
+              </button>
+            )}
+            {onReanalyze && (analysis.status === "done" || analysis.status === "error" || analysis.status === "cancelled") && (
+              <button
+                className="small-button icon-small-button"
+                disabled={busy}
+                onClick={onReanalyze}
+                aria-label="Réanalyser"
+                title={runs.edited ? "Réanalyser cette ligne seule : ses modifications faites avec « Modifier » sont perdues." : "Réanalyser cette ligne seule"}
+              >
+                <RedoIcon />
+              </button>
+            )}
+          </div>
+        </div>
       </td>
       <td className={`batch-status batch-status-${renderClass}`}>
         {render.status === "idle" && "—"}
@@ -796,8 +987,13 @@ function BatchRow({
       </td>
       <td className="batch-row-actions">
         {render.status === "done" && render.result && (
-          <button className="small-button" title="Ouvrir le dossier du fichier écrit" onClick={() => revealItemInDir(render.result!.path)}>
-            Dossier
+          <button
+            className="small-button icon-small-button"
+            title="Ouvrir le dossier du fichier écrit"
+            aria-label="Ouvrir le dossier du fichier écrit"
+            onClick={() => revealItemInDir(render.result!.path)}
+          >
+            <FolderIcon />
           </button>
         )}
       </td>

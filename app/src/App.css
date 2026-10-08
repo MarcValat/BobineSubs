@@ -760,28 +760,6 @@ button:focus-visible {
   color: var(--warn);
 }
 
-/* The tracks table of the single-file view: a file added to correct is
-   listed after the opened file's tracks. */
-.field-tracks tr.added-file td:first-child {
-  max-width: 10em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Under the tracks: which reference is used, and "+ Ajouter". */
-.tracks-subline {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  margin-top: 0.6em;
-  font-size: 0.85em;
-}
-
-.tracks-add {
-  margin-left: auto;
-}
-
 .tracks-actions {
   flex-direction: row;
   justify-content: center;
@@ -1107,4 +1085,98 @@ button:focus-visible {
 .batch-file-inner .batch-track-status {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* Single file: what's to correct is still to add -- the panel's next step. */
+.tracks-add-main {
+  width: 100%;
+  margin-top: 0.7em;
+}
+
+/* Batch: a row's result on the left, its buttons on the right. */
+.batch-analysis-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.batch-analysis-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.batch-analysis-text .batch-issues {
+  display: block;
+}
+
+.batch-row-buttons {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+/* A small button holding an icon only (Réanalyser). */
+.icon-small-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25em 0.45em;
+}
+
+.icon-small-button svg {
+  width: 1.05em;
+  height: 1.05em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Single file: a forced subtitle track, "(F)" after its language. */
+.track-forced {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+/* Batch: the written file's folder, an icon centered in its narrow column. */
+.batch-table-wrap col.batch-col-folder {
+  width: 3.2em;
+}
+
+.batch-table-wrap td.batch-row-actions {
+  padding: 0.45em 0.3em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.batch-table-wrap td.batch-row-actions button {
+  margin: 0;
+}
+
+/* "Choisir": the reference's and the target's tables, each under its file. */
+.batch-choice-heading {
+  margin: 1em 0 0.5em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.batch-choice-heading:first-of-type {
+  margin-top: 0;
+}
+
+.batch-choice-title {
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pairs: the tracks used and "Choisir", under the file to correct. */
+.batch-target-track.batch-tracks-line {
+  margin-top: 0.3em;
 }

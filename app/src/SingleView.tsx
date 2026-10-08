@@ -40,7 +40,8 @@ type Source = "same" | "file";
  * the right, the analysis. */
 export default function SingleView({ active }: { active: boolean }) {
   const [reference, setReference] = useState<ProbeResponse | null>(null);
-  const [referenceIndex, setReferenceIndex] = useState<number | null>(null); // null: automatic
+  // Checked in the tracks table; null only for a subtitle file (no tracks).
+  const [referenceIndex, setReferenceIndex] = useState<number | null>(null);
   const [targetMode, setTargetMode] = useState<Source>("file");
   const [targetFile, setTargetFile] = useState<ProbeResponse | null>(null);
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
@@ -63,6 +64,8 @@ export default function SingleView({ active }: { active: boolean }) {
     ? { path: reference.path, index: reference.kind === "subtitles" ? null : referenceIndex }
     : null;
   const sameTrack = targetMode === "same" && referenceIndex !== null && referenceIndex === targetIndex;
+  // Only the reference to work with: what's to correct is still to add.
+  const nothingToCorrect = reference !== null && targetFile === null && (reference.kind === "subtitles" || textTracks(reference).length < 2);
   const canAnalyze = referenceRef !== null && target !== null && !sameTrack && analysis.status !== "running";
 
   // Any change of input makes a previous result stale.
@@ -79,18 +82,14 @@ export default function SingleView({ active }: { active: boolean }) {
       if (probed.kind === "container" && probed.tracks.length === 0) throw new Error(`${fileName(path)} ne contient aucune piste de sous-titres.`);
       if (role === "reference") {
         setReference(probed);
-        setReferenceIndex(null);
         setTargetFile(null);
         // A video with a second text track: correcting one of its own
         // tracks is the likely intent.
         const text = textTracks(probed);
-        if (probed.kind === "container" && text.length >= 2) {
-          setTargetMode("same");
-          setTargetIndex(text.find((t) => t.default)?.index ?? text[text.length - 1].index);
-        } else {
-          setTargetMode("file");
-          setTargetIndex(null);
-        }
+        const target = probed.kind === "container" && text.length >= 2 ? (text.find((t) => t.default)?.index ?? text[text.length - 1].index) : null;
+        setTargetMode(target !== null ? "same" : "file");
+        setTargetIndex(target);
+        setReferenceIndex(probed.kind === "container" ? defaultReference(probed, target) : null);
       } else {
         setTargetFile(probed);
         setTargetMode("file");
@@ -163,8 +162,8 @@ export default function SingleView({ active }: { active: boolean }) {
           <h2>
             Pistes{" "}
             <InfoTip>
-              La référence : une piste de sous-titres déjà bien calée (choisie automatiquement : la plus complète). À corriger : une piste du même
-              fichier, ou d'un fichier ajouté (SRT/ASS, ou une vidéo qui la contient).
+              Réf. : la piste de sous-titres déjà bien calée, qui sert de modèle. À corriger : une piste du même fichier, ou d'un fichier ajouté
+              (SRT/ASS, ou une vidéo qui la contient). Survole une piste pour voir son titre ; (F) : sous-titres forcés.
             </InfoTip>
           </h2>
           {reference && (
@@ -190,27 +189,19 @@ export default function SingleView({ active }: { active: boolean }) {
                   onTarget={(mode, index) => {
                     setTargetMode(mode);
                     setTargetIndex(index);
+                    // Its own track to correct can't stay the reference.
+                    if (mode === "same" && index === referenceIndex) setReferenceIndex(defaultReference(reference, index));
                   }}
                 />
               </div>
-              <div className="tracks-subline">
-                <span className="muted">
-                  Référence : {reference.kind === "subtitles" ? "ce fichier" : referenceIndex === null ? "automatique" : `@${referenceIndex}`}
-                </span>
-                {referenceIndex !== null && (
-                  <button className="small-button" onClick={() => setReferenceIndex(null)} disabled={running}>
-                    Automatique
-                  </button>
-                )}
-                <button
-                  className="small-button tracks-add"
-                  onClick={addTarget}
-                  disabled={opening !== null || running}
-                  title="Ajouter les sous-titres à corriger : un SRT/ASS, ou une vidéo qui les contient"
-                >
-                  {opening === "target" ? "Lecture..." : "+ Ajouter"}
-                </button>
-              </div>
+              <button
+                className="tracks-add-main"
+                onClick={addTarget}
+                disabled={opening !== null || running}
+                title="Ajouter les sous-titres à corriger : un SRT/ASS, ou une vidéo qui contient la piste à corriger"
+              >
+                {opening === "target" ? "Lecture..." : "+ Ajouter des sous-titres"}
+              </button>
               {sameTrack && <p className="error">La référence et la piste à corriger sont la même piste.</p>}
               <div className="tracks-actions">
                 <button
@@ -257,7 +248,14 @@ export default function SingleView({ active }: { active: boolean }) {
               ou clique pour ouvrir un fichier : ses sous-titres serviront de référence.
             </DropZone>
           )}
-          {analysis.status === "idle" && reference && <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>}
+          {analysis.status === "idle" && reference && nothingToCorrect && (
+            <DropZone title="Glisse les sous-titres à corriger ici" onClick={addTarget} disabled={opening !== null}>
+              ou clique pour les choisir : un SRT/ASS, ou une vidéo qui contient la piste à corriger.
+            </DropZone>
+          )}
+          {analysis.status === "idle" && reference && !nothingToCorrect && (
+            <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>
+          )}
           {running && <p className="placeholder">Analyse en cours...</p>}
           {analysis.status === "cancelled" && <p className="placeholder">Annulé</p>}
           {analysis.status === "error" && <p className="error">{analysis.error}</p>}
@@ -284,6 +282,15 @@ export default function SingleView({ active }: { active: boolean }) {
       />
     </main>
   );
+}
+
+/** The reference checked when a video is opened: a full track before a
+ * forced one, text before image, never the track to correct. */
+function defaultReference(probe: ProbeResponse, target: number | null): number | null {
+  const usable = probe.tracks.filter((t) => t.format !== null && t.index !== target);
+  const image = (t: TrackInfo) => t.format === "pgs" || t.format === "vobsub";
+  usable.sort((a, b) => Number(a.forced) - Number(b.forced) || Number(image(a)) - Number(image(b)) || a.index - b.index);
+  return usable[0]?.index ?? null;
 }
 
 /** "Piste @2 (fre) · référence @0 (eng)", as Bobine Audio's panel title. */
@@ -349,9 +356,16 @@ function SubtitleTrackTable({
           const isReference = isRefFile && (standalone || referenceIndex === track.index);
           const isTarget = targetMode === source && (standalone ? source === "file" : targetIndex === track.index);
           return (
-            <tr key={key} className={source === "file" ? "added-file" : ""}>
+            <tr
+              key={key}
+              className={source === "file" ? "added-file" : ""}
+              title={track ? [track.title && `« ${track.title} »`, track.forced && "sous-titres forcés"].filter(Boolean).join(" · ") || undefined : undefined}
+            >
               <td title={probe.path}>{standalone ? fileName(probe.path) : `${source === "file" ? `${fileName(probe.path)} ` : ""}@${track.index}`}</td>
-              <td>{track ? (track.language ?? "?") : "?"}</td>
+              <td>
+                {track ? (track.language ?? "?") : "?"}
+                {track?.forced && <span className="track-forced"> (F)</span>}
+              </td>
               <td>{track ? track.codec : (probe.path.split(".").pop() ?? "?")}</td>
               <td className="track-pick">
                 <input
