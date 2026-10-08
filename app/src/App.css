@@ -28,6 +28,8 @@
   --backdrop: rgba(0, 0, 0, 0.55);
   /* What floats over the rest: menus, dropdown lists, dialogs. */
   --shadow-popup: 0 6px 20px rgba(0, 0, 0, 0.25);
+  --scrollbar-thumb: light-dark(rgba(15, 15, 15, 0.22), rgba(255, 255, 255, 0.2));
+  --scrollbar-thumb-hover: light-dark(rgba(15, 15, 15, 0.4), rgba(255, 255, 255, 0.38));
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
   /* Inter (bundled, see main.tsx) for the whole Bobine suite: a system
      stack read as Segoe UI on Windows but as whatever the desktop picks on
@@ -53,6 +55,45 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Scrollbars in the app's palette (the lists that scroll, the editor's
+   table...): thin, on a transparent track, a bit stronger under the
+   pointer. The standard properties, which WebView2's Chromium honors. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*:hover {
+  scrollbar-color: var(--scrollbar-thumb-hover) transparent;
+}
+
+/* The same look for a WebView2 older than Chromium 121, which ignores the
+   standard properties above (newer ones ignore these instead). */
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
 }
 
 body {
@@ -83,15 +124,21 @@ input {
   color: inherit;
 }
 
+/* Buttons and fields as in Bobine Audio. */
 button {
   background: var(--surface);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 12px;
+  padding: 0.55em 1.1em;
+  font-weight: 500;
   cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
 }
 button:hover:not(:disabled) {
   border-color: var(--accent);
+}
+button:active:not(:disabled) {
+  background-color: var(--surface-sunken);
 }
 button:disabled {
   opacity: 0.5;
@@ -101,7 +148,6 @@ button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
-  font-weight: 600;
 }
 button.primary:hover:not(:disabled) {
   background: var(--accent-hover);
@@ -120,11 +166,102 @@ button.active {
 
 select,
 input {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: 0.55em 0.8em;
   min-width: 0;
+  transition: border-color 0.15s;
+}
+input:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+/* Native <select>s otherwise keep the OS's own default look (a
+   plain-text-with-no-border on some platforms, a chunky bevelled box on
+   others) regardless of the rules above, since browsers special-case form
+   control "appearance" -- appearance: none opts back into normal box
+   styling, and the custom chevron replaces the native dropdown arrow that
+   comes with it. */
+select {
+  appearance: none;
+  padding-right: 2.3em;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23888888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4,6 8,10 12,6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75em center;
+  background-size: 0.8em;
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: var(--accent);
+}
+
+/* The open list itself, styled like the rest of the app instead of the
+   system's square popup (customizable select, WebView2/Chromium 135+; older
+   runtimes keep the system one). Rounded on every corner and detached from
+   the field by a small gap: it opens upward when there's no room below, so
+   no single side is always the free one. */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  /* The chevron is already drawn as the field's background image. */
+  select::picker-icon {
+    display: none;
+  }
+
+  /* Below the field, flipping above only when it doesn't fit there: the
+     default opens on whichever side has more room, i.e. above any field in
+     the lower half of the window. Capped so it can't just shrink to fit
+     below instead of flipping; a long list scrolls inside. */
+  ::picker(select) {
+    position-try-order: normal;
+    max-block-size: 60vh;
+    margin-block: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-popup);
+  }
+
+  option {
+    padding: 0.35em 0.8em;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  option::checkmark {
+    display: none;
+  }
+
+  option:checked {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  option:hover,
+  option:focus-visible {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    outline: none;
+  }
+}
+
+input,
+select,
+button {
+  outline: none;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .app {
@@ -224,26 +361,32 @@ button.small {
   }
 }
 
+/* As in Bobine Audio: the settings' cards on the left, the results on the
+   right, each region scrolling on its own; a width that follows the
+   window's. */
 .layout {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: clamp(290px, 24vw, 420px) minmax(0, 1fr);
+  gap: 1em;
+  padding: 1em;
 }
 
 .sidebar {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 0.8em;
   overflow: auto;
-  border-right: 1px solid var(--border);
 }
 
 .results {
   min-width: 0;
+  min-height: 0;
   overflow: auto;
-  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .results-content {
@@ -256,11 +399,25 @@ button.small {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 1em 1.1em;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* Takes the whole region (the right side before any result). */
+.card.fill {
+  flex: 1;
+}
+
+/* Card titles as Bobine Audio's panels: small, uppercase, muted. */
+.card h2 {
+  margin: 0 0 0.3em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .hint,
@@ -340,22 +497,18 @@ button.small {
   margin-bottom: 4px;
 }
 
+/* As in Bobine Audio: what's not there yet, in muted italics. */
 .placeholder {
-  height: 100%;
-  min-height: 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  opacity: 0.6;
+  font-style: italic;
   text-align: center;
-  color: var(--text-muted);
-  max-width: 520px;
+  font-size: 0.9em;
+  padding: 1.5em 0;
+  max-width: 560px;
   margin: 0 auto;
 }
-.placeholder-title {
-  font-size: 16px;
-  color: var(--text);
-  margin-bottom: 8px;
+.placeholder p {
+  margin: 0.4em 0 0;
 }
 
 .summary {
@@ -364,8 +517,14 @@ button.small {
   gap: 16px;
   margin-bottom: 4px;
 }
+/* The result's headline, not a card title. */
 .summary h2 {
+  margin: 0;
   font-size: 17px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
 }
 
 .badge {

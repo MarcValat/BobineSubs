@@ -237,9 +237,14 @@ export default function SingleView({ active }: { active: boolean }) {
         </aside>
 
         <main className="results">
-          {analysis.status === "idle" && <EmptyState hasReference={reference !== null} />}
-          {analysis.status === "running" && <div className="placeholder">Analyse en cours…</div>}
-          {analysis.status === "cancelled" && <div className="placeholder">Analyse annulée.</div>}
+          {(analysis.status === "idle" || analysis.status === "running" || analysis.status === "cancelled") && (
+            <section className="card fill">
+              <h2>Analyse</h2>
+              {analysis.status === "idle" && <EmptyState hasReference={reference !== null} />}
+              {analysis.status === "running" && <div className="placeholder">Analyse en cours…</div>}
+              {analysis.status === "cancelled" && <div className="placeholder">Analyse annulée.</div>}
+            </section>
+          )}
           {analysis.status === "error" && (
             <div className="card">
               <h2>L'analyse a échoué</h2>

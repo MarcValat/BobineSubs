@@ -396,14 +396,17 @@ export default function BatchView({ active }: { active: boolean }) {
 
         <main className="results">
           {rows.length === 0 ? (
-            <div className="placeholder">
-              <div className="placeholder-title">Ajoute les épisodes de la série.</div>
-              <p>
-                {kind === "pairs"
-                  ? "Ajoute ou glisse les vidéos et les sous-titres (ou leurs dossiers) : chaque fichier de sous-titres est associé à son épisode d'après son nom."
-                  : "Ajoute ou glisse les vidéos (ou leur dossier), puis choisis la langue de la piste à corriger."}
-              </p>
-            </div>
+            <section className="card fill">
+              <h2>Épisodes</h2>
+              <div className="placeholder">
+                <div className="placeholder-title">Ajoute les épisodes de la série.</div>
+                <p>
+                  {kind === "pairs"
+                    ? "Ajoute ou glisse les vidéos et les sous-titres (ou leurs dossiers) : chaque fichier de sous-titres est associé à son épisode d'après son nom."
+                    : "Ajoute ou glisse les vidéos (ou leur dossier), puis choisis la langue de la piste à corriger."}
+                </p>
+              </div>
+            </section>
           ) : (
             <div className="card batch-card">
               <div className="batch-head">

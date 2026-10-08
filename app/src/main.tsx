@@ -5,6 +5,7 @@ import { engineReady } from "./engine";
 import { applyTheme, loadTheme } from "./theme";
 // Inter, bundled: the same text on Windows and Linux, no network needed.
 import "@fontsource-variable/inter";
+import "@fontsource-variable/inter/wght-italic.css";
 import "./App.css";
 
 // The theme chosen in Options, before the first paint.
