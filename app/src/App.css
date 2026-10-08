@@ -1033,3 +1033,66 @@ button:focus-visible {
     transition: none;
   }
 }
+
+/* An empty region's invitation (DropZone.tsx): a dashed zone with the
+   film icon, filling what it's in; a click opens the matching dialog. */
+.drop-zone-empty {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 12em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 2em;
+  color: var(--text-muted);
+  font-weight: 400;
+  background: transparent;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.drop-zone-empty:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.drop-zone-empty:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.drop-zone-empty svg {
+  width: 3em;
+  height: 3em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+
+.drop-zone-empty-title {
+  font-size: 1.05em;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.drop-zone-empty-hint {
+  max-width: 30em;
+  font-size: 0.9em;
+  text-align: center;
+}
+
+/* In the analysis panel: the whole height under its title. */
+.field-analysis .analysis-scroll:has(> .drop-zone-empty) {
+  display: flex;
+}
+
+/* In the batch table: a cell of its own, the zone inset in it. */
+.batch-table-wrap td.batch-empty {
+  padding: 0.8em;
+  background: var(--surface);
+}

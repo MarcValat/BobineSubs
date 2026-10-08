@@ -19,6 +19,7 @@ import { analysisDuration, summarize } from "./AnalysisView";
 import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
+import { DropZone } from "./DropZone";
 import { fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
@@ -400,10 +401,12 @@ export default function BatchView({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="placeholder">
-                    {kind === "pairs"
-                      ? "Ajoute les vidéos et les sous-titres à corriger, un par épisode."
-                      : "Ajoute les fichiers à traiter : chacun contient la référence et la piste à corriger."}
+                  <td colSpan={6} className="batch-empty">
+                    <DropZone title="Glisse des fichiers ou des dossiers ici" onClick={addVideos} disabled={busy !== null}>
+                      {kind === "pairs"
+                        ? "Les vidéos et les sous-titres à corriger, un par épisode : ils sont appariés d'après leur nom."
+                        : "Des vidéos qui contiennent chacune la référence et la piste à corriger."}
+                    </DropZone>
                   </td>
                 </tr>
               )}

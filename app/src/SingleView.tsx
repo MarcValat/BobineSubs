@@ -20,6 +20,7 @@ import AnalysisView, { analysisDuration } from "./AnalysisView";
 import { withSegments } from "./retime";
 import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
+import { DropZone } from "./DropZone";
 import { clock, fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
@@ -251,7 +252,12 @@ export default function SingleView({ active }: { active: boolean }) {
           )}
         </div>
         <div className="analysis-scroll">
-          {analysis.status === "idle" && <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>}
+          {analysis.status === "idle" && !reference && (
+            <DropZone title="Glisse une vidéo ici" onClick={openReference} disabled={opening !== null}>
+              ou clique pour ouvrir un fichier : ses sous-titres serviront de référence.
+            </DropZone>
+          )}
+          {analysis.status === "idle" && reference && <p className="placeholder">Choisis la piste à corriger, puis clique sur « Analyser ».</p>}
           {running && <p className="placeholder">Analyse en cours...</p>}
           {analysis.status === "cancelled" && <p className="placeholder">Annulé</p>}
           {analysis.status === "error" && <p className="error">{analysis.error}</p>}
