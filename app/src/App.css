@@ -1154,3 +1154,29 @@ button:focus-visible {
 .batch-table-wrap td.batch-row-actions button {
   margin: 0;
 }
+
+/* "Choisir": the reference's and the target's tables, each under its file. */
+.batch-choice-heading {
+  margin: 1em 0 0.5em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.batch-choice-heading:first-of-type {
+  margin-top: 0;
+}
+
+.batch-choice-title {
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pairs: the tracks used and "Choisir", under the file to correct. */
+.batch-target-track.batch-tracks-line {
+  margin-top: 0.3em;
+}
