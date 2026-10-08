@@ -498,6 +498,7 @@ export default function BatchView({
                   onMove={(d) => moveSubtitle(i, d)}
                   onRemove={() => removeRow(row)}
                   onEdit={() => setEditingRow(row)}
+                  onReanalyze={typeof inputs(row) === "object" ? () => analyzeRows([row]) : null}
                 />
               ))}
             </tbody>
@@ -699,6 +700,7 @@ function BatchRow({
   onMove,
   onRemove,
   onEdit,
+  onReanalyze,
 }: {
   index: number;
   row: Row;
@@ -712,6 +714,8 @@ function BatchRow({
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
   onEdit: () => void;
+  /** Analyzes this row alone again (its hand edits are lost). */
+  onReanalyze: (() => void) | null;
 }) {
   const { analysis, render } = runs;
   const result = analysis.result;
@@ -785,6 +789,16 @@ function BatchRow({
               Modifier
             </button>
           </div>
+        )}
+        {onReanalyze && (analysis.status === "done" || analysis.status === "error" || analysis.status === "cancelled") && (
+          <button
+            className="small-button batch-reanalyze"
+            disabled={busy}
+            onClick={onReanalyze}
+            title={runs.edited ? "Réanalyse cette ligne seule : ses modifications faites avec « Modifier » sont perdues." : "Réanalyse cette ligne seule."}
+          >
+            Réanalyser
+          </button>
         )}
       </td>
       <td className={`batch-status batch-status-${renderClass}`}>

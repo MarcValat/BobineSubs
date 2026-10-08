@@ -760,28 +760,6 @@ button:focus-visible {
   color: var(--warn);
 }
 
-/* The tracks table of the single-file view: a file added to correct is
-   listed after the opened file's tracks. */
-.field-tracks tr.added-file td:first-child {
-  max-width: 10em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Under the tracks: which reference is used, and "+ Ajouter". */
-.tracks-subline {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  margin-top: 0.6em;
-  font-size: 0.85em;
-}
-
-.tracks-add {
-  margin-left: auto;
-}
-
 .tracks-actions {
   flex-direction: row;
   justify-content: center;
@@ -1107,4 +1085,44 @@ button:focus-visible {
 .batch-file-inner .batch-track-status {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* Single file: what's to correct is still to add -- the panel's next step. */
+.tracks-add-main {
+  width: 100%;
+  margin-top: 0.7em;
+}
+
+/* Batch: a row analyzed again on its own, under its result. */
+.batch-reanalyze {
+  margin-top: 0.3em;
+}
+
+/* Single file: the reference and the track to correct, one list each, its
+   name above it; one line per choice, cut short with "…" (the full text in
+   the open list). */
+.track-pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  margin-top: 0.2em;
+}
+
+.track-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.track-picker > span {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.track-picker select {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
