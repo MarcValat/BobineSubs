@@ -19,6 +19,7 @@ import { clock } from "./format";
 import { withSegments } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import Timeline, { type TimelineEditing } from "./Timeline";
+import { ConfidenceGauge } from "./ConfidenceGauge";
 import { Dialog, DialogHeader } from "./Dialog";
 import { InfoTip } from "./InfoTip";
 import "./SegmentEditor.css";
@@ -223,9 +224,8 @@ export default function SegmentEditor({
                         }}
                       />
                     </td>
-                    <td className={s.confidence < LOW_CONFIDENCE ? "editor-confidence-cell low" : "editor-confidence-cell"}>
-                      {s.confidence < LOW_CONFIDENCE ? "⚠ " : ""}
-                      {Math.round(s.confidence * 100)}%
+                    <td className="editor-confidence-cell">
+                      <ConfidenceGauge value={s.confidence} />
                     </td>
                     <td>
                       <button
