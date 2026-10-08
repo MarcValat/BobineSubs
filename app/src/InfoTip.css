@@ -1,0 +1,60 @@
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15em;
+  height: 1.15em;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  font-size: 0.85em;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+  /* The "?" on the same baseline as the text before it, so the circle
+     around it centers on that text's capitals and tall letters (`middle`
+     centers on the lowercase ones, which reads a touch low). Ignored where
+     the icon is a flex item, centered by its row instead. */
+  vertical-align: baseline;
+}
+
+.info-tip:hover,
+.info-tip:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Rendered at the end of the page (see InfoTip.tsx), over everything. */
+.info-tip-bubble {
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  max-width: 22rem;
+  padding: 0.6em 0.8em;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 0.8rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.info-tip-bubble ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.info-tip-bubble li + li {
+  margin-top: 0.25em;
+}
