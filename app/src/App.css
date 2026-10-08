@@ -912,3 +912,58 @@ button:focus-visible {
 .batch-config input:not([type="checkbox"]) {
   width: 9em;
 }
+
+/* Batch's two sub-modes, unfolding to the right of Batch when it's picked
+   (nothing left of them moves). The width animates through a grid column
+   going 0fr -> 1fr; the content slides in and fades with it. */
+.mode-switch {
+  align-items: center;
+}
+
+.batch-submodes {
+  display: grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-columns 180ms ease-out,
+    opacity 180ms ease-out;
+}
+
+.batch-submodes.open {
+  grid-template-columns: 1fr;
+  opacity: 1;
+}
+
+.batch-submodes-inner {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  transform: translateX(-0.6em);
+  transition: transform 180ms ease-out;
+}
+
+.batch-submodes.open .batch-submodes-inner {
+  transform: none;
+}
+
+/* Sets the sub-modes apart from the two main modes. */
+.batch-submodes-separator {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1.4em;
+  margin: 0 0.2em;
+  background: var(--border);
+}
+
+.batch-submodes .view-tabs button {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batch-submodes,
+  .batch-submodes-inner {
+    transition: none;
+  }
+}
