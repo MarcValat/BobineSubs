@@ -58,6 +58,8 @@ interface RowRuns {
   render: Run<RenderResult>;
   /** The analysis' segments were changed by hand. */
   edited?: boolean;
+  /** Waiting for its turn in the analysis running ("En attente"). */
+  queued?: boolean;
 }
 
 const NO_RUNS: RowRuns = { analysis: IDLE, render: IDLE };
@@ -266,6 +268,10 @@ export default function BatchView({
   async function analyzeRows(todo: Row[]) {
     stop.current = false;
     setBusy("analysis");
+    // Every row to analyze loses its result at once ("En attente"): the
+    // rows already done can be edited meanwhile, never one about to be
+    // analyzed again (its edits would be overwritten).
+    for (const row of todo) updateRuns(row.key, () => ({ analysis: IDLE, render: IDLE, queued: true }));
     for (const [n, row] of todo.entries()) {
       if (stop.current) break;
       setProgress(`Analyse ${n + 1}/${todo.length} : ${fileName(row.video ?? "")}`);
@@ -283,6 +289,8 @@ export default function BatchView({
         updateRuns(row.key, (r) => ({ ...r, analysis: { status, log: [], error: errorMessage(e) } }));
       }
     }
+    // Cancelled: the rows not reached are back to "À analyser".
+    for (const row of todo) updateRuns(row.key, (r) => (r.queued ? { ...r, queued: false } : r));
     currentJob.current = null;
     setBusy(null);
     setProgress(null);
@@ -499,6 +507,7 @@ export default function BatchView({
                     })
                   }
                   busy={busy !== null}
+                  exporting={busy === "render"}
                   canMoveUp={i > 0}
                   canMoveDown={i < rows.length - 1}
                   onMove={(d) => moveSubtitle(i, d)}
@@ -842,6 +851,7 @@ function BatchRow({
   manual,
   onChoose,
   onByLanguage,
+  exporting,
 }: {
   index: number;
   row: Row;
@@ -862,6 +872,8 @@ function BatchRow({
   /** Picks its tracks by hand (null until its video's tracks are read). */
   onChoose: (() => void) | null;
   onByLanguage: () => void;
+  /** An export is running: no edit meanwhile (it would change what's written). */
+  exporting: boolean;
 }) {
   const chooseButtons = (
     <span className="batch-tracks-actions">
@@ -945,7 +957,7 @@ function BatchRow({
         <div className="batch-analysis-cell">
           <div className="batch-analysis-text">
             {problem && analysis.status === "idle" && problem}
-            {!problem && analysis.status === "idle" && "À analyser"}
+            {!problem && analysis.status === "idle" && (runs.queued ? "En attente" : "À analyser")}
             {analysis.status === "running" && "Analyse en cours..."}
             {analysis.status === "error" && (analysis.error ?? "Erreur")}
             {analysis.status === "cancelled" && "Annulé"}
@@ -960,7 +972,7 @@ function BatchRow({
           </div>
           <div className="batch-row-buttons">
             {analysis.status === "done" && result && (
-              <button className="small-button" disabled={busy} onClick={onEdit}>
+              <button className="small-button" disabled={exporting} onClick={onEdit}>
                 Modifier
               </button>
             )}
