@@ -165,7 +165,7 @@ def serve(host: str, port: int, parent_pid: int | None) -> None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
     if sys.stderr is None:
         sys.stderr = open(os.devnull, "w", encoding="utf-8")
-    click.echo(f"SyncSubtitles sur http://{host}:{port} (docs : /docs)", err=True)
+    click.echo(f"Bobine Subs sur http://{host}:{port} (docs : /docs)", err=True)
     # The app object, not "module:attr": the string form fails inside a
     # PyInstaller-frozen build.
     uvicorn.run(app, host=host, port=port)

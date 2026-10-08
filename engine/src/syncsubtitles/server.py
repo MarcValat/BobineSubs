@@ -27,7 +27,7 @@ from syncsubtitles.service import Analysis, AnalysisError, analyze, load_target,
 from syncsubtitles.subformats import read_file
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS
 
-app = FastAPI(title="SyncSubtitles", version="0.1.0")
+app = FastAPI(title="Bobine Subs", version="0.1.0")
 
 # Only ever bound to 127.0.0.1 (see `syncsubtitles serve`): open CORS just
 # lets the app's webview (tauri://..., localhost:1420 in dev) call it.
