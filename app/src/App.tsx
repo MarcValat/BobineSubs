@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import BatchView, { type Kind } from "./BatchView";
 import SingleView from "./SingleView";
 import { EngineStatusBadge } from "./EngineStatus";
@@ -31,32 +31,15 @@ export default function App() {
           <button className={mode === "single" ? "primary-button" : ""} onClick={() => setMode("single")}>
             Fichier unique
           </button>
-          {/* One pill: Batch, then its sub-modes coming out of it (folded
-              away, and out of the tab order, outside Batch). */}
-          <div className={`batch-pill${batch ? " open" : ""}`}>
-            <button className="batch-pill-main" onClick={() => setMode("batch")} aria-expanded={batch}>
+          {/* Batch, and its sub-modes in a drawer that unrolls from under it
+              (folded away, and out of the tab order, outside Batch). */}
+          <div className={`batch-group${batch ? " open" : ""}`}>
+            <button className={batch ? "primary-button batch-main-button" : "batch-main-button"} onClick={() => setMode("batch")} aria-expanded={batch}>
               Batch
             </button>
-            <div className="batch-submodes" inert={!batch}>
-              <div className="batch-submodes-inner" role="tablist" aria-label="Mode batch">
-                {(
-                  [
-                    ["multi", "Fichiers multipistes"],
-                    ["pairs", "Paires de fichiers"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    role="tab"
-                    aria-selected={kind === value}
-                    className={kind === value ? "active" : ""}
-                    onClick={() => chooseKind(value)}
-                    disabled={batchBusy && kind !== value}
-                    title={batchBusy && kind !== value ? "Un traitement est en cours : attends sa fin." : undefined}
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="batch-drawer" inert={!batch}>
+              <div className="batch-drawer-clip">
+                <SubModes kind={kind} busy={batchBusy} onChange={chooseKind} />
               </div>
             </div>
           </div>
@@ -69,6 +52,50 @@ export default function App() {
       </div>
       <SingleView active={mode === "single"} />
       <BatchView active={batch} kind={kind} onKindChange={chooseKind} onBusyChange={setBatchBusy} />
+    </div>
+  );
+}
+
+const SUB_MODES: [Kind, string][] = [
+  ["multi", "Fichiers multipistes"],
+  ["pairs", "Paires de fichiers"],
+];
+
+/** Batch's two sub-modes, a selection pill sliding under the picked one. */
+function SubModes({ kind, busy, onChange }: { kind: Kind; busy: boolean; onChange: (kind: Kind) => void }) {
+  const buttons = useRef<Partial<Record<Kind, HTMLButtonElement | null>>>({});
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
+  // No slide for the first placement: the pill just starts there.
+  const [placed, setPlaced] = useState(false);
+
+  useLayoutEffect(() => {
+    const button = buttons.current[kind];
+    if (!button) return;
+    setPill({ left: button.offsetLeft, width: button.offsetWidth });
+  }, [kind]);
+  useLayoutEffect(() => {
+    if (pill && !placed) requestAnimationFrame(() => setPlaced(true));
+  }, [pill, placed]);
+
+  return (
+    <div className="batch-submodes" role="tablist" aria-label="Mode batch">
+      {pill && <span className={`batch-submodes-pill${placed ? " placed" : ""}`} style={{ left: pill.left, width: pill.width }} />}
+      {SUB_MODES.map(([value, label]) => (
+        <button
+          key={value}
+          ref={(el) => {
+            buttons.current[value] = el;
+          }}
+          role="tab"
+          aria-selected={kind === value}
+          className={kind === value ? "active" : ""}
+          onClick={() => onChange(value)}
+          disabled={busy && kind !== value}
+          title={busy && kind !== value ? "Un traitement est en cours : attends sa fin." : undefined}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
