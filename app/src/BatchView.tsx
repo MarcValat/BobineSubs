@@ -21,6 +21,7 @@ import SegmentEditor from "./SegmentEditor";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
+import { PillSwitch } from "./PillSwitch";
 import {
   errorMessage,
   IDLE,
@@ -314,13 +315,19 @@ export default function BatchView({
             </select>
           </label>
         )}
-        <label>
+        <span className="batch-config-field">
           Export :
-          <select value={subsOnly ? "subs" : "mkv"} onChange={(e) => setSubsOnly(e.target.value === "subs")} disabled={busy !== null}>
-            <option value="mkv">Nouveaux MKV</option>
-            <option value="subs">Sous-titres seuls</option>
-          </select>
-        </label>
+          <PillSwitch
+            label="Contenu de l'export"
+            options={[
+              ["mkv", "Nouveaux MKV"],
+              ["subs", "Sous-titres seuls"],
+            ]}
+            value={subsOnly ? "subs" : "mkv"}
+            onChange={(v) => setSubsOnly(v === "subs")}
+            disabled={busy !== null}
+          />
+        </span>
         {kind === "pairs" && !subsOnly && (
           <>
             <label>

@@ -1,8 +1,9 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import BatchView, { type Kind } from "./BatchView";
 import SingleView from "./SingleView";
 import { EngineStatusBadge } from "./EngineStatus";
 import { OptionsButton } from "./Options";
+import { PillSwitch } from "./PillSwitch";
 import { loadSetting, saveSetting } from "./settings";
 import { UpdateButton } from "./UpdateButton";
 
@@ -39,7 +40,18 @@ export default function App() {
             </button>
             <div className="batch-drawer" inert={!batch}>
               <div className="batch-drawer-clip">
-                <SubModes kind={kind} busy={batchBusy} onChange={chooseKind} />
+                <PillSwitch
+                  className="batch-submodes"
+                  label="Mode batch"
+                  options={[
+                    ["multi", "Fichiers multipistes"],
+                    ["pairs", "Paires de fichiers"],
+                  ]}
+                  value={kind}
+                  onChange={chooseKind}
+                  disabled={batchBusy}
+                  disabledTitle="Un traitement est en cours : attends sa fin."
+                />
               </div>
             </div>
           </div>
@@ -56,46 +68,3 @@ export default function App() {
   );
 }
 
-const SUB_MODES: [Kind, string][] = [
-  ["multi", "Fichiers multipistes"],
-  ["pairs", "Paires de fichiers"],
-];
-
-/** Batch's two sub-modes, a selection pill sliding under the picked one. */
-function SubModes({ kind, busy, onChange }: { kind: Kind; busy: boolean; onChange: (kind: Kind) => void }) {
-  const buttons = useRef<Partial<Record<Kind, HTMLButtonElement | null>>>({});
-  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
-  // No slide for the first placement: the pill just starts there.
-  const [placed, setPlaced] = useState(false);
-
-  useLayoutEffect(() => {
-    const button = buttons.current[kind];
-    if (!button) return;
-    setPill({ left: button.offsetLeft, width: button.offsetWidth });
-  }, [kind]);
-  useLayoutEffect(() => {
-    if (pill && !placed) requestAnimationFrame(() => setPlaced(true));
-  }, [pill, placed]);
-
-  return (
-    <div className="batch-submodes" role="tablist" aria-label="Mode batch">
-      {pill && <span className={`batch-submodes-pill${placed ? " placed" : ""}`} style={{ left: pill.left, width: pill.width }} />}
-      {SUB_MODES.map(([value, label]) => (
-        <button
-          key={value}
-          ref={(el) => {
-            buttons.current[value] = el;
-          }}
-          role="tab"
-          aria-selected={kind === value}
-          className={kind === value ? "active" : ""}
-          onClick={() => onChange(value)}
-          disabled={busy && kind !== value}
-          title={busy && kind !== value ? "Un traitement est en cours : attends sa fin." : undefined}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
