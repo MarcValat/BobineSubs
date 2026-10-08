@@ -946,7 +946,7 @@ button:focus-visible {
    the accent, the part under Batch's corners, its own inset. */
 .pill-switch.batch-submodes {
   flex: 0 0 auto;
-  height: 100%;
+  align-self: stretch;
   padding: 3px 4px 3px calc(var(--radius-sm) + 4px);
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
@@ -958,6 +958,7 @@ button:focus-visible {
    under the picked one (PillSwitch.tsx): a sunken track, smaller buttons. */
 .pill-switch {
   position: relative;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   gap: 2px;
