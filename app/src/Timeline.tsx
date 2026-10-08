@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { Analysis } from "./api";
-import { offsetAt } from "./editing";
+import { isDrift, offsetAt } from "./editing";
 import { clock, offset as formatOffset } from "./format";
 import { segmentFor } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
@@ -54,6 +54,20 @@ export default function Timeline({ analysis, duration, editing }: Props) {
         onPick={setCentre}
         editing={editing}
       />
+      {/* As Bobine Audio's segment chart. */}
+      <div className="segment-chart-legend">
+        <span className="legend-item">
+          <span className="legend-swatch constant" /> constant
+        </span>
+        <span className="legend-item">
+          <span className="legend-swatch drift" /> dérive
+        </span>
+        {analysis.segments.some((s) => s.confidence < LOW_CONFIDENCE) && (
+          <span className="legend-item">
+            <span className="legend-swatch low-confidence" /> peu fiable
+          </span>
+        )}
+      </div>
       <div className="timeline-controls">
         <div className="button-group">
           <span className="toolbar-label">Aller à :</span>
@@ -196,7 +210,7 @@ function Overview({
             const end = Math.min(s.end_s, duration);
             return (
               <g key={i}>
-                <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className={`offset-line ${s.confidence < LOW_CONFIDENCE ? "weak" : ""}`} />
+                <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className={`offset-line ${isDrift(s) ? "drift" : "constant"}${s.confidence < LOW_CONFIDENCE ? " low-confidence" : ""}`} />
                 {editing && (
                   <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className="offset-hit" data-segment={i}>
                     <title>Glisser vers le haut ou le bas pour changer le décalage</title>

@@ -18,6 +18,10 @@
   --text-muted: light-dark(rgba(15, 15, 15, 0.6), rgba(242, 242, 242, 0.6));
   --error: light-dark(#cc3333, #ff6b6b);
   --success: light-dark(#2a8c4a, #57c785);
+  /* The two kinds of segment, in the timeline, its legend and the tables
+     (Bobine Audio's). */
+  --constant: #396cd8;
+  --drift: #d38a39;
   /* Bobine Subs: anything to double-check, and the timeline's lines
      (reference in neutral grey, target in the accent). */
   --warn: #d38a39;
@@ -835,8 +839,14 @@ button:focus-visible {
   border: 1px solid var(--border);
 }
 
-.segments-table tr.weak td {
-  color: var(--warn);
+/* An unreliable segment: its row faintly red, as in the editor. */
+.analysis-content .tracks-table-wrap .segments-table tbody tr.weak {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+/* A drift's offsets (start -> end), in the drift orange. */
+.drift-text {
+  color: var(--drift);
 }
 
 /* The export panel: what's written, above the export box. */
@@ -1256,11 +1266,12 @@ button:focus-visible {
 }
 
 .confidence-weak .confidence-fill {
-  background: var(--warn);
+  background: var(--error);
 }
 
-.confidence-weak .confidence-value {
-  color: var(--warn);
+.confidence-weak .confidence-value,
+.confidence-weak .confidence-flag {
+  color: var(--error);
   font-weight: 600;
 }
 

@@ -1,5 +1,6 @@
 import type { Analysis } from "./api";
 import { ConfidenceGauge } from "./ConfidenceGauge";
+import { isDrift } from "./editing";
 import { clock, offset } from "./format";
 import { segmentFor } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
@@ -59,9 +60,9 @@ export default function AnalysisView({
                 <td>{i + 1}</td>
                 <td>{clock(s.start_s)}</td>
                 <td>{clock(Math.min(s.end_s, duration))}</td>
-                <td>
+                <td className={isDrift(s) ? "drift-text" : undefined}>
                   {offset(s.offset_start)}
-                  {Math.abs(s.offset_end - s.offset_start) > 0.05 && ` → ${offset(s.offset_end)}`}
+                  {isDrift(s) && ` → ${offset(s.offset_end)}`}
                 </td>
                 <td>{counts[i]}</td>
                 <td>
