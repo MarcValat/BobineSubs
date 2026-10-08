@@ -1,5 +1,5 @@
 // Client for the engine sidecar (engine/src/syncsubtitles/server.py).
-import { ENGINE_URL, engineReady } from "./engine";
+import { engineReady, getEngineUrl } from "./engine";
 
 export interface TrackInfo {
   index: number;
@@ -76,7 +76,7 @@ export interface RenderOptions {
 
 async function engineFetch(path: string, init?: RequestInit): Promise<Response> {
   await engineReady();
-  const resp = await fetch(`${ENGINE_URL}${path}`, init);
+  const resp = await fetch(`${await getEngineUrl()}${path}`, init);
   if (!resp.ok) {
     let detail: unknown = `Erreur ${resp.status}`;
     try {
@@ -169,8 +169,8 @@ export type JobEvent<T> =
   | { type: "cancelled" };
 
 /** A job's events as they happen; an unexpected close (engine crash) is an error. */
-function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => void): void {
-  const ws = new WebSocket(`${ENGINE_URL.replace("http", "ws")}/jobs/${jobId}/ws`);
+async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => void): Promise<void> {
+  const ws = new WebSocket(`${(await getEngineUrl()).replace("http", "ws")}/jobs/${jobId}/ws`);
   let finished = false;
   ws.onmessage = (msg) => {
     const event = JSON.parse(msg.data) as JobEvent<T>;
@@ -199,7 +199,7 @@ export function runJob<T>(
     jobId
       .then((id) => {
         onStart?.(id);
-        connectJobWS<T>(id, (event) => {
+        return connectJobWS<T>(id, (event) => {
           if (event.type === "log") onLog(event.message);
           else if (event.type === "done") resolve(event.result);
           else if (event.type === "error") reject(new Error(event.message));

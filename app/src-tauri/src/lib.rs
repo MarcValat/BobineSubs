@@ -6,6 +6,35 @@ use tauri::path::BaseDirectory;
 use tauri::Manager;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
+/// The engine's port, picked at startup: the usual one when it's free,
+/// another free one otherwise, so the engine never collides with another
+/// program (or a stale engine) holding it. The frontend asks for it through
+/// `engine_port`.
+struct EnginePort(u16);
+
+/// The usual port when nothing listens on it, else one the OS hands out
+/// (port 0); either is released at once for the engine to take. Falls back
+/// on the usual port should both fail.
+fn free_port() -> u16 {
+    if std::net::TcpListener::bind(("127.0.0.1", DEFAULT_PORT)).is_ok() {
+        return DEFAULT_PORT;
+    }
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .map(|addr| addr.port())
+        .unwrap_or(DEFAULT_PORT)
+}
+
+/// The engine's usual port, also `syncsubtitles serve`'s default: a plain
+/// browser pointed at the dev server (no Tauri, no `engine_port`) finds the
+/// engine there.
+const DEFAULT_PORT: u16 = 8757;
+
+#[tauri::command]
+fn engine_port(port: tauri::State<EnginePort>) -> u16 {
+    port.0
+}
+
 /// The running engine: a dev-time `uv run` child (live Python source) or a
 /// packaged build's frozen engine -- see `spawn_sidecar` for why both exist.
 struct SidecarState(Mutex<Option<Child>>);
@@ -156,16 +185,17 @@ fn kill_process_tree(pid: u32) {
 /// A failure here (e.g. `uv` missing in dev, or the binary wasn't built for
 /// a release) is logged, not fatal: the GUI window still opens, it just
 /// can't reach the engine until fixed and restarted.
-fn spawn_sidecar(app: &tauri::AppHandle) -> Option<Child> {
+fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
     // Second, independent safety net next to the Job Object (see
     // KillOnCloseJob): the engine watches this PID itself and exits once
     // it's gone. Covers dev mode's `uv run` hop and any gap between spawning
     // and assigning to the job.
     let parent_pid = std::process::id().to_string();
+    let port = port.to_string();
     if cfg!(debug_assertions) {
         let dir = engine_dir();
         match Command::new("uv")
-            .args(["run", "syncsubtitles", "serve", "--port", "8757", "--parent-pid", &parent_pid])
+            .args(["run", "syncsubtitles", "serve", "--port", &port, "--parent-pid", &parent_pid])
             .current_dir(&dir)
             .spawn()
         {
@@ -189,7 +219,7 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<Child> {
             }
         };
         match Command::new(&exe)
-            .args(["serve", "--port", "8757", "--parent-pid", &parent_pid])
+            .args(["serve", "--port", &port, "--parent-pid", &parent_pid])
             .spawn()
         {
             Ok(child) => {
@@ -207,6 +237,16 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<Child> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First, so a second launch stops here: one copy of the app at a
+        // time (two would mean two engines and two windows on the same
+        // files). It brings the open window back to the front instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -216,13 +256,16 @@ pub fn run() {
         // here, once restored, so it doesn't flash at the default size first.
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            // Known before the window shows: the frontend asks for it at once.
+            let port = free_port();
+            app.manage(EnginePort(port));
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
             }
             let handle = app.handle().clone();
             #[cfg(windows)]
             let job = KillOnCloseJob::new();
-            let child = spawn_sidecar(&handle);
+            let child = spawn_sidecar(&handle, port);
             #[cfg(windows)]
             {
                 // Right after spawning, before the engine has had time to
@@ -240,7 +283,7 @@ pub fn run() {
             app.manage(SidecarState(Mutex::new(child)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![stop_sidecar])
+        .invoke_handler(tauri::generate_handler![engine_port, stop_sidecar])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
