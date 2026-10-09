@@ -1312,3 +1312,16 @@ button:focus-visible {
 .batch-row-state-error {
   --row-state: var(--error);
 }
+
+/* The "?" by a card title: the title is all capitals, the circle sits on
+   the baseline (InfoTip.css) and hung ~1.6px below them (as Bobine
+   Audio's fix). */
+.panel h2 .info-tip {
+  vertical-align: 0.14em;
+}
+
+/* Table headers break between words, never inside one ("PIST|E"): the
+   panel's overflow-wrap: anywhere (for long paths) is inherited. */
+.panel th {
+  overflow-wrap: normal;
+}
