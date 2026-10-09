@@ -1,0 +1,15 @@
+# Named after the program: its windows carry that name as their Wayland
+# app id (Tauri's enableGTKAppId is off), and KDE finds a window's launcher,
+# hence its icon, by that name -- any other name shows a generic "W".
+[Desktop Entry]
+Type=Application
+Name=Bobine Subs
+Comment=Retime subtitles onto a video's own subtitles
+Comment[fr]=Recale des sous-titres sur ceux d'une vidéo
+Keywords=subtitles;sync;resync;srt;ass;mkv;
+Keywords[fr]=sous-titres;synchronisation;recaler;srt;ass;mkv;
+Exec=syncsubtitles
+Icon=bobine-subs
+StartupWMClass=syncsubtitles
+Terminal=false
+Categories=AudioVideo;Video;
