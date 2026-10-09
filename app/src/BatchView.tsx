@@ -246,9 +246,20 @@ export default function BatchView({
     });
   }
 
-  function removeRow(row: Row) {
-    if (kind === "multi") setMultiVideos((v) => v.filter((x) => x !== row.video));
-    else setPairRows((r) => r.filter((x) => x.video !== row.video || x.target !== row.target));
+  /** Multi: the file. Pairs: one side's file only (`side`), the row going
+   * once neither is left. */
+  function removeRow(row: Row, side: "video" | "target" = "video") {
+    if (kind === "multi") {
+      setMultiVideos((v) => v.filter((x) => x !== row.video));
+      return;
+    }
+    setPairRows((rows) =>
+      rows.flatMap((x) => {
+        if (x.video !== row.video || x.target !== row.target) return [x];
+        const left = side === "video" ? { ...x, video: null } : { ...x, target: null };
+        return left.video || left.target ? [{ ...left, by: null, key: `${left.video}|${left.target}` }] : [];
+      }),
+    );
   }
 
   const clear = () => (kind === "multi" ? setMultiVideos([]) : setPairRows([]));
@@ -511,7 +522,7 @@ export default function BatchView({
                   canMoveUp={i > 0}
                   canMoveDown={i < rows.length - 1}
                   onMove={(d) => moveSubtitle(i, d)}
-                  onRemove={() => removeRow(row)}
+                  onRemove={(side) => removeRow(row, side)}
                   onEdit={() => setEditingRow(row)}
                   onReanalyze={typeof inputs(row) === "object" ? () => analyzeRows([row]) : null}
                 />
@@ -876,7 +887,8 @@ function BatchRow({
   canMoveUp: boolean;
   canMoveDown: boolean;
   onMove: (direction: -1 | 1) => void;
-  onRemove: () => void;
+  /** Pairs: which side's file; multi: the file. */
+  onRemove: (side: "video" | "target") => void;
   onEdit: () => void;
   /** Analyzes this row alone again (its hand edits are lost). */
   onReanalyze: (() => void) | null;
@@ -920,7 +932,7 @@ function BatchRow({
             {row.video ? fileName(row.video) : "—"}
           </span>
           <span className="batch-file-actions">
-            <button className="small-button" onClick={onRemove} disabled={busy} title="Retirer">
+            <button className="small-button" onClick={() => onRemove("video")} disabled={busy || !row.video} title="Retirer">
               ✕
             </button>
           </span>
@@ -944,6 +956,9 @@ function BatchRow({
               </button>
               <button className="small-button" onClick={() => onMove(1)} disabled={busy || !canMoveDown} title="Descendre">
                 {"↓︎"}
+              </button>
+              <button className="small-button" onClick={() => onRemove("target")} disabled={busy || !row.target} title="Retirer">
+                ✕
               </button>
             </span>
           </div>
