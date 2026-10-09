@@ -60,7 +60,20 @@
     "linux": {
       "deb": {
         "conflicts": ["sync-subtitles"],
-        "replaces": ["sync-subtitles"]
+        "replaces": ["sync-subtitles"],
+        "desktopTemplate": "./linux/hidden.desktop.hbs",
+        "files": {
+          "/usr/share/applications/syncsubtitles.desktop": "./linux/syncsubtitles.desktop",
+          "/usr/share/metainfo/com.syncsubtitles.app.metainfo.xml": "./linux/com.syncsubtitles.app.metainfo.xml",
+          "/usr/share/icons/hicolor/32x32/apps/bobine-subs.png": "./icons/32x32.png",
+          "/usr/share/icons/hicolor/64x64/apps/bobine-subs.png": "./icons/64x64.png",
+          "/usr/share/icons/hicolor/128x128/apps/bobine-subs.png": "./icons/128x128.png",
+          "/usr/share/icons/hicolor/256x256/apps/bobine-subs.png": "./icons/128x128@2x.png",
+          "/usr/share/icons/hicolor/512x512/apps/bobine-subs.png": "./icons/icon.png",
+          "/usr/share/icons/hicolor/scalable/apps/bobine-subs.svg": "./icons/icon-source.svg"
+        },
+        "postInstallScript": "./linux/refresh-desktop.sh",
+        "postRemoveScript": "./linux/refresh-desktop.sh"
       }
     }
   },

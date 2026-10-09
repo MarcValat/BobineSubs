@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.syncsubtitles.app</id>
+  <name>Bobine Subs</name>
+  <summary>Retime subtitles onto a video's own subtitles</summary>
+  <summary xml:lang="fr">Recale des sous-titres sur ceux d'une vidéo</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.marcvalat">
+    <name>Marc Valat</name>
+  </developer>
+  <description>
+    <p>Bobine Subs lines up a subtitle track on the well-timed subtitles a video already holds, even in another language: it finds the offset, the drift and the jumps, then writes a new MKV or the corrected subtitles.</p>
+    <p xml:lang="fr">Bobine Subs recale une piste de sous-titres sur les sous-titres bien calés que contient déjà une vidéo, même dans une autre langue : il trouve le décalage, la dérive et les sauts, puis écrit un nouveau MKV ou les sous-titres corrigés.</p>
+  </description>
+  <launchable type="desktop-id">syncsubtitles.desktop</launchable>
+  <icon type="stock">bobine-subs</icon>
+  <url type="homepage">https://github.com/MarcValat/BobineSubs</url>
+  <url type="bugtracker">https://github.com/MarcValat/BobineSubs/issues</url>
+  <pkgname>bobine-subs</pkgname>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Video</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>
