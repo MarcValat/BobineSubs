@@ -204,3 +204,33 @@ def test_the_render_job_writes_several_tracks(mkv: Path, tmp_path: Path):
     assert state["status"] == "done", state
     assert [t["kind"] for t in state["result"]["tracks"]] == ["replaced", "added"]
     assert state["result"]["path"] == str(out)
+
+
+def test_the_render_job_writes_several_subtitle_files(mkv: Path, tmp_path: Path):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from syncsubtitles.server import app
+
+    client = TestClient(app)
+    segments = [{"start_s": 0.0, "end_s": 30.0, "offset_start": -1.0, "offset_end": -1.0}]
+    outs = [tmp_path / "a.srt", tmp_path / "b.srt"]
+    job = client.post(
+        "/jobs/render",
+        json={
+            "reference": {"path": str(mkv), "index": 0},
+            "subs_only": True,
+            "tracks": [
+                {"target": {"path": str(mkv), "index": 1}, "segments": segments, "output": str(out)} for out in outs
+            ],
+        },
+    ).json()
+    for _ in range(200):
+        state = client.get(f"/jobs/{job['job_id']}").json()
+        if state["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert state["status"] == "done", state
+    assert [t["path"] for t in state["result"]["tracks"]] == [str(out) for out in outs]
+    assert all(out.exists() for out in outs)

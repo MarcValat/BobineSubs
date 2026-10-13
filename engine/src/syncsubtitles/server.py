@@ -379,6 +379,8 @@ class RenderTrack(BaseModel):
     language: str | None = None
     title: str | None = None
     default: bool | None = None
+    # Its own file, for a standalone subtitle export (``subs_only``).
+    output: str | None = None
 
 
 class RenderRequest(BaseModel):
@@ -393,7 +395,8 @@ class RenderRequest(BaseModel):
     language: str | None = None
     title: str | None = None
     default: bool | None = None
-    # ...or several, all in one new MKV.
+    # ...or several: all in one new MKV, or (``subs_only``) each in its own
+    # file.
     tracks: list[RenderTrack] = []
 
 
@@ -424,16 +427,16 @@ def start_render(req: RenderRequest) -> JobStarted:
 
     def run(log):
         if req.subs_only or (req.output and Path(req.output).suffix.lower() in SUBTITLE_EXTENSIONS):
-            [track] = tracks
             written = [
                 write_result(
                     req.reference.to_spec(),
                     track.target.to_spec(),
                     [s.to_segment() for s in track.segments],
-                    req.output,
+                    track.output or (req.output if len(tracks) == 1 else None),
                     True,
                     log=log,
                 )
+                for track in tracks
             ]
         else:
             written = write_tracks(
