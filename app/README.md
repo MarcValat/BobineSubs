@@ -21,6 +21,17 @@ Rechargement à chaud de l'interface ; le moteur démarre et s'arrête avec la f
 
 `npm run dev` lance l'interface seule dans un navigateur. Avec un moteur lancé à part (`uv run syncsubtitles serve` dans `../engine/`), tout fonctionne sauf les dialogues natifs ; en dev, `window.__test.load(role, path)` ouvre un fichier sans dialogue, et un évènement `syncsubtitles:dragdrop` simule un glisser-déposer (vérifications automatiques avec Playwright).
 
+## Vérifications
+
+Elles tournent en local (GitHub Actions ne lance que les tests du moteur et le build, à la release : une vérification là-bas bloquerait la release tard).
+
+```
+npm run check              # types, formatage, lint, code mort : quelques secondes
+npm run check -- --full    # + clippy et les tests du moteur : ~1 min (pas pendant `tauri dev`)
+```
+
+`scripts/check.mjs` enchaîne `tsc`, Prettier, ESLint (règles des hooks React), knip (exports et dépendances inutilisés), ruff (`check` et `format`) sur le moteur et `cargo fmt`. `npm run format` reformate l'app (Prettier), `uv run ruff format` le moteur, `cargo fmt` la coquille Rust. `npm install` active un hook pre-commit (`.githooks/pre-commit`) qui vérifie le formatage et le lint des seuls fichiers commités.
+
 ## Empaqueter (`tauri build`)
 
 ```
