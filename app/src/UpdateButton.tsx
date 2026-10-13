@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
-import { errorMessage } from "./util";
-import { useT } from "./i18n";
+import { devParam, errorMessage } from "./util";
 import { DownloadIcon } from "./icons";
+import { Tooltip } from "./InfoTip";
+import { useT } from "./i18n";
 import { useCheckUpdates } from "./settings";
 
 // "error": the download failed, the app still works; "failed": the install
@@ -22,10 +23,10 @@ type DownloadEvent =
 
 /** Dev only (see devParam): `?update=1` shows a pretend update. */
 function devUpdate(): PendingUpdate | null {
-  if (!import.meta.env.DEV || new URLSearchParams(location.search).get("update") !== "1") return null;
+  if (devParam("update") !== "1") return null;
   return {
     version: "9.9.9",
-    download: () => Promise.reject(new Error("mise à jour fictive (dev)")),
+    download: () => Promise.reject(new Error("pretend update (dev)")),
     install: () => Promise.resolve(),
   };
 }
@@ -132,16 +133,17 @@ export function UpdateButton() {
 
   return (
     <div className="update-box" ref={boxRef}>
-      <button
-        className={`icon-button update-button${failed ? " update-button-failed" : ""}${busy ? " update-button-busy" : ""}`}
-        title={title}
-        aria-label={title}
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <DownloadIcon />
-        <span className="update-dot" aria-hidden="true" />
-      </button>
+      <Tooltip text={title}>
+        <button
+          className={`icon-button update-button${failed ? " update-button-failed" : ""}${busy ? " update-button-busy" : ""}`}
+          aria-label={title}
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <DownloadIcon />
+          <span className="update-dot" aria-hidden="true" />
+        </button>
+      </Tooltip>
       {open && (
         <div className="top-menu update-menu" role="dialog">
           <p className="update-menu-title">{failed ? t.update.failedHeading : t.update.availableHeading(update.version)}</p>

@@ -20,6 +20,7 @@ export const en: Messages = {
 
   options: {
     title: "Settings",
+    version: (version) => `Current version: ${version}.`,
     theme: "Theme",
     themes: { system: "System", light: "Light", dark: "Dark" },
     themeHint: "“System” follows your system's light or dark theme.",

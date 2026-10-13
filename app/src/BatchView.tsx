@@ -837,13 +837,7 @@ function ChooseTracksDialog({
 
   return (
     <Dialog onClose={onClose} className="batch-choice-panel" labelledBy="choice-title">
-      <DialogHeader
-        id="choice-title"
-        title={`Pistes de ${fileName(reference.path)}`}
-        titleTooltip={reference.path}
-        onClose={onClose}
-        closeLabel="Annuler"
-      />
+      <DialogHeader id="choice-title" title={`Pistes de ${fileName(reference.path)}`} titleTooltip={reference.path} onClose={onClose} />
       {sameFile ? (
         table(reference, true, true, "multi")
       ) : (

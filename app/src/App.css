@@ -54,6 +54,9 @@
   --band-b: light-dark(#e8f1ef, #142225);
   --border-strong: light-dark(rgba(8, 40, 34, 0.26), rgba(255, 255, 255, 0.22));
   --radius: 14px;
+  /* The top bar's height (it's also the window's title bar): the settings
+     drawer opens right under it. */
+  --top-bar-height: 52px;
   --radius-sm: 10px;
   --shadow-color: light-dark(rgba(8, 40, 34, 0.08), rgba(0, 0, 0, 0.3));
   --shadow: 0 1px 3px var(--shadow-color), 0 1px 2px var(--shadow-color);
@@ -1423,7 +1426,7 @@ body {
 }
 
 .top-bar {
-  height: 52px;
+  height: var(--top-bar-height);
   box-sizing: border-box;
   gap: 16px;
   padding: 0 16px 0 20px;

@@ -23,3 +23,11 @@ export function saveSetting(key: string, value: string | null): void {
     // not remembered this time
   }
 }
+
+/** Dev only (always null in production builds): a `?name=value` parameter of
+ * the page's URL. They let automated screenshots in a plain browser do what
+ * a system dialog would -- `?update=1`. */
+export function devParam(name: string): string | null {
+  if (!import.meta.env.DEV) return null;
+  return new URLSearchParams(window.location.search).get(name);
+}

@@ -23,6 +23,7 @@ export const fr = {
 
   options: {
     title: "Paramètres",
+    version: (version: string) => `Version actuelle : ${version}.`,
     theme: "Thème",
     themes: { system: "Système", light: "Clair", dark: "Sombre" },
     themeHint: "« Système » suit le thème clair ou sombre de ton système.",

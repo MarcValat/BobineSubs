@@ -1,31 +1,66 @@
+/* A small drawn "?" in a disc tinted with the accent; filled with it, the
+   mark white, on hover or keyboard focus. */
 .info-tip {
   position: relative;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.15em;
-  height: 1.15em;
+  /* Its text's size, but never under 14px (by a small uppercase title). */
+  /* Whole pixels: its mark drawn sharp, not across half pixels. */
+  width: round(max(1.05em, 14px), 1px);
+  height: round(max(1.05em, 14px), 1px);
+  flex: 0 0 auto;
   border-radius: 50%;
-  border: 1px solid var(--text-muted);
-  color: var(--text-muted);
-  font-size: 0.85em;
-  font-weight: 600;
-  font-style: normal;
-  line-height: 1;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text-muted));
   cursor: help;
   user-select: none;
-  /* The "?" on the same baseline as the text before it, so the circle
-     around it centers on that text's capitals and tall letters (`middle`
-     centers on the lowercase ones, which reads a touch low). Ignored where
-     the icon is a flex item, centered by its row instead. */
-  vertical-align: baseline;
+  /* Centered on the text's capitals and tall letters (their middle sits
+     about 0.36em above the baseline), whatever the icon's own size, where
+     it sits inline; a flex row centers it by itself. */
+  vertical-align: calc(0.36em - max(1.05em, 14px) / 2);
+}
+
+.info-tip svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.info-tip-disc {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 38%, transparent);
+  stroke-width: 1;
+  transition:
+    fill 0.15s,
+    stroke 0.15s;
+}
+
+.info-tip-mark {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.info-tip-dot {
+  fill: currentColor;
 }
 
 .info-tip:hover,
 .info-tip:focus-visible {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: #ffffff;
   outline: none;
+}
+
+.info-tip:hover .info-tip-disc,
+.info-tip:focus-visible .info-tip-disc {
+  fill: var(--accent-strong);
+  stroke: var(--accent-strong);
+}
+
+/* What a Tooltip wraps, laid out as if unwrapped. */
+.tooltip-anchor {
+  display: inline-flex;
 }
 
 /* Rendered at the end of the page (see InfoTip.tsx), over everything. */
@@ -36,9 +71,12 @@
   max-width: 22rem;
   padding: 0.6em 0.8em;
   border-radius: var(--radius-sm);
-  background: var(--text);
-  color: var(--surface);
-  box-shadow: var(--shadow);
+  /* A panel floating over the others, not an inverted block: in the dark
+     theme a white bubble glared over everything. */
+  background: color-mix(in srgb, var(--surface-alt) 92%, var(--accent-strong));
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  box-shadow: var(--shadow-popup);
   font-size: 0.8rem;
   font-weight: 400;
   font-style: normal;

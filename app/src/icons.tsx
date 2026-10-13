@@ -35,6 +35,15 @@ export function FilmDropIcon() {
   );
 }
 
+/** A cross: close a panel. */
+export function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 /** A circular arrow: do it again. */
 export function RedoIcon() {
   return (

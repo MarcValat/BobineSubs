@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 /** A choice between a few options, all visible, a selection pill sliding
- * under the picked one: Batch's sub-modes, and "Nouveau MKV / Sous-titres
- * seuls". `className` adds a look (the Batch drawer's). */
-export function PillSwitch<T extends string>({
+ * under the picked one (as in Bobine Subs): Batch's sub-modes. `className`
+ * adds a look (the Batch drawer's). */
+export function PillSwitch<T extends string | number>({
   options,
   value,
   onChange,
