@@ -1,32 +1,17 @@
 import { useSyncExternalStore } from "react";
+import { loadSetting, saveSetting } from "./util";
 
-// Settings remembered across sessions (from Bobine Audio). Browser storage
-// can be unavailable or throw: the setting then just isn't remembered.
-
-export function loadSetting(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-/** Stores `value` under `key`; null forgets it. */
-export function saveSetting(key: string, value: string | null): void {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    // not remembered this time
-  }
-}
-
-// A view using a setting follows a change made in Options right away.
+// Options' settings, remembered across sessions; a view using one follows
+// a change made in Options right away. From Bobine Audio.
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+function changed(): void {
+  listeners.forEach((listener) => listener());
 }
 
 const CHECK_UPDATES_KEY = "syncsubtitles.checkUpdates";
@@ -38,7 +23,7 @@ function loadCheckUpdates(): boolean {
 
 export function saveCheckUpdates(check: boolean): void {
   saveSetting(CHECK_UPDATES_KEY, check ? null : "0");
-  listeners.forEach((listener) => listener());
+  changed();
 }
 
 export function useCheckUpdates(): boolean {

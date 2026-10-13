@@ -25,19 +25,8 @@ import { Dialog, DialogHeader } from "./Dialog";
 import { FolderIcon, RedoIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
-import {
-  errorMessage,
-  IDLE,
-  LANGUAGES,
-  languageName,
-  LOW_CONFIDENCE,
-  pickFiles,
-  pickFolder,
-  type Run,
-  textTracks,
-  VIDEO_FILTER,
-} from "./shared";
-import { loadSetting, saveSetting } from "./settings";
+import { IDLE, LANGUAGES, languageName, LOW_CONFIDENCE, pickFiles, pickFolder, type Run, textTracks, VIDEO_FILTER } from "./shared";
+import { errorMessage, loadSetting, saveSetting } from "./util";
 import "./BatchView.css";
 
 /** Fichiers multipistes / Paires de fichiers: picked in the top bar (App.tsx). */

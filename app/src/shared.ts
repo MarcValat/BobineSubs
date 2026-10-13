@@ -33,10 +33,6 @@ export interface Run<T> {
 
 export const IDLE = { status: "idle", log: [] } as const;
 
-export function errorMessage(e: unknown): string {
-  return String(e instanceof Error ? e.message : e);
-}
-
 /** Tracks that can be corrected (text subtitles). */
 export function textTracks(probe: ProbeResponse | null) {
   return probe?.tracks.filter((t) => t.format === "srt" || t.format === "ass") ?? [];

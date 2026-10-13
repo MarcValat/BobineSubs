@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { loadSetting, saveSetting } from "./settings";
+import { loadSetting, saveSetting } from "./util";
 
 /** "system" follows Windows; the others force it. From Bobine Audio. */
 export type ThemeChoice = "system" | "light" | "dark";

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { loadSetting, saveSetting } from "../settings";
+import { loadSetting, saveSetting } from "../util";
 import { en } from "./en";
 import { fr, type Messages } from "./fr";
 

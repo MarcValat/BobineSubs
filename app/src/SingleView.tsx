@@ -25,7 +25,8 @@ import { clock, fileName, isSubtitleFile } from "./format";
 import { InfoTip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
 import { PillSwitch } from "./PillSwitch";
-import { errorMessage, IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
+import { IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
+import { errorMessage } from "./util";
 
 const EXPORT_KINDS = [
   ["mkv", "Nouveau MKV"],

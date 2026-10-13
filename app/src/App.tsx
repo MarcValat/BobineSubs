@@ -6,7 +6,7 @@ import { EngineStatusBadge } from "./EngineStatus";
 import { useLanguage } from "./i18n";
 import { OptionsButton } from "./Options";
 import { PillSwitch } from "./PillSwitch";
-import { loadSetting, saveSetting } from "./settings";
+import { loadSetting, saveSetting } from "./util";
 import { UpdateButton } from "./UpdateButton";
 
 type Mode = "single" | "batch";

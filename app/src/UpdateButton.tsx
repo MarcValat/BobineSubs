@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
-import { errorMessage } from "./shared";
+import { errorMessage } from "./util";
 import { useT } from "./i18n";
 import { DownloadIcon } from "./icons";
 import { useCheckUpdates } from "./settings";
