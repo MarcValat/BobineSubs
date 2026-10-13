@@ -2,8 +2,8 @@
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use tauri::path::BaseDirectory;
 use tauri::Manager;
+use tauri::path::BaseDirectory;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 /// The engine's port, picked at startup: the usual one when it's free,
@@ -102,8 +102,9 @@ impl KillOnCloseJob {
     fn new() -> Option<Self> {
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::System::JobObjects::{
-            CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
         };
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -227,13 +228,24 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16, token: &str) -> Option<Child
     if cfg!(debug_assertions) {
         let dir = engine_dir();
         match Command::new("uv")
-            .args(["run", "syncsubtitles", "serve", "--port", &port, "--parent-pid", &parent_pid])
+            .args([
+                "run",
+                "syncsubtitles",
+                "serve",
+                "--port",
+                &port,
+                "--parent-pid",
+                &parent_pid,
+            ])
             .current_dir(&dir)
             .env("SYNCSUBTITLES_TOKEN", token)
             .spawn()
         {
             Ok(child) => {
-                println!("[sidecar] démarré (uv run syncsubtitles serve) dans {:?}", dir);
+                println!(
+                    "[sidecar] démarré (uv run syncsubtitles serve) dans {:?}",
+                    dir
+                );
                 Some(child)
             }
             Err(err) => {
@@ -243,7 +255,10 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16, token: &str) -> Option<Child
         }
     } else {
         // ".exe" on Windows, no extension on Linux.
-        let name = format!("engine/syncsubtitles-engine{}", std::env::consts::EXE_SUFFIX);
+        let name = format!(
+            "engine/syncsubtitles-engine{}",
+            std::env::consts::EXE_SUFFIX
+        );
         let exe = match app.path().resolve(name, BaseDirectory::Resource) {
             Ok(path) => path,
             Err(err) => {
@@ -328,7 +343,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                        let _ = app_handle.save_window_state(StateFlags::all());
+                let _ = app_handle.save_window_state(StateFlags::all());
                 let state = app_handle.state::<SidecarState>();
                 let mut guard = state.0.lock().unwrap();
                 if let Some(child) = guard.take() {
