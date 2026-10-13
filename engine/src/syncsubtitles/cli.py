@@ -45,7 +45,9 @@ def probe(file: str) -> None:
     for s in streams:
         flags = [f for f, on in (("défaut", s.default), ("forcés", s.forced)) if on]
         fmt = subtitle_format(s.codec)
-        usable = "  (non supporté)" if fmt is None else "  (image : référence seulement)" if fmt in ("pgs", "vobsub") else ""
+        usable = (
+            "  (non supporté)" if fmt is None else "  (image : référence seulement)" if fmt in ("pgs", "vobsub") else ""
+        )
         click.echo(
             f"@{s.index}  {s.codec:<18} {s.language or '-':<5} {s.title or '':<30} {' '.join(flags)}{usable}".rstrip()
         )
@@ -70,7 +72,9 @@ def _run_analysis(reference: str, target: str, constant: bool) -> Analysis:
     click.echo(f"{len(segments)} segment(s), {kind} :")
     for g, seg in enumerate(segments):
         count = sum(c.group == g for c in analysis.target_cues)
-        offset = f"{seg.offset_start:+.3f} s" if not seg.is_drift else f"{seg.offset_start:+.3f} -> {seg.offset_end:+.3f} s"
+        offset = (
+            f"{seg.offset_start:+.3f} s" if not seg.is_drift else f"{seg.offset_start:+.3f} -> {seg.offset_end:+.3f} s"
+        )
         warn = "  ⚠ peu fiable" if seg.confidence < LOW_CONFIDENCE else ""
         click.echo(
             f"  {_clock(seg.start_s)} -> {_clock(seg.end_s)}   {offset:<22} {count:4d} répliques   confiance {seg.confidence:.0%}{warn}"
@@ -83,7 +87,9 @@ def _run_analysis(reference: str, target: str, constant: bool) -> Analysis:
     return analysis
 
 
-CONSTANT_OPTION = click.option("--constant", is_flag=True, help="Un seul décalage pour toute la piste (ni dérive, ni sauts).")
+CONSTANT_OPTION = click.option(
+    "--constant", is_flag=True, help="Un seul décalage pour toute la piste (ni dérive, ni sauts)."
+)
 TRACKS_HELP = """
     \b
     REFERENCE, TARGET : file.srt / file.ass, ou file.mkv@N (N = piste de sous-titres, depuis 0,
@@ -111,9 +117,16 @@ def align(reference: str, target: str, constant: bool) -> None:
 )
 @click.argument("reference")
 @click.argument("target")
-@click.option("-o", "--output", type=click.Path(dir_okay=False), help="Fichier de sortie (.mkv, ou .srt/.ass pour les sous-titres seuls).")
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(dir_okay=False),
+    help="Fichier de sortie (.mkv, ou .srt/.ass pour les sous-titres seuls).",
+)
 @click.option("--subs-only", is_flag=True, help="Écrit seulement le fichier de sous-titres corrigé, sans remux.")
-@click.option("--language", help="Langue de la piste ajoutée (code ISO 639-2, ex. fre). Par défaut : devinée du nom de fichier.")
+@click.option(
+    "--language", help="Langue de la piste ajoutée (code ISO 639-2, ex. fre). Par défaut : devinée du nom de fichier."
+)
 @click.option("--title", help="Titre de la piste ajoutée.")
 @click.option("--default/--no-default", "default", default=None, help="Marque la piste comme piste par défaut.")
 @CONSTANT_OPTION
@@ -135,7 +148,9 @@ def render(
     except (AnalysisError, FFmpegError) as exc:
         _fail(str(exc))
     if written.dropped:
-        click.echo(f"{len(written.dropped)} réplique(s) retirée(s) (avant le début de la vidéo, ou dans une scène absente de la référence) :")
+        click.echo(
+            f"{len(written.dropped)} réplique(s) retirée(s) (avant le début de la vidéo, ou dans une scène absente de la référence) :"
+        )
         for start, text in written.dropped:
             click.echo(f"  {_clock(start)}  {' / '.join(text.splitlines())[:70]}")
     if written.kind == "subtitles":

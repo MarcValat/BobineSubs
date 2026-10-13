@@ -249,7 +249,9 @@ def _detect_at_ratio(
     ref_cumsum = np.concatenate([[0.0], np.cumsum(ref)])
 
     centres = window_offsets(ref, tgt)
-    centres.append(int(round(estimate_offset(ref, tgt, FRAME_RATE, max_offset_s=_WINDOW_SEARCH_S).offset_seconds * FRAME_RATE)))
+    centres.append(
+        int(round(estimate_offset(ref, tgt, FRAME_RATE, max_offset_s=_WINDOW_SEARCH_S).offset_seconds * FRAME_RATE))
+    )
     band = int(_BAND_S * FRAME_RATE)
     states = np.unique(np.concatenate([np.arange(c - band, c + band + 1) for c in centres]))
 
@@ -288,7 +290,9 @@ def _detect_at_ratio(
         else:
             groups.append((members, offset))
 
-    matches = [CueMatch(order[j], offsets[j] / FRAME_RATE, float(overlap[j] / durations[j]), -1) for j in range(len(path))]
+    matches = [
+        CueMatch(order[j], offsets[j] / FRAME_RATE, float(overlap[j] / durations[j]), -1) for j in range(len(path))
+    ]
     for g, (members, offset) in enumerate(groups):
         for j in members:
             matches[j] = CueMatch(order[j], offset / FRAME_RATE, matches[j].overlap, g)

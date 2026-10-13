@@ -68,7 +68,9 @@ def load_pair(reference: SubtitleTrackSpec, target: SubtitleTrackSpec) -> TrackP
     candidates: list[int] = []
     if not reference.is_external:
         if reference.stream_index is None:
-            excluded = target.stream_index if not target.is_external and same_file(reference.path, target.path) else None
+            excluded = (
+                target.stream_index if not target.is_external and same_file(reference.path, target.path) else None
+            )
             candidates = [
                 s.index
                 for s in probe_subtitle_streams(reference.path)

@@ -22,10 +22,24 @@ def _ff(*args: str) -> None:
 def _first_pts_ms(path: Path, selector: str) -> int:
     out = subprocess.run(
         [
-            resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-copyts",
-            "-i", str(path), "-map", selector, "-c", "copy", "-f", "framecrc", "-",
+            resolve_ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-copyts",
+            "-i",
+            str(path),
+            "-map",
+            selector,
+            "-c",
+            "copy",
+            "-f",
+            "framecrc",
+            "-",
         ],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     return int(next(line for line in out.splitlines() if not line.startswith("#")).split(",")[2])
 
@@ -43,14 +57,52 @@ def mkv(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
     video = ["-f", "lavfi", "-i", "color=c=black:s=64x36:r=5:d=30"]
     if request.param == "negative_start":
         _ff(
-            *video, "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono", *subs,
-            "-map", "0", "-map", "1", "-map", "2", "-map", "3", "-t", "30",
-            "-c:v", "mpeg4", "-c:a", "aac", "-c:s", "copy", *tags, str(out),
+            *video,
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=8000:cl=mono",
+            *subs,
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-map",
+            "2",
+            "-map",
+            "3",
+            "-t",
+            "30",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
+            "-c:s",
+            "copy",
+            *tags,
+            str(out),
         )
     else:
         _ff(
-            "-copyts", "-itsoffset", "0.25", *video, *subs,
-            "-map", "0", "-map", "1", "-map", "2", "-t", "30", "-c:v", "mpeg4", "-c:s", "copy", *tags, str(out),
+            "-copyts",
+            "-itsoffset",
+            "0.25",
+            *video,
+            *subs,
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-map",
+            "2",
+            "-t",
+            "30",
+            "-c:v",
+            "mpeg4",
+            "-c:s",
+            "copy",
+            *tags,
+            str(out),
         )
     return out
 

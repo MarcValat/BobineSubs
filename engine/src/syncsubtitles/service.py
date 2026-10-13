@@ -76,7 +76,9 @@ class Analysis:
         return None if self.ratio == 1.0 else RATIO_NAMES.get(self.ratio, f"rapport {self.ratio:.5f}")
 
 
-def analyze(reference: SubtitleTrackSpec, target: SubtitleTrackSpec, constant: bool = False, log: Log = _no_log) -> Analysis:
+def analyze(
+    reference: SubtitleTrackSpec, target: SubtitleTrackSpec, constant: bool = False, log: Log = _no_log
+) -> Analysis:
     log("Lecture des pistes de sous-titres…")
     try:
         pair = load_pair(reference, target)
@@ -86,7 +88,9 @@ def analyze(reference: SubtitleTrackSpec, target: SubtitleTrackSpec, constant: b
     if pair.reference_choice:
         log(f"Référence choisie : {pair.reference_choice}")
     if not tgt_doc.is_text:
-        raise AnalysisError(f"La cible est en {tgt_doc.fmt} (sous-titres image) : seuls SRT et ASS peuvent être recalés.")
+        raise AnalysisError(
+            f"La cible est en {tgt_doc.fmt} (sous-titres image) : seuls SRT et ASS peuvent être recalés."
+        )
     if not ref_doc.cues or not tgt_doc.cues:
         raise AnalysisError("Une des deux pistes ne contient aucune réplique.")
     log(f"Référence : {len(ref_doc.cues)} répliques, cible : {len(tgt_doc.cues)} répliques")

@@ -34,9 +34,7 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
         return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS)
     if event.is_set():
         raise Cancelled()
-    with subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS
-    ) as proc:
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS) as proc:
         while True:
             try:
                 out, err = proc.communicate(timeout=_CANCEL_POLL_S)

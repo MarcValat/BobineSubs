@@ -21,7 +21,9 @@ _PATTERNS = [
     # A lone number: "Show - 03 - Title", "[Group] Show 12 [1080p]".
     re.compile(r"(?:^|[ ._\-\[(])(?P<e>\d{1,3})(?:v\d)?(?=[ ._\-\])]|$)"),
 ]
-_NOT_EPISODES = re.compile(r"(?<!\d)(?:480|576|720|1080|2160)[pi]?(?!\d)|(?<!\d)(?:19|20)\d\d(?!\d)|\b[xh]\.?26[45]\b", re.IGNORECASE)
+_NOT_EPISODES = re.compile(
+    r"(?<!\d)(?:480|576|720|1080|2160)[pi]?(?!\d)|(?<!\d)(?:19|20)\d\d(?!\d)|\b[xh]\.?26[45]\b", re.IGNORECASE
+)
 
 
 def natural_key(name: str) -> list[int | str]:

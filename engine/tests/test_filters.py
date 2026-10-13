@@ -10,7 +10,15 @@ from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 
 @pytest.mark.parametrize(
     "text",
-    ["[FRENCH]", "(rires)", "♪ La la la ♪", "♪", "<i>[Musique]</i>", "- [Bruit de pas]\n- (Soupir)", "{\\an8}[Applause]"],
+    [
+        "[FRENCH]",
+        "(rires)",
+        "♪ La la la ♪",
+        "♪",
+        "<i>[Musique]</i>",
+        "- [Bruit de pas]\n- (Soupir)",
+        "{\\an8}[Applause]",
+    ],
 )
 def test_sound_descriptions_and_music_are_not_dialogue(text):
     assert not is_dialogue(Cue(0, 1, text))

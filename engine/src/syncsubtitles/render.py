@@ -88,12 +88,29 @@ def mux(
             write_subtitle(document, corrected)
             run_checked(
                 [
-                    resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
-                    "-i", container,
+                    resolve_ffmpeg(),
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    container,
                     # See remux_shift: keeps the new track in place against the video.
-                    "-itsoffset", f"{remux_shift(container):.6f}", "-i", str(corrected),
-                    *maps, "-map_metadata", "0", "-map_chapters", "0",
-                    *tags, "-c", "copy", "-f", "matroska", str(partial),
+                    "-itsoffset",
+                    f"{remux_shift(container):.6f}",
+                    "-i",
+                    str(corrected),
+                    *maps,
+                    "-map_metadata",
+                    "0",
+                    "-map_chapters",
+                    "0",
+                    *tags,
+                    "-c",
+                    "copy",
+                    "-f",
+                    "matroska",
+                    str(partial),
                 ]
             )
         os.replace(partial, output)

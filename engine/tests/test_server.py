@@ -75,7 +75,9 @@ def test_preview_follows_the_given_segments(pair):
 def test_analysis_error_is_reported_by_the_job(tmp_path, pair):
     empty = tmp_path / "empty.srt"
     empty.write_text("")
-    job = client.post("/jobs/analyze", json={"reference": {"path": str(empty)}, "target": {"path": str(pair[1])}}).json()
+    job = client.post(
+        "/jobs/analyze", json={"reference": {"path": str(empty)}, "target": {"path": str(pair[1])}}
+    ).json()
     state = _wait(job["job_id"])
     assert state["status"] == "error" and "aucune réplique" in state["error"]
 
@@ -83,12 +85,16 @@ def test_analysis_error_is_reported_by_the_job(tmp_path, pair):
 def test_default_output(pair):
     body = client.get("/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1])}).json()
     assert Path(body["path"]) == Path("D:/Films/Film.synced.mkv")
-    body = client.get("/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1]), "subs_only": True}).json()
+    body = client.get(
+        "/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1]), "subs_only": True}
+    ).json()
     assert body["path"].endswith("episode.fr.synced.srt")
 
 
 def test_job_websocket_streams_progress_then_result(pair):
-    job = client.post("/jobs/analyze", json={"reference": {"path": str(pair[0])}, "target": {"path": str(pair[1])}}).json()
+    job = client.post(
+        "/jobs/analyze", json={"reference": {"path": str(pair[0])}, "target": {"path": str(pair[1])}}
+    ).json()
     kinds = []
     with client.websocket_connect(f"/jobs/{job['job_id']}/ws") as ws:
         while True:
