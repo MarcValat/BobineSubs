@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+from collections import OrderedDict
 from functools import lru_cache
 from pathlib import Path
 
@@ -210,7 +212,34 @@ def subtitle_format(codec: str) -> str | None:
     return format_for_codec(codec) or _IMAGE_FORMATS.get(codec.strip().lower())
 
 
+# The subtitle tracks already read, by file (its path, size and date: a
+# changed file is read again): the app reads every track of a file as soon
+# as it's listed (its line counts), and the analysis then starts from them.
+# Text tracks weigh little; a few files' worth are kept.
+_EXTRACTED: OrderedDict[tuple[str, int, int], dict[int, SubtitleDocument]] = OrderedDict()
+_EXTRACTED_FILES = 16
+_EXTRACTED_LOCK = threading.Lock()
+
+
 def extract_subtitles(path: str, indices: list[int]) -> dict[int, SubtitleDocument]:
+    """Subtitle streams ``indices`` (``0:s:N``) of ``path``: those already
+    read from the file as it is now (see _EXTRACTED), the others read in
+    one pass."""
+    identity = _file_identity(path)
+    with _EXTRACTED_LOCK:
+        known = dict(_EXTRACTED.get(identity, {}))
+    missing = [i for i in dict.fromkeys(indices) if i not in known]
+    if missing:
+        known.update(_extract_subtitles(path, missing))
+        with _EXTRACTED_LOCK:
+            _EXTRACTED.setdefault(identity, {}).update(known)
+            _EXTRACTED.move_to_end(identity)
+            while len(_EXTRACTED) > _EXTRACTED_FILES:
+                _EXTRACTED.popitem(last=False)
+    return {i: known[i] for i in indices}
+
+
+def _extract_subtitles(path: str, indices: list[int]) -> dict[int, SubtitleDocument]:
     """Read subtitle streams ``indices`` (``0:s:N``) of ``path``, all in one pass.
 
     One ffmpeg run reads the whole file whatever it extracts, which on a

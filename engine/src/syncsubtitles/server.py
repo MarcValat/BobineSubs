@@ -21,7 +21,13 @@ from starlette.datastructures import QueryParams
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from syncsubtitles.episodes import natural_key, pair_files
-from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
+from syncsubtitles.ffmpeg_backend import (
+    FFmpegError,
+    extract_subtitles,
+    probe_duration,
+    probe_subtitle_streams,
+    subtitle_format,
+)
 from syncsubtitles.i18n import LANGUAGES, set_language, tr
 from syncsubtitles.jobs import get_job, start_job
 from syncsubtitles.models import SubtitleTrackSpec
@@ -177,6 +183,23 @@ def probe(path: str) -> ProbeResponse:
         for s in probe_subtitle_streams(path)
     ]
     return ProbeResponse(path=path, kind="container", duration=probe_duration(path), tracks=tracks)
+
+
+class ReadTracksRequest(BaseModel):
+    path: str
+
+
+@app.post("/read-tracks")
+def read_tracks(req: ReadTracksRequest) -> dict[str, dict[int, int]]:
+    """Every readable subtitle track of a container, read in one pass and
+    kept (see ffmpeg_backend.extract_subtitles): how many lines each one
+    has, for the app's tracks table, and the analysis then starts from them.
+    The app asks for each file as it's listed, one at a time."""
+    if not Path(req.path).is_file():
+        raise HTTPException(400, tr("Fichier introuvable : {path}", path=req.path))
+    indices = [s.index for s in probe_subtitle_streams(req.path) if subtitle_format(s.codec) is not None]
+    docs = extract_subtitles(req.path, indices) if indices else {}
+    return {"cues": {index: len(doc.cues) for index, doc in docs.items()}}
 
 
 @app.get("/default-output")
