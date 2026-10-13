@@ -15,13 +15,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from starlette.datastructures import QueryParams
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from syncsubtitles.episodes import natural_key, pair_files
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
+from syncsubtitles.i18n import LANGUAGES, set_language, tr
 from syncsubtitles.jobs import get_job, start_job
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.outputs import OutputName, plan_outputs
@@ -97,6 +98,20 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+class LanguageRequest(BaseModel):
+    language: str
+
+
+@app.post("/language", status_code=204)
+def language(req: LanguageRequest) -> Response:
+    """The language of the messages the GUI shows (job logs, errors): it
+    sends its own at startup and whenever the user changes it."""
+    if req.language not in LANGUAGES:
+        raise HTTPException(400, f"Unknown language: {req.language!r}")
+    set_language(req.language)
+    return Response(status_code=204)
+
+
 class TrackRef(BaseModel):
     """A subtitle track: a standalone SRT/ASS file, or stream ``index`` of a
     container (``None``: the reference is chosen, see tracks.load_pair)."""
@@ -141,12 +156,12 @@ class ProbeResponse(BaseModel):
 @app.get("/probe", response_model=ProbeResponse)
 def probe(path: str) -> ProbeResponse:
     if not Path(path).is_file():
-        raise HTTPException(400, f"Fichier introuvable : {path}")
+        raise HTTPException(400, tr("Fichier introuvable : {path}", path=path))
     if Path(path).suffix.lower() in SUBTITLE_EXTENSIONS:
         try:
             doc = read_file(path)
         except (ValueError, OSError) as exc:
-            raise HTTPException(400, f"Sous-titres illisibles : {exc}") from exc
+            raise HTTPException(400, tr("Sous-titres illisibles : {error}", error=exc)) from exc
         duration = max((c.end for c in doc.cues), default=None)
         return ProbeResponse(path=path, kind="subtitles", duration=duration, tracks=[], cue_count=len(doc.cues))
     tracks = [
@@ -339,9 +354,9 @@ class RenderRequest(BaseModel):
 @app.post("/jobs/render", response_model=JobStarted)
 def start_render(req: RenderRequest) -> JobStarted:
     if not req.segments:
-        raise HTTPException(400, "Aucun segment à appliquer.")
+        raise HTTPException(400, tr("Aucun segment à appliquer."))
     if req.reference.index is None and not req.reference.to_spec().is_external:
-        raise HTTPException(400, "Piste de référence non précisée.")
+        raise HTTPException(400, tr("Piste de référence non précisée."))
 
     def run(log):
         written = write_result(
@@ -355,7 +370,7 @@ def start_render(req: RenderRequest) -> JobStarted:
             req.default,
             log,
         )
-        log(f"Écrit : {written.path}")
+        log(tr("Écrit : {path}", path=written.path))
         return {
             "path": str(written.path),
             "kind": written.kind,
@@ -386,7 +401,7 @@ async def job_ws(websocket: WebSocket, job_id: str) -> None:
     await websocket.accept()
     job = get_job(job_id)
     if job is None:
-        await websocket.send_json({"type": "error", "message": f"Tâche inconnue : {job_id}"})
+        await websocket.send_json({"type": "error", "message": tr("Tâche inconnue : {job_id}", job_id=job_id)})
         await websocket.close()
         return
     since = 0
@@ -413,7 +428,7 @@ async def job_ws(websocket: WebSocket, job_id: str) -> None:
 def job_status(job_id: str) -> dict:
     job = get_job(job_id)
     if job is None:
-        raise HTTPException(404, f"Tâche inconnue : {job_id}")
+        raise HTTPException(404, tr("Tâche inconnue : {job_id}", job_id=job_id))
     messages, _, status, result, error = job.snapshot()
     return {"status": status, "messages": messages, "result": result, "error": error}
 
@@ -422,6 +437,6 @@ def job_status(job_id: str) -> dict:
 def cancel_job(job_id: str) -> dict[str, bool]:
     job = get_job(job_id)
     if job is None:
-        raise HTTPException(404, f"Tâche inconnue : {job_id}")
+        raise HTTPException(404, tr("Tâche inconnue : {job_id}", job_id=job_id))
     job.cancel()
     return {"cancelled": True}

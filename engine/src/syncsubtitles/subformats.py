@@ -12,6 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from syncsubtitles.i18n import tr
+
 SRT = "srt"
 ASS = "ass"
 # Image subtitles: only their timing is read, to serve as a reference.
@@ -38,7 +40,7 @@ def format_for_path(path: str | Path, text: str | None = None) -> str:
         return ASS
     if text is not None and _SRT_TIMING.search(text):
         return SRT
-    raise ValueError(f"Unrecognized subtitle format: {path}")
+    raise ValueError(tr("Format de sous-titres non reconnu : {path}", path=path))
 
 
 def decode_subtitle_bytes(data: bytes) -> str:
@@ -85,7 +87,12 @@ class SubtitleDocument:
         straddling 0 is cut to start at 0.
         """
         if not self.is_text:
-            raise ValueError(f"{self.fmt} subtitles are images: they can't be retimed, only used as a reference.")
+            raise ValueError(
+                tr(
+                    "Les sous-titres {fmt} sont des images : ils ne peuvent pas être recalés, seulement servir de référence.",
+                    fmt=self.fmt,
+                )
+            )
         if self.fmt == SRT:
             cues = []
             for cue in self.cues:

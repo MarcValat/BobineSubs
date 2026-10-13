@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_streams, remux_shift, resolve_ffmpeg, run_checked
+from syncsubtitles.i18n import tr
 from syncsubtitles.matroska import MatroskaError, cluster_timestamps, out_of_order
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.subformats import SubtitleDocument
@@ -135,8 +136,11 @@ def check_cluster_order(path: str | Path) -> None:
     try:
         backwards = out_of_order(cluster_timestamps(path))
     except (MatroskaError, OSError) as exc:
-        raise FFmpegError(f"fichier écrit illisible : {exc}") from exc
+        raise FFmpegError(tr("Fichier écrit illisible : {error}", error=exc)) from exc
     if backwards:
         raise FFmpegError(
-            f"{backwards} groupe(s) de blocs hors de l'ordre du temps : certains lecteurs n'afficheraient pas tout"
+            tr(
+                "{count} groupe(s) de blocs hors de l'ordre du temps : certains lecteurs n'afficheraient pas tout",
+                count=backwards,
+            )
         )

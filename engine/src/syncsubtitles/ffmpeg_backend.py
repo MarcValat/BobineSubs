@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from syncsubtitles.cancellation import Cancelled, current_cancel_event
+from syncsubtitles.i18n import tr
 from syncsubtitles.models import StreamInfo, SubtitleStreamInfo
 from syncsubtitles.pgs import parse_sup
 from syncsubtitles.subformats import PGS, VOBSUB, SubtitleDocument, decode_subtitle_bytes, format_for_codec, parse
@@ -76,7 +77,13 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
 def run_checked(cmd: list[str]) -> bytes:
     proc = _run(cmd)
     if proc.returncode != 0:
-        raise FFmpegError(f"ffmpeg failed:\n{' '.join(cmd)}\n{proc.stderr.decode(errors='replace')}")
+        raise FFmpegError(
+            tr(
+                "Échec ffmpeg :\n{command}\n{details}",
+                command=" ".join(cmd),
+                details=proc.stderr.decode(errors="replace"),
+            )
+        )
     return proc.stdout
 
 
@@ -91,7 +98,7 @@ def resolve_ffmpeg() -> str:
 
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception as exc:  # pragma: no cover - defensive
-        raise FFmpegError("ffmpeg not found: neither on PATH nor through the imageio-ffmpeg package.") from exc
+        raise FFmpegError(tr("ffmpeg introuvable : ni sur le PATH, ni via le paquet imageio-ffmpeg.")) from exc
 
 
 def _file_identity(path: str) -> tuple[str, int, int]:
@@ -109,10 +116,10 @@ def _ffmpeg_info_cached(path: str, identity: tuple[str, int, int]) -> str:
 def ffmpeg_info(path: str) -> str:
     """``ffmpeg -i path``'s report, read once per unchanged file."""
     if not Path(path).is_file():
-        raise FFmpegError(f"File not found: {path}")
+        raise FFmpegError(tr("Fichier introuvable : {path}", path=path))
     info = _ffmpeg_info_cached(path, _file_identity(path))
     if "Invalid data found" in info:
-        raise FFmpegError(f"Cannot read {path!r}:\n{info}")
+        raise FFmpegError(tr("Impossible de lire {path!r} :\n{details}", path=path, details=info))
     return info
 
 
@@ -217,10 +224,24 @@ def extract_subtitles(path: str, indices: list[int]) -> dict[int, SubtitleDocume
     formats = {}
     for index in dict.fromkeys(indices):
         if index >= len(streams):
-            raise FFmpegError(f"No subtitle track @{index} in {path!r} ({len(streams)} found).")
+            raise FFmpegError(
+                tr(
+                    "Piste de sous-titres @{index} absente de {path!r} ({count} trouvée(s)).",
+                    index=index,
+                    path=path,
+                    count=len(streams),
+                )
+            )
         fmt = subtitle_format(streams[index].codec)
         if fmt is None:
-            raise FFmpegError(f"Subtitle track @{index} of {path!r} is {streams[index].codec}, which isn't supported.")
+            raise FFmpegError(
+                tr(
+                    "La piste de sous-titres @{index} de {path!r} est en {codec}, format non pris en charge.",
+                    index=index,
+                    path=path,
+                    codec=streams[index].codec,
+                )
+            )
         formats[index] = fmt
 
     with tempfile.TemporaryDirectory(prefix="syncsubtitles-") as tmp:

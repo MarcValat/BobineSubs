@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from syncsubtitles.ffmpeg_backend import extract_subtitles, probe_subtitle_streams, subtitle_format
+from syncsubtitles.i18n import tr
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.subformats import SubtitleDocument, read_file
 
@@ -47,7 +48,11 @@ def _target_index(spec: SubtitleTrackSpec) -> int:
     if len(text) == 1:
         return text[0].index
     raise ValueError(
-        f"{spec.path} has {len(text)} text subtitle tracks: say which one to correct with {spec.path}@N (see `probe`)."
+        tr(
+            "{path} a {count} pistes de sous-titres texte : indique laquelle corriger avec {path}@N (voir `probe`).",
+            path=spec.path,
+            count=len(text),
+        )
     )
 
 
@@ -62,7 +67,7 @@ def load_pair(reference: SubtitleTrackSpec, target: SubtitleTrackSpec) -> TrackP
         target = replace(target, stream_index=_target_index(target))
     if not target.is_external and not reference.is_external and same_file(reference.path, target.path):
         if reference.stream_index == target.stream_index:
-            raise ValueError("The reference and the target are the same track.")
+            raise ValueError(tr("La référence et la cible sont la même piste."))
 
     wanted: dict[str, list[int]] = {}
     candidates: list[int] = []
@@ -77,7 +82,9 @@ def load_pair(reference: SubtitleTrackSpec, target: SubtitleTrackSpec) -> TrackP
                 if s.index != excluded and subtitle_format(s.codec) is not None
             ]
             if not candidates:
-                raise ValueError(f"No usable reference subtitle track in {reference.path}.")
+                raise ValueError(
+                    tr("Aucune piste de sous-titres utilisable comme référence dans {path}.", path=reference.path)
+                )
             wanted.setdefault(reference.path, []).extend(candidates)
         else:
             wanted.setdefault(reference.path, []).append(reference.stream_index)
@@ -97,9 +104,13 @@ def load_pair(reference: SubtitleTrackSpec, target: SubtitleTrackSpec) -> TrackP
         streams = {s.index: s for s in probe_subtitle_streams(reference.path)}
         best = max(candidates, key=lambda i: (not streams[i].forced, len(doc(reference, i).cues)))
         s = streams[best]
-        choice = (
-            f"@{best} ({s.codec}, {s.language or 'langue ?'}{', ' + s.title if s.title else ''}, "
-            f"{len(doc(reference, best).cues)} répliques)"
+        choice = tr(
+            "@{index} ({codec}, {language}{title}, {count} répliques)",
+            index=best,
+            codec=s.codec,
+            language=s.language or tr("langue ?"),
+            title=", " + s.title if s.title else "",
+            count=len(doc(reference, best).cues),
         )
         reference = replace(reference, stream_index=best)
 
