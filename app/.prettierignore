@@ -1,0 +1,8 @@
+dist
+src-tauri
+public
+package-lock.json
+*.md
+e2e/report
+e2e/results
+e2e/media
