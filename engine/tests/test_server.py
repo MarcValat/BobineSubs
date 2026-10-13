@@ -148,3 +148,61 @@ def test_plan_outputs_keeps_names_in_another_folder(tmp_path, pair):
     assert body["paths"] == [str(out / "episode.fr.srt")]
     body = client.post("/plan-outputs", json={"items": items}).json()
     assert Path(body["paths"][0]) == Path("D:/S/E01.synced.mkv")
+
+
+# Who may call the engine (server.TokenGuard, CORS): the app that started it.
+
+
+@pytest.fixture()
+def token(monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("SYNCSUBTITLES_TOKEN", "s3cret")
+    return "s3cret"
+
+
+def test_a_request_without_the_token_is_refused(token: str) -> None:
+    assert client.get("/exists", params={"path": "x"}).status_code == 401
+    assert client.get("/exists", params={"path": "x"}, headers={"X-Bobine-Token": "wrong"}).status_code == 401
+    assert client.post("/pairs", json={"videos": [], "subtitles": []}).status_code == 401
+
+
+def test_a_request_with_the_token_goes_through(token: str) -> None:
+    assert client.get("/exists", params={"path": "x"}, headers={"X-Bobine-Token": token}).status_code == 200
+
+
+def test_health_answers_without_the_token(token: str) -> None:
+    assert client.get("/health").status_code == 200
+
+
+def test_a_websocket_without_the_token_is_refused(token: str) -> None:
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/jobs/does-not-exist/ws") as ws:
+            ws.receive_json()
+    with client.websocket_connect(f"/jobs/does-not-exist/ws?token={token}") as ws:
+        assert ws.receive_json()["type"] == "error"
+
+
+def test_no_token_asked_when_none_was_given(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SYNCSUBTITLES_TOKEN", raising=False)
+    assert client.get("/exists", params={"path": "x"}).status_code == 200
+
+
+@pytest.mark.parametrize("origin", ["tauri://localhost", "http://tauri.localhost", "http://localhost:1420"])
+def test_the_app_may_read_the_answers(origin: str) -> None:
+    resp = client.get("/health", headers={"Origin": origin})
+    assert resp.headers.get("access-control-allow-origin") == origin
+
+
+def test_a_website_may_not(token: str) -> None:
+    resp = client.get("/health", headers={"Origin": "https://example.com"})
+    assert "access-control-allow-origin" not in resp.headers
+    preflight = client.options(
+        "/exists",
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "x-bobine-token",
+        },
+    )
+    assert "access-control-allow-origin" not in preflight.headers

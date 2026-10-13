@@ -9,12 +9,16 @@ its result, its error or its cancellation.
 from __future__ import annotations
 
 import asyncio
+import os
+import secrets
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.datastructures import QueryParams
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from syncsubtitles.episodes import natural_key, pair_files
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
@@ -29,9 +33,53 @@ from syncsubtitles.tracks import SUBTITLE_EXTENSIONS
 
 app = FastAPI(title="Bobine Subs", version="0.1.0")
 
-# Only ever bound to 127.0.0.1 (see `syncsubtitles serve`): open CORS just
-# lets the app's webview (tauri://..., localhost:1420 in dev) call it.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Who may call the engine. It only listens on 127.0.0.1 (see `syncsubtitles
+# serve`), out of other machines' reach -- but not of this one's other
+# programs, nor of the websites open in its browser. So:
+# - the app that starts it passes it a secret (SYNCSUBTITLES_TOKEN, new at
+#   every launch), and every request must carry it back: the TOKEN_HEADER
+#   header, or a `token` query parameter for a WebSocket (a browser can't set
+#   its headers). /health alone answers without it (it tells nothing);
+# - only the app's own pages may read its answers (CORS): the Tauri window
+#   (tauri://localhost on Linux, http(s)://tauri.localhost on Windows) and
+#   the dev server.
+# Without SYNCSUBTITLES_TOKEN (`syncsubtitles serve` run by hand), no token is asked.
+TOKEN_HEADER = "X-Bobine-Token"
+APP_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
+
+
+class TokenGuard:
+    """Refuses any request without the engine's token (see above): 401 for a
+    request, a closed handshake for a WebSocket."""
+
+    def __init__(self, inner: ASGIApp) -> None:
+        self.inner = inner
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        expected = os.environ.get("SYNCSUBTITLES_TOKEN")
+        if not expected or scope["type"] not in ("http", "websocket") or scope["path"] == "/health":
+            await self.inner(scope, receive, send)
+            return
+        # A CORS preflight carries no custom header: CORSMiddleware answers it.
+        if scope["type"] == "http" and scope["method"] == "OPTIONS":
+            await self.inner(scope, receive, send)
+            return
+        if scope["type"] == "http":
+            headers = dict(scope["headers"])
+            given = headers.get(TOKEN_HEADER.lower().encode(), b"").decode("latin-1")
+        else:
+            given = QueryParams(scope["query_string"]).get("token", "")
+        if secrets.compare_digest(given.encode(), expected.encode()):
+            await self.inner(scope, receive, send)
+        elif scope["type"] == "http":
+            await JSONResponse(status_code=401, content={"detail": "unauthorized"})(scope, receive, send)
+        else:
+            await send({"type": "websocket.close", "code": 1008})
+
+
+# The token checked inside CORS: a refusal still says where it came from.
+app.add_middleware(TokenGuard)
+app.add_middleware(CORSMiddleware, allow_origins=APP_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 @app.exception_handler(FFmpegError)
