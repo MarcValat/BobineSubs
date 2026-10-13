@@ -324,10 +324,10 @@ pub fn run() {
                 // so those are born inside the job and inherit it. The
                 // engine's own --parent-pid watchdog covers the case where
                 // one isn't.
-                if let (Some(job), Some(child)) = (&job, &child) {
-                    if !job.assign(child.id()) {
-                        eprintln!("[sidecar] impossible de rattacher le moteur au job de l'UI");
-                    }
+                if let (Some(job), Some(child)) = (&job, &child)
+                    && !job.assign(child.id())
+                {
+                    eprintln!("[sidecar] impossible de rattacher le moteur au job de l'UI");
                 }
                 app.manage(SidecarJob(job));
             }
