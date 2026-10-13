@@ -15,6 +15,7 @@ export const fr = {
   },
 
   startup: {
+    ready: "Moteur prêt",
     starting: "Démarrage du moteur…",
     unreachable: "Le moteur d'analyse ne répond pas. Réessaie, ou redémarre l'application.",
     unreachableShort: "Le moteur ne répond pas",

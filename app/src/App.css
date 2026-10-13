@@ -7,36 +7,58 @@
   /* Also makes native widgets (select popups, their scrollbars,
      checkboxes...) follow the app's theme. */
   color-scheme: light dark;
-  --accent: light-dark(#396cd8, #6d9eff);
-  --accent-hover: light-dark(#2f5ab8, #85aeff);
-  --accent-fg: light-dark(#ffffff, #10141c);
-  --bg: light-dark(#f3f4f6, #1c1d21);
-  --surface: light-dark(#ffffff, #26272c);
-  --surface-alt: light-dark(#f0f1f4, #2f3036);
-  --border: light-dark(rgba(15, 15, 15, 0.12), rgba(255, 255, 255, 0.12));
-  --text: light-dark(#0f0f0f, #f2f2f2);
-  --text-muted: light-dark(rgba(15, 15, 15, 0.6), rgba(242, 242, 242, 0.6));
-  --danger: light-dark(#cc3333, #ff6b6b);
-  --success: light-dark(#2a8c4a, #57c785);
-  /* The two kinds of segment, in the timeline, its legend and the tables
-     (Bobine Audio's). */
-  --constant: #396cd8;
-  --drift: #d38a39;
+  /* The native checkboxes and radios in the app's color, not the browser's. */
+  accent-color: var(--accent-strong);
+  /* Teal to green, Bobine Subs' logo colors: --accent for text, links and
+     focus; --accent-strong and --accent-2 for the fills, the main action's
+     gradient (--gradient). */
+  --accent: light-dark(#0b8273, #5fe0b5);
+  --accent-hover: light-dark(#086b5f, #9cf0d0);
+  --accent-strong: light-dark(#12b5a5, #12b5a5);
+  --accent-2: light-dark(#9be36a, #9be36a);
+  --gradient: linear-gradient(90deg, var(--accent-strong), #2fcf9c 55%, var(--accent-2));
+  /* The main action's gradient, under dark text (the gradient is light):
+     4.5:1 all along it, in both themes. */
+  --gradient-action: linear-gradient(90deg, #12b5a5, #2fcf9c 55%, #9be36a);
+  --accent-fg: #06231c;
+  --bg: light-dark(#f1f6f5, #091113);
+  /* The soft light at the top of the window. */
+  --bg-glow: light-dark(#dcefea, #0f2a29);
+  --surface: light-dark(#ffffff, #111d20);
+  --surface-alt: light-dark(#e9f1ef, #142225);
+  /* Below the panels: the timeline's and the charts' backgrounds. */
+  --surface-sunken: light-dark(#f5f9f8, #0b1416);
+  --border: light-dark(rgba(8, 40, 34, 0.12), rgba(255, 255, 255, 0.08));
+  --text: light-dark(#0e1f1c, #e6efed);
+  --text-muted: light-dark(rgba(14, 31, 28, 0.66), #97aeab);
+  /* Light: deep enough for 4.5:1 on white and on their own tints. */
+  --danger: light-dark(#c42f41, #f0606e);
+  --success: light-dark(#1a7f41, #4ade80);
+  /* The two kinds of segment, in the timeline, its legend and the tables. */
+  --constant: light-dark(#12a593, #2fcf9c);
+  --drift: light-dark(#d97a0b, #f59e0b);
+  /* The same colors for text: darker in the light theme, where small text
+     on a background tinted with its own color must keep 4.5:1. The fills,
+     borders and lines use the ones above. */
+  --accent-text: light-dark(#0a6f62, #5fe0b5);
+  --success-text: light-dark(#126433, #4ade80);
+  --drift-text: light-dark(#874700, #f59e0b);
   /* Bobine Subs: anything to double-check, and the timeline's lines
      (reference in neutral grey, target in the accent). */
-  --warn: #d38a39;
-  --warn-soft: light-dark(rgba(211, 138, 57, 0.16), rgba(211, 138, 57, 0.22));
-  --ref: light-dark(#9aa1b0, #6b7080);
-  --target: #396cd8;
-  --target-faded: light-dark(rgba(57, 108, 216, 0.25), rgba(109, 158, 255, 0.3));
-  --band-a: light-dark(#f7f8fa, #2a2b31);
-  --band-b: light-dark(#eceff5, #313238);
-  --border-strong: light-dark(rgba(15, 15, 15, 0.25), rgba(255, 255, 255, 0.25));
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --warn: light-dark(#b86200, #f59e0b);
+  --warn-soft: light-dark(rgba(217, 122, 11, 0.16), rgba(245, 158, 11, 0.2));
+  --ref: light-dark(#93a29f, #5d716d);
+  --target: var(--accent-strong);
+  --target-faded: color-mix(in srgb, var(--accent-strong) 30%, transparent);
+  --band-a: light-dark(#f5f9f8, #0f1a1c);
+  --band-b: light-dark(#e8f1ef, #142225);
+  --border-strong: light-dark(rgba(8, 40, 34, 0.26), rgba(255, 255, 255, 0.22));
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow-color: light-dark(rgba(8, 40, 34, 0.08), rgba(0, 0, 0, 0.3));
+  --shadow: 0 1px 3px var(--shadow-color), 0 1px 2px var(--shadow-color);
   /* What floats over the rest: menus, dropdown lists, dialogs. */
-  --shadow-popup: 0 6px 20px rgba(0, 0, 0, 0.25);
+  --shadow-popup: 0 12px 32px light-dark(rgba(8, 40, 34, 0.18), rgba(0, 0, 0, 0.5));
   /* Dims the app behind a dialog. */
   --backdrop: rgba(0, 0, 0, 0.55);
   --scrollbar-thumb: light-dark(rgba(15, 15, 15, 0.22), rgba(255, 255, 255, 0.2));
@@ -51,8 +73,8 @@
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, "SF Mono", Menlo, monospace;
 
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 400;
 
   color: var(--text);
@@ -133,6 +155,14 @@ body,
 
 body {
   background: var(--bg);
+  /* An app, not a page: no text gets selected by a click-drag or a double
+     click. What's there to be typed or copied opts back in. */
+  user-select: none;
+  cursor: default;
+}
+
+input {
+  user-select: text;
 }
 
 .container {
@@ -163,19 +193,47 @@ body {
   }
 }
 
-/* The engine's startup, top right (EngineStatus.tsx). */
+/* The engine's state, top right (EngineStatus.tsx): a pill, tinted by
+   what it says. */
 .engine-status {
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
-  margin-right: 0.4em;
-  font-size: 0.9em;
+  gap: 8px;
+  /* Slimmer than the buttons beside it: a state, not a control (the
+     user's choice). */
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  margin-right: 4px;
+  border-radius: 999px;
+  font-size: 12px;
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
   white-space: nowrap;
 }
 
+.engine-status-ready {
+  color: var(--success-text);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.engine-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .engine-status-error {
+  padding-right: 3px;
   color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.engine-status-error .small-button {
+  height: 22px;
+  padding-block: 0;
+  border-radius: 999px;
 }
 
 .spinner-small {
@@ -214,10 +272,11 @@ body {
   gap: 0.4em;
 }
 
+/* Whole pixels, an even difference with the icon (see .icon-small-button). */
 .icon-button {
   position: relative;
-  width: 2.3em;
-  height: 2.3em;
+  width: 32px;
+  height: 32px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -225,8 +284,8 @@ body {
 }
 
 .icon-button svg {
-  width: 1.2em;
-  height: 1.2em;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -240,7 +299,7 @@ body {
 }
 
 .update-button {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .update-button-failed {
@@ -361,7 +420,10 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  /* A sharp line under it, not --shadow's blur: the same look, but a blur
+     this size is redrawn on every frame the panels resize, which WebKit's
+     CPU drawing (WebKitGTK, Linux) paid 70ms a frame for (Bobine Audio). */
+  box-shadow: 0 1px 0 var(--shadow-color);
   padding: 1em 1.1em;
   /* Clips to the rounded corners. */
   overflow: hidden;
@@ -396,8 +458,11 @@ select,
 button {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  padding: 0.55em 1.1em;
+  /* In whole pixels, line height included (a button's own is "normal",
+     the font's): 34px tall, its text and icons on whole pixels. */
+  padding: 6px 15px;
   font-size: 1em;
+  line-height: 20px;
   font-weight: 500;
   font-family: inherit;
   color: var(--text);
@@ -541,8 +606,10 @@ button:focus-visible {
 }
 
 .small-button {
-  padding: 0.3em 0.75em;
-  font-size: 0.85em;
+  /* 24px tall, as the icon ones. */
+  padding: 3px 9px;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 /* A unit in an uppercase table header: "(ms)" must not become "(MS)". */
@@ -584,7 +651,7 @@ button:focus-visible {
 
 .export-running-label {
   flex: 1 1 auto;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -647,7 +714,7 @@ button:focus-visible {
 .render-success {
   margin-top: 0.6em;
   font-size: 0.85em;
-  color: var(--success);
+  color: var(--success-text);
 }
 
 .tracks-table-wrap {
@@ -948,29 +1015,39 @@ button:focus-visible {
 }
 
 /* A choice between a few options, all visible, a selection pill sliding
-   under the picked one (PillSwitch.tsx): a sunken track, smaller buttons. */
+   under the picked one (PillSwitch.tsx): a sunken track, smaller buttons.
+   The pill sits `--pill-inset` inside the track on every side, its corners
+   rounded as much less (the track's radius, less its border and the
+   inset): two rounded corners one inside the other look parallel only
+   then. From Bobine Audio. */
 .pill-switch {
+  --pill-inset: 3px;
+  --pill-radius: calc(var(--radius-sm) - 1px - var(--pill-inset));
   position: relative;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 3px;
+  padding: var(--pill-inset);
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 
+/* Whole pixels high: the track and its pill land on the same pixels (a
+   fractional height snapped them apart, 3px of gap on one side, 5px on
+   the other). */
 .pill-switch button {
   position: relative;
   z-index: 1;
-  padding: 0.25em 0.8em;
+  height: 24px;
+  padding: 0 0.8em;
   font-size: 0.85em;
   white-space: nowrap;
   color: var(--text-muted);
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--pill-radius);
 }
 
 .pill-switch button:hover:not(:disabled) {
@@ -978,7 +1055,7 @@ button:focus-visible {
 }
 
 .pill-switch button.active {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .pill-switch button:focus-visible {
@@ -987,9 +1064,9 @@ button:focus-visible {
 
 .pill-switch-pill {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
-  border-radius: 6px;
+  top: var(--pill-inset);
+  bottom: var(--pill-inset);
+  border-radius: var(--pill-radius);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -998,6 +1075,12 @@ button:focus-visible {
   transition:
     left 220ms cubic-bezier(0.2, 0, 0, 1),
     width 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill-switch-pill.placed {
+    transition: none;
+  }
 }
 
 /* The whole width, options sharing it (the single-file export). */
@@ -1329,4 +1412,141 @@ button:focus-visible {
    panel's overflow-wrap: anywhere (for long paths) is inherited. */
 .panel th {
   overflow-wrap: normal;
+}
+
+/* The redesign's look (2026-10, mockups on the design canvas, from Bobine
+   Audio): a soft light at the top of a deep teal window, panels a shade
+   above it, the timeline a shade below, and the main action in the logo's
+   teal-to-green gradient (under dark text: the gradient is light). */
+body {
+  background: radial-gradient(1200px 700px at 70% -10%, var(--bg-glow), var(--bg) 60%) fixed;
+}
+
+.top-bar {
+  height: 52px;
+  box-sizing: border-box;
+  gap: 16px;
+  padding: 0 16px 0 20px;
+  /* Drawn, not a border: the bar's inside stays 52px high, an even
+     number -- its buttons sit on whole pixels. */
+  box-shadow: inset 0 -1px 0 var(--border);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-brand img {
+  width: 28px;
+  height: 28px;
+  /* The name drags the window: not the logo in it (see App.tsx). */
+  pointer-events: none;
+}
+
+.panel {
+  background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 82%, var(--bg)));
+}
+
+button {
+  background-color: var(--surface-alt);
+}
+
+input {
+  background-color: var(--surface-sunken);
+}
+
+.primary-button {
+  background: var(--gradient-action);
+  border-color: transparent;
+  color: var(--accent-fg);
+  font-weight: 600;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-strong) 30%, transparent);
+}
+
+/* Deeper on hover, not lighter: the dark text keeps its contrast. */
+.primary-button:hover:not(:disabled) {
+  background: var(--gradient-action);
+  border-color: transparent;
+  filter: brightness(0.94);
+}
+
+.primary-button:disabled {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.timeline {
+  background: var(--surface-sunken);
+}
+
+/* The sliding pill: tinted with the gradient, its option in full text. */
+.pill-switch-pill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-strong) 32%, var(--surface)),
+    color-mix(in srgb, var(--accent-2) 22%, var(--surface))
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.pill-switch button.active {
+  color: var(--text);
+}
+
+/* An icon button whose panel is open (the gear while Paramètres shows). */
+.icon-button-on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent-strong) 20%, var(--surface-alt));
+}
+
+/* A PillSwitch across its container, its options sharing the width. */
+.pill-switch-wide {
+  display: flex;
+}
+
+.pill-switch-wide button {
+  flex: 1 1 0;
+}
+
+/* A theme change cross-fades the whole window (theme.ts's crossFade):
+   the old picture out, the new one in, everything at the same pace. The
+   controls' hover transitions are paused meanwhile (.theme-switching). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: ease;
+}
+
+.theme-switching,
+.theme-switching * {
+  transition: none !important;
+}
+
+/* With the 14px base, what was sized as a share of the text came out too
+   small: fixed floors, as in the mockups. */
+.log {
+  font-size: 12px;
+}
+
+/* The drawn warning sign (icons.tsx), in its text's color. */
+.warning-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  vertical-align: -2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }

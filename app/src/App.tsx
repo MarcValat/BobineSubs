@@ -8,6 +8,7 @@ import { OptionsButton } from "./Options";
 import { PillSwitch } from "./PillSwitch";
 import { loadSetting, saveSetting } from "./util";
 import { UpdateButton } from "./UpdateButton";
+import logoUrl from "../src-tauri/icons/128x128.png";
 
 type Mode = "single" | "batch";
 
@@ -37,6 +38,10 @@ export default function App() {
   return (
     <div className="container">
       <div className="top-bar">
+        <span className="app-brand">
+          <img src={logoUrl} alt="" />
+          Bobine Subs
+        </span>
         <div className="mode-switch">
           <button className={mode === "single" ? "primary-button" : ""} onClick={() => setMode("single")}>
             Fichier unique

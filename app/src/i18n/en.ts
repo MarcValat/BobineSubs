@@ -12,6 +12,7 @@ export const en: Messages = {
   },
 
   startup: {
+    ready: "Engine ready",
     starting: "Starting the engine…",
     unreachable: "The analysis engine isn't responding. Try again, or restart the app.",
     unreachableShort: "The engine isn't responding",

@@ -53,3 +53,16 @@ export function FolderIcon() {
     </svg>
   );
 }
+
+/** A triangle with "!": something to check (a flagged file, a weak
+ * segment, an engine that doesn't answer). Drawn in place of a typed
+ * "⚠", which each font -- and Windows' emoji -- draws its own way. */
+export function WarningIcon() {
+  return (
+    <svg className="warning-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9.5v4.5" />
+      <path d="M12 17.2h.01" />
+    </svg>
+  );
+}
