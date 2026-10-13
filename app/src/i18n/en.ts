@@ -239,4 +239,56 @@ export const en: Messages = {
       cancelled: "Export cancelled",
     },
   },
+
+  chart: {
+    ariaLabel: "Offset over time",
+    constant: "constant",
+    drift: "drift",
+    unreliable: "unreliable",
+    segments: (n) => `${n} segment${n > 1 ? "s" : ""}`,
+    jumps: (n) => `${n} jump${n > 1 ? "s" : ""}`,
+    drifts: (n) => `${n} drift${n > 1 ? "s" : ""}`,
+    unreliableCount: (n) => `${n} unreliable`,
+    referenceCues: "reference lines",
+    correctedCues: "corrected",
+  },
+
+  analysis: {
+    constant: (offset) => `Constant offset of ${offset}`,
+    ratio: (name) => `Drift: ${name}`,
+    edited: "Edited by hand",
+    counts: (reference, target) => `${reference} reference lines · ${target} to correct`,
+    orphans: (n) => ` · ${n} without a counterpart (or not dialogue)`,
+    dropped: (n) => ` · ${n} will be removed`,
+    start: "Start",
+    end: "End",
+    offset: "Offset",
+    cues: "Lines",
+    confidence: "Confidence",
+    unreliableHint: "Unreliable: to check",
+    segmentTip: (range, offset, confidence) => `${range}: ${offset} (confidence ${confidence} %)`,
+  },
+
+  loupe: {
+    goTo: "Go to:",
+    previousJump: "← Previous jump",
+    nextJump: "Next jump →",
+    zoom: "Zoom:",
+    zoomHint:
+      "Mouse wheel over the lines: zoom in or out under the pointer. Drag: move through time. Click or drag on the chart above: take the loupe there.",
+    reference: "Reference",
+    before: "Before",
+    after: "After",
+    ariaLabel: "The reference's lines, then those to correct before and after correction",
+    noCounterpart: "(no counterpart in the reference)",
+  },
+
+  editor: {
+    split: "Split here",
+    splitHint: "Split the segment in the middle of the loupe",
+    dragOffset: "Drag up or down to change the offset",
+    dragBoundary: "Drag to move the boundary",
+    alignHint: "Align: click a line of the “After” row, then the reference line it should fall on.",
+    alignHintPicked: "Now click the reference line it should fall on (or click it again to cancel).",
+  },
 };

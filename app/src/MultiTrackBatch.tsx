@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { probe, startAnalyze, startRenderTracks, type Analysis, type TrackInfo, type TrackRef } from "./api";
 import { runJob } from "./jobs";
 import {
@@ -40,7 +40,7 @@ import {
   type BatchMode,
 } from "./Workspace";
 import { DetailChart, DetailExport, DetailHeader, DetailTabs, TracksHeading } from "./Detail";
-import AnalysisView, { AnalysisSummary, analysisDuration } from "./AnalysisView";
+import AnalysisView, { AnalysisSummary, analysisDuration, chartCues } from "./AnalysisView";
 import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { basename } from "./paths";
@@ -50,6 +50,8 @@ import { clock, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
 import { PillSwitch } from "./PillSwitch";
 import { TrackTable, type ExternalTrack } from "./TrackTable";
+import { useCueView } from "./CueLoupe";
+import { SegmentChart } from "./SegmentChart";
 import { devParam, errorMessage, toggled } from "./util";
 import { useT } from "./i18n";
 import { WarningIcon } from "./icons";
@@ -391,6 +393,10 @@ export function MultiTrackBatch({
   const shownTarget = detailTargets.find((t) => t.id === shownTargets[detailPath!]) ?? detailTargets[0] ?? null;
   const shownRun = shownTarget ? detailRun?.targets[shownTarget.id] : undefined;
   const shownResult = shownRun?.status === "done" ? shownRun.result : null;
+  const shownDuration = shownResult ? analysisDuration(shownResult, detailProbe?.duration ?? null) : 0;
+  const shownCues = useMemo(() => shownResult && chartCues(shownResult), [shownResult]);
+  // The loupe's stretch, framed on the chart.
+  const [loupeView, setLoupeView] = useCueView(`${detailPath}|${shownTarget?.id}`, shownResult, shownDuration);
   const detailReference = detailRes?.reference ?? null;
   const detailDone = detailPath ? doneTargets(detailPath).length : 0;
   // Tracks its "Analyser" would do: not analyzed yet, or failed.
@@ -635,12 +641,24 @@ export function MultiTrackBatch({
                         {shownResult && (
                           <div className="detail-summary">
                             <AnalysisSummary analysis={shownResult} edited={shownRun?.edited} />
+                            <SegmentChart
+                              segments={shownResult.segments}
+                              duration={shownDuration}
+                              cues={shownCues ?? undefined}
+                              view={loupeView}
+                              onPick={(time) =>
+                                setLoupeView({
+                                  start: Math.max(0, Math.min(time - loupeView.duration / 2, shownDuration - loupeView.duration)),
+                                  duration: loupeView.duration,
+                                })
+                              }
+                            />
                           </div>
                         )}
                       </DetailChart>
                     </div>
 
-                    {shownResult && <AnalysisView analysis={shownResult} duration={analysisDuration(shownResult, detailProbe.duration)} />}
+                    {shownResult && <AnalysisView analysis={shownResult} duration={shownDuration} view={loupeView} onView={setLoupeView} />}
                   </div>
                 )}
 

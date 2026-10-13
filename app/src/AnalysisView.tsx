@@ -1,11 +1,14 @@
 import type { Analysis } from "./api";
 import { ConfidenceGauge } from "./ConfidenceGauge";
+import { CueLoupe } from "./CueLoupe";
 import { isDrift } from "./editing";
 import { clock, offset } from "./format";
-import { segmentFor } from "./retime";
-import { LOW_CONFIDENCE } from "./shared";
-import Timeline from "./Timeline";
+import { t, useT } from "./i18n";
 import { WarningIcon } from "./icons";
+import { segmentFor } from "./retime";
+import { describeSegments } from "./SegmentChart";
+import { LOW_CONFIDENCE } from "./shared";
+import type { TimeView } from "./timeView";
 
 /** What an analysis found, in a few words: the drift, a hand edit, how
  * many lines on each side, those without a counterpart or dropped, and its
@@ -18,18 +21,19 @@ export function AnalysisSummary({
   /** The segments were changed by hand since the analysis. */
   edited?: boolean;
 }) {
+  const m = useT().analysis;
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
   const dropped = analysis.target_cues.filter((c) => c.corrected === null || c.corrected[1] <= 0).length;
   return (
     <>
       <div className="analysis-summary">
         <span className="analysis-found">{summarize(analysis)}</span>
-        {analysis.ratio_name && <span className="badge">Dérive : {analysis.ratio_name}</span>}
-        {edited && <span className="badge edited">Modifié à la main</span>}
+        {analysis.ratio_name && <span className="badge">{m.ratio(analysis.ratio_name)}</span>}
+        {edited && <span className="badge edited">{m.edited}</span>}
         <span className="analysis-counts">
-          {analysis.reference_cues.length} répliques de référence · {analysis.target_cues.length} à corriger
-          {orphans > 0 && ` · ${orphans} sans équivalent (ou non dialoguées)`}
-          {dropped > 0 && <span className="warn-text"> · {dropped} seront retirées</span>}
+          {m.counts(analysis.reference_cues.length, analysis.target_cues.length)}
+          {orphans > 0 && m.orphans(orphans)}
+          {dropped > 0 && <span className="warn-text">{m.dropped(dropped)}</span>}
         </span>
       </div>
       {analysis.warnings.map((w) => (
@@ -41,25 +45,37 @@ export function AnalysisSummary({
   );
 }
 
-/** The timeline and the segments' table of an analysis. */
-export default function AnalysisView({ analysis, duration }: { analysis: Analysis; duration: number }) {
+/** The cue loupe and the segments' table of an analysis, under the chart
+ * (the loupe's stretch, `view`, is the chart's frame). */
+export default function AnalysisView({
+  analysis,
+  duration,
+  view,
+  onView,
+}: {
+  analysis: Analysis;
+  duration: number;
+  view: TimeView;
+  onView: (view: TimeView) => void;
+}) {
+  const m = useT().analysis;
   const segments = analysis.segments;
   // By where each line falls now (hand edits move them between segments).
   const counts = segments.map((_, g) => analysis.target_cues.filter((c) => segmentFor((c.start + c.end) / 2, segments) === g).length);
 
   return (
     <div className="analysis-content">
-      <Timeline analysis={analysis} duration={duration} />
+      <CueLoupe analysis={analysis} duration={duration} view={view} onView={onView} />
       <div className="tracks-table-wrap">
         <table className="data-table segments-table">
           <thead>
             <tr>
               <th>#</th>
-              <th>Début</th>
-              <th>Fin</th>
-              <th>Décalage</th>
-              <th>Répliques</th>
-              <th>Confiance</th>
+              <th>{m.start}</th>
+              <th>{m.end}</th>
+              <th>{m.offset}</th>
+              <th>{m.cues}</th>
+              <th>{m.confidence}</th>
             </tr>
           </thead>
           <tbody>
@@ -85,12 +101,22 @@ export default function AnalysisView({ analysis, duration }: { analysis: Analysi
   );
 }
 
-/** "Décalage constant de +1.060 s" / "5 sauts · 6 segments" (Bobine Audio's
+/** "Décalage constant de +1.060 s" / "6 segments · 5 sauts" (Bobine Audio's
  * wording: segments, then jumps). */
 export function summarize(analysis: Analysis): string {
   const segments = analysis.segments;
-  const n = segments.length;
-  return n === 1 ? `Décalage constant de ${offset(segments[0].offset_start)}` : `${n} segments · ${n - 1} saut${n > 2 ? "s" : ""}`;
+  return segments.length === 1 && !isDrift(segments[0])
+    ? t().analysis.constant(offset(segments[0].offset_start))
+    : describeSegments(segments);
+}
+
+/** Where an analysis' cues are, for the chart's ticks: the reference's,
+ * and the corrected ones (those kept). */
+export function chartCues(analysis: Analysis) {
+  return {
+    reference: analysis.reference_cues.map(([a, b]) => [a, b] as const),
+    corrected: analysis.target_cues.flatMap((c) => (c.corrected ? [c.corrected] : [])),
+  };
 }
 
 /** The end of everything on screen: the timeline's length. */

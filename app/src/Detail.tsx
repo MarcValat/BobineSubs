@@ -6,6 +6,7 @@ import { InfoTip, Tooltip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
 import { basename } from "./paths";
 import { PillSwitch } from "./PillSwitch";
+import { SegmentChartPlaceholder } from "./SegmentChart";
 
 /** The parts of a list item's detail (Workspace.css), shared by both batch
  * modes: a multitrack file's and a pair's are laid out alike -- a header
@@ -182,8 +183,8 @@ export function DetailChart({
         <span className="detail-heading-summary">{summary}</span>
       </div>
       {children ?? (
-        // Its room kept while there's nothing to show yet.
-        <div className="detail-placeholder">
+        // Its room kept while there's nothing to draw yet.
+        <SegmentChartPlaceholder>
           {noTrack && <p className="placeholder">{noTrack}</p>}
           {!noTrack && !run && <p className="placeholder">{t.multi.notAnalyzed}</p>}
           {run?.status === "pending" && <p className="placeholder">{t.batch.pending}</p>}
@@ -195,7 +196,7 @@ export function DetailChart({
           )}
           {run?.status === "error" && <p className="error">{run.error ?? t.common.error}</p>}
           <LogPanel lines={run?.log ?? []} />
-        </div>
+        </SegmentChartPlaceholder>
       )}
     </div>
   );

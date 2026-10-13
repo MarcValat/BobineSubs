@@ -243,6 +243,58 @@ export const fr = {
       cancelled: "Export annulé",
     },
   },
+
+  chart: {
+    ariaLabel: "Décalage en fonction du temps",
+    constant: "constant",
+    drift: "dérive",
+    unreliable: "peu fiable",
+    segments: (n: number) => `${n} segment${n > 1 ? "s" : ""}`,
+    jumps: (n: number) => `${n} saut${n > 1 ? "s" : ""}`,
+    drifts: (n: number) => `${n} dérive${n > 1 ? "s" : ""}`,
+    unreliableCount: (n: number) => `${n} peu fiable${n > 1 ? "s" : ""}`,
+    referenceCues: "répliques de référence",
+    correctedCues: "corrigées",
+  },
+
+  analysis: {
+    constant: (offset: string) => `Décalage constant de ${offset}`,
+    ratio: (name: string) => `Dérive : ${name}`,
+    edited: "Modifié à la main",
+    counts: (reference: number, target: number) => `${reference} répliques de référence · ${target} à corriger`,
+    orphans: (n: number) => ` · ${n} sans équivalent (ou non dialoguée${n > 1 ? "s" : ""})`,
+    dropped: (n: number) => ` · ${n} ser${n > 1 ? "ont retirées" : "a retirée"}`,
+    start: "Début",
+    end: "Fin",
+    offset: "Décalage",
+    cues: "Répliques",
+    confidence: "Confiance",
+    unreliableHint: "Peu fiable : à vérifier",
+    segmentTip: (range: string, offset: string, confidence: number) => `${range} : ${offset} (confiance ${confidence} %)`,
+  },
+
+  loupe: {
+    goTo: "Aller à :",
+    previousJump: "← Saut précédent",
+    nextJump: "Saut suivant →",
+    zoom: "Zoom :",
+    zoomHint:
+      "Molette sur les répliques : zoomer ou dézoomer sous le curseur. Glisser : se déplacer dans le temps. Clic ou glisser sur la courbe au-dessus : y amener la loupe.",
+    reference: "Référence",
+    before: "Avant",
+    after: "Après",
+    ariaLabel: "Répliques de la référence, puis à corriger avant et après correction",
+    noCounterpart: "(sans équivalent dans la référence)",
+  },
+
+  editor: {
+    split: "Couper ici",
+    splitHint: "Couper le segment au milieu de la loupe",
+    dragOffset: "Glisser vers le haut ou le bas pour changer le décalage",
+    dragBoundary: "Glisser pour déplacer la frontière",
+    alignHint: "Aligner : clique une réplique de la ligne « Après », puis la réplique de référence où elle doit tomber.",
+    alignHintPicked: "Maintenant, clique la réplique de référence où elle doit tomber (ou reclique-la pour annuler).",
+  },
 };
 
 export type Messages = typeof fr;

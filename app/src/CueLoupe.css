@@ -1,0 +1,142 @@
+/* The cue loupe (CueLoupe.tsx): where Bobine Audio shows its waveforms. */
+.loupe {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* One row: the jumps, the stretch shown, the zoom. */
+.loupe-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.loupe-toolbar .button-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.loupe-window {
+  flex: 1 1 auto;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.loupe-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.loupe-row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.loupe-label {
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.loupe-row-reference .loupe-label {
+  color: var(--accent-text);
+}
+
+.loupe-row-after .loupe-label {
+  color: light-dark(#3f7a17, #c8f0a0);
+}
+
+.loupe-lane {
+  position: relative;
+  height: 36px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.cue {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 26px;
+  padding: 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  min-width: 2px;
+  color: var(--text);
+}
+
+.cue.ref {
+  background: color-mix(in srgb, var(--constant) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--constant) 35%, transparent);
+}
+
+.cue.before {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+}
+
+.cue.after {
+  background: color-mix(in srgb, var(--accent-2) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+/* A line with no counterpart in the reference: kept as the segment moves it. */
+.cue.after.orphan {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+/* A segment's boundary, across the three rows. */
+.loupe-boundary {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed var(--accent);
+  opacity: 0.7;
+}
+
+/* The segment editor's Aligner: a cue of "Après", then a reference one. */
+.loupe-lanes.clickable .cue {
+  cursor: pointer;
+}
+
+.cue.picked {
+  outline: 2px solid var(--warn);
+  outline-offset: 1px;
+}
+
+.cue.aim:hover {
+  outline: 2px solid var(--warn);
+}
+
+.align-hint {
+  margin: 0;
+}
+
+/* A drag moving the view (timeView.ts's useDragPan). */
+.timeline-panning,
+.timeline-panning * {
+  cursor: grabbing !important;
+}

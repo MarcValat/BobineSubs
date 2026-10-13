@@ -38,21 +38,14 @@
   stroke-linecap: butt;
 }
 
-.zero-line {
-  stroke: var(--border-strong);
-  stroke-dasharray: 3 4;
-}
-
+/* As the chart's cue ticks (SegmentChart.css). */
 .density.ref {
-  fill: var(--ref);
+  fill: var(--constant);
+  opacity: 0.6;
 }
 .density.target {
-  fill: var(--target);
-}
-
-.axis-label {
-  fill: var(--text-muted);
-  font-size: 11px;
+  fill: var(--accent-2);
+  opacity: 0.75;
 }
 
 .viewport {
@@ -61,85 +54,6 @@
   stroke: var(--accent);
   stroke-width: 1.5;
   rx: 3;
-}
-
-.timeline-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.timeline-window {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-}
-
-.detail {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.detail-row {
-  display: grid;
-  grid-template-columns: 80px 1fr;
-  align-items: center;
-  gap: 8px;
-}
-
-.detail-label {
-  color: var(--text-muted);
-  font-size: 12px;
-  text-align: right;
-}
-
-.detail-lane {
-  position: relative;
-  height: 34px;
-  background: var(--surface-alt);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.cue {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  border-radius: 4px;
-  font-size: 11px;
-  line-height: 28px;
-  padding: 0 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-sizing: border-box;
-  min-width: 2px;
-}
-.cue.ref {
-  background: var(--ref);
-  color: light-dark(#ffffff, #f2f2f2);
-}
-.cue.before {
-  background: var(--target-faded);
-  color: var(--text);
-}
-.cue.after {
-  background: var(--target);
-  color: var(--accent-fg);
-}
-.cue.after.orphan {
-  background: var(--danger);
-}
-
-.boundary {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 2px dashed var(--accent);
-  opacity: 0.7;
 }
 
 .overview.editable svg {
@@ -164,57 +78,4 @@
 }
 .boundary-handle:hover {
   fill: var(--accent);
-}
-.detail-lane.clickable .cue {
-  cursor: pointer;
-}
-.cue.picked {
-  outline: 2px solid var(--warn);
-  outline-offset: 1px;
-}
-.cue.aim:hover {
-  outline: 2px solid var(--warn);
-}
-.align-hint {
-  margin: 0;
-}
-
-.timeline-controls .button-group {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-}
-
-/* Under the overview, as Bobine Audio's segment chart legend. */
-.segment-chart-legend {
-  display: flex;
-  gap: 1.5em;
-  margin-top: -0.2em;
-  font-size: 0.85em;
-  color: var(--text-muted);
-}
-
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-}
-
-.legend-swatch {
-  display: inline-block;
-  width: 1.2em;
-  height: 3px;
-  border-radius: 2px;
-}
-
-.legend-swatch.constant {
-  background: var(--constant);
-}
-
-.legend-swatch.drift {
-  background: var(--drift);
-}
-
-.legend-swatch.low-confidence {
-  background: repeating-linear-gradient(90deg, var(--danger) 0 4px, transparent 4px 7px);
 }

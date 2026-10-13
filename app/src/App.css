@@ -43,13 +43,9 @@
   --accent-text: light-dark(#0a6f62, #5fe0b5);
   --success-text: light-dark(#126433, #4ade80);
   --drift-text: light-dark(#874700, #f59e0b);
-  /* Bobine Subs: anything to double-check, and the timeline's lines
-     (reference in neutral grey, target in the accent). */
+  /* Bobine Subs: anything to double-check. */
   --warn: light-dark(#9a5200, #f59e0b);
   --warn-soft: light-dark(rgba(217, 122, 11, 0.16), rgba(245, 158, 11, 0.2));
-  --ref: light-dark(#93a29f, #5d716d);
-  --target: var(--accent-strong);
-  --target-faded: color-mix(in srgb, var(--accent-strong) 30%, transparent);
   --band-a: light-dark(#f5f9f8, #0f1a1c);
   --band-b: light-dark(#e8f1ef, #142225);
   --border-strong: light-dark(rgba(8, 40, 34, 0.26), rgba(255, 255, 255, 0.22));

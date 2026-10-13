@@ -1,13 +1,14 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Analysis } from "./api";
+import { CueLoupe, useCueView } from "./CueLoupe";
 import { isDrift, offsetAt } from "./editing";
 import { clock, offset as formatOffset } from "./format";
-import { segmentFor } from "./retime";
+import { t } from "./i18n";
+import { SegmentLegend } from "./SegmentChart";
 import { LOW_CONFIDENCE } from "./shared";
 import { useElementWidth } from "./useElementWidth";
 import "./Timeline.css";
 
-const ZOOMS = [10, 30, 60, 120];
 const OVERVIEW_HEIGHT = 130;
 const OVERVIEW_PAD = { top: 14, bottom: 30, left: 60, right: 14 };
 
@@ -27,74 +28,26 @@ interface Props {
   editing?: TimelineEditing;
 }
 
-/** The whole file at a glance (offset per segment, where lines are), and a
- * close-up window comparing the reference with the target before and after
- * correction, line by line. */
+/** The segment editor's timeline: the whole file at a glance (offset per
+ * segment, where lines are, the loupe's stretch), its segments dragged by
+ * hand, and the cue loupe under it (CueLoupe). */
 export default function Timeline({ analysis, duration, editing }: Props) {
-  const [zoom, setZoom] = useState(30);
-  const [centre, setCentre] = useState(() => (analysis.reference_cues[0]?.[0] ?? 0) + zoom / 2 - 2);
-  const boundaries = useMemo(() => analysis.segments.slice(1).map((s) => s.start_s), [analysis]);
-
-  const windowStart = Math.max(0, Math.min(centre - zoom / 2, duration - zoom));
-  const windowEnd = windowStart + zoom;
-
-  const goToJump = (direction: 1 | -1) => {
-    const next = direction > 0 ? boundaries.find((b) => b > centre + 0.01) : [...boundaries].reverse().find((b) => b < centre - 0.01);
-    if (next !== undefined) setCentre(next);
-  };
+  const [view, setView] = useCueView("editor", analysis, duration);
 
   return (
     <div className="timeline">
       <Overview
         analysis={analysis}
         duration={duration}
-        windowStart={windowStart}
-        windowEnd={windowEnd}
-        onPick={setCentre}
+        windowStart={view.start}
+        windowEnd={view.start + view.duration}
+        onPick={(time) =>
+          setView({ start: Math.max(0, Math.min(time - view.duration / 2, duration - view.duration)), duration: view.duration })
+        }
         editing={editing}
       />
-      {/* As Bobine Audio's segment chart. */}
-      <div className="segment-chart-legend">
-        <span className="legend-item">
-          <span className="legend-swatch constant" /> constant
-        </span>
-        <span className="legend-item">
-          <span className="legend-swatch drift" /> dérive
-        </span>
-        {analysis.segments.some((s) => s.confidence < LOW_CONFIDENCE) && (
-          <span className="legend-item">
-            <span className="legend-swatch low-confidence" /> peu fiable
-          </span>
-        )}
-      </div>
-      <div className="timeline-controls">
-        <div className="button-group">
-          <span className="toolbar-label">Aller à :</span>
-          <button className="small-button" onClick={() => goToJump(-1)} disabled={!boundaries.some((b) => b < centre - 0.01)}>
-            ← Saut précédent
-          </button>
-          <button className="small-button" onClick={() => goToJump(1)} disabled={!boundaries.some((b) => b > centre + 0.01)}>
-            Saut suivant →
-          </button>
-          {editing && (
-            <button className="small-button" onClick={() => editing.onSplit(centre)} title="Couper le segment au centre de la loupe">
-              ✂ Couper ici
-            </button>
-          )}
-        </div>
-        <span className="timeline-window">
-          {clock(windowStart, 0)} – {clock(windowEnd, 0)}
-        </span>
-        <div className="button-group">
-          <span className="toolbar-label">Zoom :</span>
-          {ZOOMS.map((z) => (
-            <button key={z} className={z === zoom ? "small-button primary-button" : "small-button"} onClick={() => setZoom(z)}>
-              {z < 60 ? `${z} s` : `${z / 60} min`}
-            </button>
-          ))}
-        </div>
-      </div>
-      <Detail analysis={analysis} start={windowStart} end={windowEnd} boundaries={boundaries} editing={editing} />
+      <SegmentLegend unreliable={analysis.segments.some((s) => s.confidence < LOW_CONFIDENCE)} />
+      <CueLoupe analysis={analysis} duration={duration} view={view} onView={setView} editing={editing} />
     </div>
   );
 }
@@ -182,9 +135,11 @@ function Overview({
               className={`segment-band ${i % 2 ? "odd" : "even"} ${s.confidence < LOW_CONFIDENCE ? "weak" : ""}`}
             >
               <title>
-                {`${clock(s.start_s)} – ${clock(s.end_s)} : ${formatOffset(s.offset_start)}` +
-                  (Math.abs(s.offset_end - s.offset_start) > 0.05 ? ` → ${formatOffset(s.offset_end)}` : "") +
-                  ` (confiance ${Math.round(s.confidence * 100)} %)`}
+                {t().analysis.segmentTip(
+                  `${clock(s.start_s)} – ${clock(s.end_s)}`,
+                  isDrift(s) ? `${formatOffset(s.offset_start)} → ${formatOffset(s.offset_end)}` : formatOffset(s.offset_start),
+                  Math.round(s.confidence * 100),
+                )}
               </title>
             </rect>
           ))}
@@ -232,7 +187,7 @@ function Overview({
                     className="offset-hit"
                     data-segment={i}
                   >
-                    <title>Glisser vers le haut ou le bas pour changer le décalage</title>
+                    <title>{t().editor.dragOffset}</title>
                   </line>
                 )}
               </g>
@@ -249,7 +204,7 @@ function Overview({
                   className="boundary-line"
                 />
                 <circle cx={x(s.start_s)} cy={OVERVIEW_PAD.top + plotHeight / 2} r={7} className="boundary-handle" data-boundary={k + 1}>
-                  <title>Glisser pour déplacer la frontière</title>
+                  <title>{t().editor.dragBoundary}</title>
                 </circle>
               </g>
             ))}
@@ -284,119 +239,4 @@ function timeTicks(duration: number, width: number): number[] {
   const ticks = [];
   for (let t = 0; t <= duration; t += step) ticks.push(t);
   return ticks;
-}
-
-interface Lane {
-  label: string;
-  cues: { a: number; b: number; text: string; kind: string; tip: string; target?: number; ref?: number }[];
-}
-
-function Detail({
-  analysis,
-  start,
-  end,
-  boundaries,
-  editing,
-}: {
-  analysis: Analysis;
-  start: number;
-  end: number;
-  boundaries: number[];
-  editing?: TimelineEditing;
-}) {
-  // Align tool: the target cue picked first ("Après" row).
-  const [picked, setPicked] = useState<number | null>(null);
-  const span = end - start;
-  const left = (t: number) => `${((t - start) / span) * 100}%`;
-  const width = (a: number, b: number) => `${(Math.max(0, b - a) / span) * 100}%`;
-  const inView = (a: number, b: number) => b > start && a < end;
-
-  const rows: Lane[] = [
-    {
-      label: "Référence",
-      cues: analysis.reference_cues
-        .map(([a, b, text], ref) => ({ a, b, text, ref }))
-        .filter(({ a, b }) => inView(a, b))
-        .map(({ a, b, text, ref }) => ({
-          a,
-          b,
-          text,
-          kind: "ref",
-          ref,
-          tip: `${clock(a, 2)} → ${clock(b, 2)}${
-            text
-              ? `
-${text}`
-              : ""
-          }`,
-        })),
-    },
-    {
-      label: "Avant",
-      cues: analysis.target_cues
-        .filter((c) => inView(c.start, c.end))
-        .map((c) => ({ a: c.start, b: c.end, text: c.text, kind: "before", tip: `${clock(c.start, 2)} → ${clock(c.end, 2)}\n${c.text}` })),
-    },
-    {
-      label: "Après",
-      cues: analysis.target_cues
-        .map((c, target) => ({ c, target }))
-        .filter(({ c }) => c.corrected && inView(c.corrected[0], c.corrected[1]))
-        .map(({ c, target }) => ({
-          a: c.corrected![0],
-          b: c.corrected![1],
-          text: c.text,
-          target,
-          kind: `after ${c.group < 0 ? "orphan" : ""} ${picked === target ? "picked" : ""}`,
-          tip: `${clock(c.corrected![0], 2)} → ${clock(c.corrected![1], 2)}\n${c.text}${c.group < 0 ? "\n(sans équivalent dans la référence)" : ""}`,
-        })),
-    },
-  ];
-
-  const click = (cue: Lane["cues"][number]) => {
-    if (!editing) return;
-    if (cue.target !== undefined) {
-      setPicked(picked === cue.target ? null : cue.target);
-    } else if (cue.ref !== undefined && picked !== null) {
-      const tc = analysis.target_cues[picked];
-      const i = segmentFor((tc.start + tc.end) / 2, analysis.segments);
-      if (i !== null) editing.onAlign(i, tc.start, cue.a);
-      setPicked(null);
-    }
-  };
-
-  return (
-    <div className="detail">
-      {editing && (
-        <p className="hint align-hint">
-          {picked === null
-            ? "Aligner : clique une réplique de la ligne « Après », puis la réplique de référence où elle doit tomber."
-            : "Maintenant, clique la réplique de référence où elle doit tomber (ou reclique-la pour annuler)."}
-        </p>
-      )}
-      {rows.map((row) => (
-        <div key={row.label} className="detail-row">
-          <span className="detail-label">{row.label}</span>
-          <div className={`detail-lane ${editing ? "clickable" : ""}`}>
-            {boundaries
-              .filter((b) => b > start && b < end)
-              .map((b) => (
-                <div key={b} className="boundary" style={{ left: left(b) }} />
-              ))}
-            {row.cues.map((c, i) => (
-              <div
-                key={i}
-                className={`cue ${c.kind} ${editing && picked !== null && c.ref !== undefined ? "aim" : ""}`}
-                style={{ left: left(c.a), width: width(c.a, c.b) }}
-                title={c.tip}
-                onClick={() => click(c)}
-              >
-                {c.text.split("\n").join(" / ")}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
