@@ -12,8 +12,8 @@
   /* Teal to green, Bobine Subs' logo colors: --accent for text, links and
      focus; --accent-strong and --accent-2 for the fills, the main action's
      gradient (--gradient). */
-  --accent: light-dark(#0b8273, #5fe0b5);
-  --accent-hover: light-dark(#086b5f, #9cf0d0);
+  --accent: light-dark(#08766a, #5fe0b5);
+  --accent-hover: light-dark(#06625a, #9cf0d0);
   --accent-strong: light-dark(#12b5a5, #12b5a5);
   --accent-2: light-dark(#9be36a, #9be36a);
   --gradient: linear-gradient(90deg, var(--accent-strong), #2fcf9c 55%, var(--accent-2));
@@ -45,7 +45,7 @@
   --drift-text: light-dark(#874700, #f59e0b);
   /* Bobine Subs: anything to double-check, and the timeline's lines
      (reference in neutral grey, target in the accent). */
-  --warn: light-dark(#b86200, #f59e0b);
+  --warn: light-dark(#9a5200, #f59e0b);
   --warn-soft: light-dark(rgba(217, 122, 11, 0.16), rgba(245, 158, 11, 0.2));
   --ref: light-dark(#93a29f, #5d716d);
   --target: var(--accent-strong);
