@@ -34,7 +34,16 @@ from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.outputs import OutputName, plan_outputs
 from syncsubtitles.render import default_mkv_output, default_subtitle_output
 from syncsubtitles.retime import Segment
-from syncsubtitles.service import Analysis, AnalysisError, analyze, load_target, write_result
+from syncsubtitles.service import (
+    Analysis,
+    AnalysisError,
+    TrackToWrite,
+    Written,
+    analyze,
+    load_target,
+    write_result,
+    write_tracks,
+)
 from syncsubtitles.subformats import read_file
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS
 
@@ -362,44 +371,85 @@ def start_analyze(req: AnalyzeRequest) -> JobStarted:
     return JobStarted(job_id=start_job(run).id)
 
 
-class RenderRequest(BaseModel):
-    reference: TrackRef
+class RenderTrack(BaseModel):
+    """One corrected track of an MKV export (see RenderRequest.tracks)."""
+
     target: TrackRef
-    # Possibly edited by hand: exported as given, never re-detected.
     segments: list[SegmentModel]
-    output: str | None = None
-    subs_only: bool = False
     language: str | None = None
     title: str | None = None
     default: bool | None = None
 
 
+class RenderRequest(BaseModel):
+    reference: TrackRef
+    # One corrected track: ``target`` and its ``segments`` (possibly edited
+    # by hand: exported as given, never re-detected), as a standalone file
+    # (``subs_only``) or in a new MKV...
+    target: TrackRef | None = None
+    segments: list[SegmentModel] = []
+    output: str | None = None
+    subs_only: bool = False
+    language: str | None = None
+    title: str | None = None
+    default: bool | None = None
+    # ...or several, all in one new MKV.
+    tracks: list[RenderTrack] = []
+
+
+def _written(written: Written) -> dict:
+    return {
+        "path": str(written.path),
+        "kind": written.kind,
+        "language": written.language,
+        "dropped": [{"start": start, "text": text} for start, text in written.dropped],
+    }
+
+
 @app.post("/jobs/render", response_model=JobStarted)
 def start_render(req: RenderRequest) -> JobStarted:
-    if not req.segments:
+    tracks = req.tracks or (
+        [
+            RenderTrack(
+                target=req.target, segments=req.segments, language=req.language, title=req.title, default=req.default
+            )
+        ]
+        if req.target
+        else []
+    )
+    if not tracks or any(not t.segments for t in tracks):
         raise HTTPException(400, tr("Aucun segment à appliquer."))
     if req.reference.index is None and not req.reference.to_spec().is_external:
         raise HTTPException(400, tr("Piste de référence non précisée."))
 
     def run(log):
-        written = write_result(
-            req.reference.to_spec(),
-            req.target.to_spec(),
-            [s.to_segment() for s in req.segments],
-            req.output,
-            req.subs_only,
-            req.language,
-            req.title,
-            req.default,
-            log,
-        )
-        log(tr("Écrit : {path}", path=written.path))
-        return {
-            "path": str(written.path),
-            "kind": written.kind,
-            "language": written.language,
-            "dropped": [{"start": start, "text": text} for start, text in written.dropped],
-        }
+        if req.subs_only or (req.output and Path(req.output).suffix.lower() in SUBTITLE_EXTENSIONS):
+            [track] = tracks
+            written = [
+                write_result(
+                    req.reference.to_spec(),
+                    track.target.to_spec(),
+                    [s.to_segment() for s in track.segments],
+                    req.output,
+                    True,
+                    log=log,
+                )
+            ]
+        else:
+            written = write_tracks(
+                req.reference.to_spec(),
+                [
+                    TrackToWrite(
+                        t.target.to_spec(), [s.to_segment() for s in t.segments], t.language, t.title, t.default
+                    )
+                    for t in tracks
+                ],
+                req.output,
+                log,
+            )
+        log(tr("Écrit : {path}", path=written[0].path))
+        # The first track's, and every track's.
+        return {**_written(written[0]), "tracks": [_written(w) for w in written]}
 
     return JobStarted(job_id=start_job(run).id)
 

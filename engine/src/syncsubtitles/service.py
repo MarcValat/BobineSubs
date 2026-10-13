@@ -15,7 +15,14 @@ from syncsubtitles.filters import plain_text
 from syncsubtitles.i18n import tr
 from syncsubtitles.languages import guess_language
 from syncsubtitles.models import SubtitleTrackSpec
-from syncsubtitles.render import TrackMetadata, default_mkv_output, default_subtitle_output, mux, write_subtitle
+from syncsubtitles.render import (
+    MuxTrack,
+    TrackMetadata,
+    default_mkv_output,
+    default_subtitle_output,
+    mux_tracks,
+    write_subtitle,
+)
 from syncsubtitles.retime import Segment, remap_cue, retime
 from syncsubtitles.segments import STANDARD_RATIOS, detect_segments
 from syncsubtitles.subformats import SubtitleDocument, read_file
@@ -177,40 +184,83 @@ def write_result(
     """Retime the target by ``segments`` and write it: a standalone
     subtitle file, or a new MKV (the reference's) where it replaces the
     original track (same file) or is added (anything else)."""
+    if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
+        corrected, dropped = _retimed(target, segments, log)
+        out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
+        write_subtitle(corrected, out)
+        return Written(out, "subtitles", None, dropped)
+    return write_tracks(reference, [TrackToWrite(target, segments, language, title, default)], output, log)[0]
+
+
+@dataclass(frozen=True)
+class TrackToWrite:
+    """A corrected track for write_tracks: its source, its segments, and
+    what the new track says of itself (None: the source's, see write_tracks)."""
+
+    target: SubtitleTrackSpec
+    segments: Sequence[Segment]
+    language: str | None = None
+    title: str | None = None
+    default: bool | None = None
+
+
+def _retimed(
+    target: SubtitleTrackSpec, segments: Sequence[Segment], log: Log
+) -> tuple[SubtitleDocument, list[tuple[float, str]]]:
+    """The target retimed by ``segments``, and the lines that fell off."""
     if not target.is_external and target.stream_index is None:
         raise AnalysisError(tr("Piste cible non précisée."))
     log(tr("Lecture de la piste à corriger…"))
     document = load_target(target)
-    corrected = retime(document, segments)
     dropped = [
         (c.start, plain_text(c.text).strip())
         for c, m in zip(document.cues, corrected_cues(document, segments))
         if m is None or m[1] <= 0
     ]
+    return retime(document, segments), dropped
 
-    if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
-        out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
-        write_subtitle(corrected, out)
-        return Written(out, "subtitles", None, dropped)
 
+def write_tracks(
+    reference: SubtitleTrackSpec,
+    tracks: Sequence[TrackToWrite],
+    output: str | None = None,
+    log: Log = _no_log,
+) -> list[Written]:
+    """A new MKV (the reference's) with every track of ``tracks`` retimed:
+    one of the reference's own tracks takes its place, any other is added.
+    The new track keeps its source's language, title and flags unless told
+    otherwise; an added standalone file takes the language its name says."""
     if reference.is_external:
         raise AnalysisError(tr("La référence est un fichier de sous-titres seul : pas de MKV où ajouter la piste."))
     out = Path(output) if output else default_mkv_output(reference.path)
-    if same_file(out, reference.path) or (not target.is_external and same_file(out, target.path)):
+    if same_file(out, reference.path) or any(
+        not t.target.is_external and same_file(out, t.target.path) for t in tracks
+    ):
         raise AnalysisError(tr("Le fichier de sortie ne peut pas être un fichier d'origine."))
 
-    replace_index = None
-    metadata = TrackMetadata(language=language or guess_language(target.path), title=title, default=bool(default))
-    if not target.is_external:
-        source = probe_subtitle_streams(target.path)[target.stream_index]
-        if same_file(target.path, reference.path):
-            replace_index = target.stream_index
+    muxed: list[MuxTrack] = []
+    written: list[Written] = []
+    for track in tracks:
+        target = track.target
+        corrected, dropped = _retimed(target, track.segments, log)
+        replace_index = None
         metadata = TrackMetadata(
-            language=language or source.language,
-            title=title or source.title,
-            default=(source.default if replace_index is not None else False) if default is None else default,
-            forced=source.forced,
+            language=track.language or guess_language(target.path), title=track.title, default=bool(track.default)
         )
+        if not target.is_external:
+            source = probe_subtitle_streams(target.path)[target.stream_index]
+            if same_file(target.path, reference.path):
+                replace_index = target.stream_index
+            metadata = TrackMetadata(
+                language=track.language or source.language,
+                title=track.title or source.title,
+                default=(source.default if replace_index is not None else False)
+                if track.default is None
+                else track.default,
+                forced=source.forced,
+            )
+        muxed.append(MuxTrack(corrected, metadata, replace_index))
+        written.append(Written(out, "replaced" if replace_index is not None else "added", metadata.language, dropped))
     log(tr("Écriture du MKV…"))
-    mux(reference.path, corrected, out, metadata, replace_index)
-    return Written(out, "replaced" if replace_index is not None else "added", metadata.language, dropped)
+    mux_tracks(reference.path, muxed, out)
+    return written
