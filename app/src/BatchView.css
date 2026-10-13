@@ -105,7 +105,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border-bottom: 1px solid var(--border);
 }
 
@@ -125,7 +125,7 @@
 }
 
 .batch-table-wrap tbody tr:nth-child(even) {
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
 }
 
 .batch-col-index {
@@ -188,7 +188,7 @@
 
 /* A row one column has no file for: nothing to pair it with yet. */
 .batch-row-unpaired td.batch-status {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .batch-index {
@@ -236,7 +236,7 @@ td.batch-index {
 }
 
 .batch-track-status-error {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .batch-status {
@@ -256,7 +256,7 @@ td.batch-index {
 }
 
 .batch-status-error {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .batch-status-cancelled {
@@ -336,7 +336,7 @@ td.batch-index {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
 }
 
 .batch-tracks-table td {
@@ -397,7 +397,7 @@ td.batch-index {
 
 .batch-issues {
   display: block;
-  color: var(--error);
+  color: var(--danger);
   font-size: 0.9em;
 }
 
@@ -427,7 +427,7 @@ td.batch-index {
 }
 
 .batch-row-flagged td.batch-index {
-  color: var(--error);
+  color: var(--danger);
 }
 
 /* Where the exports go, left of the progress line. */

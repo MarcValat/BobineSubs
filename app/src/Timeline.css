@@ -18,7 +18,7 @@
 }
 /* An unreliable segment: its band faintly red. */
 .segment-band.weak {
-  fill: color-mix(in srgb, var(--error) 10%, transparent);
+  fill: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 /* As Bobine Audio's segment chart: constant in blue, drift in orange,
@@ -98,7 +98,7 @@
 .detail-lane {
   position: relative;
   height: 34px;
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -127,10 +127,10 @@
 }
 .cue.after {
   background: var(--target);
-  color: var(--on-accent);
+  color: var(--accent-fg);
 }
 .cue.after.orphan {
-  background: var(--error);
+  background: var(--danger);
 }
 
 .boundary {
@@ -216,5 +216,5 @@
 }
 
 .legend-swatch.low-confidence {
-  background: repeating-linear-gradient(90deg, var(--error) 0 4px, transparent 4px 7px);
+  background: repeating-linear-gradient(90deg, var(--danger) 0 4px, transparent 4px 7px);
 }

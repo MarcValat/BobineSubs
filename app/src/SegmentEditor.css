@@ -64,7 +64,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
 }
 
 .editor-table td:last-child {
@@ -86,12 +86,12 @@
 }
 
 .editor-confidence-cell.low {
-  color: var(--error);
+  color: var(--danger);
   font-weight: 600;
 }
 
 .editor-row-low-confidence {
-  background: color-mix(in srgb, var(--error) 8%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .editor-actions {

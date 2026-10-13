@@ -9,14 +9,14 @@
   color-scheme: light dark;
   --accent: light-dark(#396cd8, #6d9eff);
   --accent-hover: light-dark(#2f5ab8, #85aeff);
-  --on-accent: light-dark(#ffffff, #10141c);
+  --accent-fg: light-dark(#ffffff, #10141c);
   --bg: light-dark(#f3f4f6, #1c1d21);
   --surface: light-dark(#ffffff, #26272c);
-  --surface-sunken: light-dark(#f0f1f4, #2f3036);
+  --surface-alt: light-dark(#f0f1f4, #2f3036);
   --border: light-dark(rgba(15, 15, 15, 0.12), rgba(255, 255, 255, 0.12));
   --text: light-dark(#0f0f0f, #f2f2f2);
   --text-muted: light-dark(rgba(15, 15, 15, 0.6), rgba(242, 242, 242, 0.6));
-  --error: light-dark(#cc3333, #ff6b6b);
+  --danger: light-dark(#cc3333, #ff6b6b);
   --success: light-dark(#2a8c4a, #57c785);
   /* The two kinds of segment, in the timeline, its legend and the tables
      (Bobine Audio's). */
@@ -175,7 +175,7 @@ body {
 }
 
 .engine-status-error {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .spinner-small {
@@ -244,7 +244,7 @@ body {
 }
 
 .update-button-failed {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .update-button-busy svg {
@@ -416,7 +416,7 @@ button:hover {
   border-color: var(--accent);
 }
 button:active {
-  background-color: var(--surface-sunken);
+  background-color: var(--surface-alt);
 }
 button:disabled {
   cursor: default;
@@ -517,14 +517,14 @@ button:focus-visible {
 .primary-button {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-fg);
 }
 .primary-button:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
 .primary-button:disabled {
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   color: var(--text-muted);
 }
 
@@ -590,8 +590,8 @@ button:focus-visible {
 
 .export-cancel {
   flex: 0 0 auto;
-  border-color: var(--error);
-  color: var(--error);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .export-cancelled {
@@ -619,7 +619,7 @@ button:focus-visible {
 }
 
 .error {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .export-summary {
@@ -682,7 +682,7 @@ button:focus-visible {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border: 1px solid var(--border);
 }
 
@@ -693,7 +693,7 @@ button:focus-visible {
 }
 
 .field-tracks tbody tr:hover {
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
 }
 
 .log-panel {
@@ -716,7 +716,7 @@ button:focus-visible {
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 0.9em;
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border-radius: var(--radius-sm);
 }
 
@@ -752,7 +752,7 @@ button:focus-visible {
 .view-tabs button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-fg);
 }
 
 .muted {
@@ -834,7 +834,7 @@ button:focus-visible {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border: 1px solid var(--border);
 }
 
@@ -846,7 +846,7 @@ button:focus-visible {
 
 /* An unreliable segment: its row faintly red, as in the editor. */
 .analysis-content .tracks-table-wrap .segments-table tbody tr.weak {
-  background: color-mix(in srgb, var(--error) 8%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 /* A drift's offsets (start -> end), in the drift orange. */
@@ -956,7 +956,7 @@ button:focus-visible {
   align-items: center;
   gap: 2px;
   padding: 3px;
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -1225,7 +1225,7 @@ button:focus-visible {
 .editor-table-wrap .editor-table tbody tr:nth-child(even),
 .batch-choice-panel .batch-tracks-table tbody tr:nth-child(even),
 .batch-table-wrap table tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-alt) 60%, transparent);
 }
 
 /* The "Choisir" tables in a frame, as the others: its outer edges are the
@@ -1241,7 +1241,7 @@ button:focus-visible {
 
 /* An unreliable segment keeps its tint over the alternate rows. */
 .editor-table-wrap .editor-table tbody tr.editor-row-low-confidence {
-  background: color-mix(in srgb, var(--error) 8%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 /* A segment's confidence (ConfidenceGauge.tsx): a thin bar filled to it,
@@ -1259,7 +1259,7 @@ button:focus-visible {
   height: 0.4em;
   border-radius: 999px;
   overflow: hidden;
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
@@ -1271,12 +1271,12 @@ button:focus-visible {
 }
 
 .confidence-weak .confidence-fill {
-  background: var(--error);
+  background: var(--danger);
 }
 
 .confidence-weak .confidence-value,
 .confidence-weak .confidence-flag {
-  color: var(--error);
+  color: var(--danger);
   font-weight: 600;
 }
 
@@ -1315,7 +1315,7 @@ button:focus-visible {
 }
 
 .batch-row-state-error {
-  --row-state: var(--error);
+  --row-state: var(--danger);
 }
 
 /* The "?" by a card title: the title is all capitals, the circle sits on

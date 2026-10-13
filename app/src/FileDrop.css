@@ -38,7 +38,7 @@
 }
 
 .drop-zone-blocked {
-  border-color: var(--error);
+  border-color: var(--danger);
   color: var(--text);
   opacity: 1;
 }
