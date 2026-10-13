@@ -21,7 +21,7 @@ export function languageName(code: string | null): string {
 }
 
 /** Where one analysis or export stands. */
-export type Status = "idle" | "running" | "done" | "error" | "cancelled";
+type Status = "idle" | "running" | "done" | "error" | "cancelled";
 
 export interface Run<T> {
   status: Status;
@@ -43,7 +43,7 @@ export function textTracks(probe: ProbeResponse | null) {
 }
 
 export const VIDEO_FILTER = { name: "Vidéos", extensions: VIDEO_EXTENSIONS };
-export const SUBTITLE_FILTER = { name: "Sous-titres", extensions: SUBTITLE_EXTENSIONS };
+const SUBTITLE_FILTER = { name: "Sous-titres", extensions: SUBTITLE_EXTENSIONS };
 
 export async function pickFile(title: string, subtitlesFirst = false): Promise<string | null> {
   const all = { name: "Vidéos et sous-titres", extensions: [...VIDEO_EXTENSIONS, ...SUBTITLE_EXTENSIONS] };

@@ -35,7 +35,7 @@ export function segmentFor(t: number, segments: Segment[]): number | null {
 }
 
 /** A cue's (start, end) in reference time; null: dropped. */
-export function remapCue(start: number, end: number, segments: Segment[]): [number, number] | null {
+function remapCue(start: number, end: number, segments: Segment[]): [number, number] | null {
   const i = segmentFor((start + end) / 2, segments);
   if (i === null) return null;
   const mapped: [number, number] = [toReference(segments[i], start), toReference(segments[i], end)];

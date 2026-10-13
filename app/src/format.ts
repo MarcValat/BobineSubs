@@ -17,19 +17,6 @@ export function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-export function trackLabel(track: {
-  index: number;
-  codec: string;
-  language: string | null;
-  title: string | null;
-  forced: boolean;
-}): string {
-  const parts = [`#${track.index}`, track.language ?? "?", track.codec];
-  if (track.title) parts.push(`« ${track.title} »`);
-  if (track.forced) parts.push("forcés");
-  return parts.join(" · ");
-}
-
 export const SUBTITLE_EXTENSIONS = ["srt", "ass", "ssa"];
 export const VIDEO_EXTENSIONS = ["mkv", "mp4", "m4v", "m2ts", "ts", "avi", "mov", "webm"];
 

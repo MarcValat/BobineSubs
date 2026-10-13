@@ -4,10 +4,10 @@ import type { Segment } from "./api";
 import { LOW_CONFIDENCE } from "./shared";
 
 /** A boundary never comes closer than this to its neighbours. */
-export const MIN_SEGMENT_S = 1;
+const MIN_SEGMENT_S = 1;
 /** Offsets at a segment's two ends closer than this: a constant shift
  * (engine retime.DRIFT_EPS_S). */
-export const DRIFT_EPS_S = 0.05;
+const DRIFT_EPS_S = 0.05;
 
 export const isDrift = (s: Segment) => Math.abs(s.offset_end - s.offset_start) > DRIFT_EPS_S;
 

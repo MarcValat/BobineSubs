@@ -36,7 +36,7 @@ export interface Segment {
   confidence: number;
 }
 
-export interface TargetCue {
+interface TargetCue {
   start: number;
   end: number;
   text: string;
@@ -128,10 +128,6 @@ export async function pairFiles(videos: string[], subtitles: string[]): Promise<
   return (await (await postJson("/pairs", { videos, subtitles })).json()).pairs;
 }
 
-export async function pathExists(path: string): Promise<boolean> {
-  return (await (await engineFetch(`/exists?path=${encodeURIComponent(path)}`)).json()).exists;
-}
-
 /** Where a batch's exports go, decided together: the original names in
  * another folder when free, ".synced" ones otherwise (see engine outputs.py). */
 export async function planOutputs(items: [TrackRef, TrackRef][], subsOnly: boolean, folder: string | null): Promise<string[]> {
@@ -150,7 +146,7 @@ export async function cancelJob(jobId: string): Promise<void> {
   await postJson(`/jobs/${jobId}/cancel`, {});
 }
 
-export type JobEvent<T> =
+type JobEvent<T> =
   { type: "log"; message: string } | { type: "done"; result: T } | { type: "error"; message: string } | { type: "cancelled" };
 
 /** A job's events as they happen; an unexpected close (engine crash) is an error. */

@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import "./Dialog.css";
 
 /** Escape runs `onEscape` (the latest one, however often it changes). */
-export function useEscape(onEscape: () => void): void {
+function useEscape(onEscape: () => void): void {
   const latest = useRef(onEscape);
   latest.current = onEscape;
   useEffect(() => {

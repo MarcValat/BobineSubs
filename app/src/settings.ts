@@ -32,7 +32,7 @@ function subscribe(listener: () => void): () => void {
 const CHECK_UPDATES_KEY = "syncsubtitles.checkUpdates";
 
 /** Whether the app looks for an update on GitHub at startup (the default). */
-export function loadCheckUpdates(): boolean {
+function loadCheckUpdates(): boolean {
   return loadSetting(CHECK_UPDATES_KEY) !== "0";
 }
 
