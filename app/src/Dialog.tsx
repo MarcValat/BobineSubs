@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import { useT } from "./i18n";
 import "./Dialog.css";
 
 /** Escape runs `onEscape` (the latest one, however often it changes). */
@@ -76,6 +77,7 @@ export function DialogHeader({
   closeLabel?: string;
   children?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="dialog-header">
       <h2 id={id} title={titleTooltip}>
@@ -84,7 +86,7 @@ export function DialogHeader({
       {children}
       {onClose && (
         <button className="small-button" onClick={onClose}>
-          {closeLabel ?? "Fermer"}
+          {closeLabel ?? t.common.close}
         </button>
       )}
     </div>

@@ -1,7 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { setEngineLanguage } from "./api";
 import BatchView, { type Kind } from "./BatchView";
 import SingleView from "./SingleView";
 import { EngineStatusBadge } from "./EngineStatus";
+import { useLanguage } from "./i18n";
 import { OptionsButton } from "./Options";
 import { PillSwitch } from "./PillSwitch";
 import { loadSetting, saveSetting } from "./settings";
@@ -24,6 +26,13 @@ export default function App() {
     saveSetting(BATCH_KIND_KEY, next === "multi" ? null : next);
   }, []);
   const batch = mode === "batch";
+
+  // The engine's messages (job logs, errors) in the UI's language whenever
+  // it changes (engine.ts sends it once the engine is up).
+  const language = useLanguage();
+  useEffect(() => {
+    setEngineLanguage(language).catch(() => {});
+  }, [language]);
 
   return (
     <div className="container">

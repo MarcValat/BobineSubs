@@ -1,5 +1,6 @@
 // Client for the engine sidecar (engine/src/syncsubtitles/server.py).
 import { engineHeaders, engineReady, getEngineToken, getEngineUrl } from "./engine";
+import { t } from "./i18n";
 
 export interface TrackInfo {
   index: number;
@@ -80,7 +81,7 @@ async function engineFetch(path: string, init?: RequestInit): Promise<Response> 
   for (const [name, value] of Object.entries(await engineHeaders())) headers.set(name, value);
   const resp = await fetch(`${await getEngineUrl()}${path}`, { ...init, headers });
   if (!resp.ok) {
-    let detail: unknown = `Erreur ${resp.status}`;
+    let detail: unknown = t().common.httpError(resp.status);
     try {
       detail = (await resp.json()).detail ?? detail;
     } catch {
@@ -89,6 +90,11 @@ async function engineFetch(path: string, init?: RequestInit): Promise<Response> 
     throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   return resp;
+}
+
+/** Tells the engine the UI's language: its messages (job logs, errors) follow. */
+export async function setEngineLanguage(language: string): Promise<void> {
+  await postJson("/language", { language });
 }
 
 function postJson(path: string, body: unknown): Promise<Response> {
@@ -161,13 +167,13 @@ async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => v
     onEvent(event);
   };
   ws.onclose = () => {
-    if (!finished) onEvent({ type: "error", message: "Le moteur s'est arrêté pendant la tâche." });
+    if (!finished) onEvent({ type: "error", message: t().common.connectionLost });
   };
 }
 
 export class JobCancelled extends Error {
   constructor() {
-    super("Annulé");
+    super(t().common.cancelled);
   }
 }
 

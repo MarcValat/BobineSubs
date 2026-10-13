@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "./i18n";
 import "./InfoTip.css";
 
 // Room kept between the bubble and the icon, and the window's edges.
@@ -18,6 +19,7 @@ export function InfoTip({ children }: { children: ReactNode }) {
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const t = useT();
 
   useLayoutEffect(() => {
     if (!open) {
@@ -39,7 +41,7 @@ export function InfoTip({ children }: { children: ReactNode }) {
       ref={iconRef}
       className="info-tip"
       tabIndex={0}
-      aria-label="Aide"
+      aria-label={t.common.help}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
       onFocus={() => setOpen(true)}

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { currentLanguage, t } from "./i18n";
 
 /** The engine's usual port, `syncsubtitles serve`'s default: where a plain
  * browser on the dev server finds it. The app starts it there when it's
@@ -60,17 +61,25 @@ async function healthy(): Promise<boolean> {
   }
 }
 
+/** Waits for the engine to answer, then tells it the UI's language before
+ * anything else reaches it (a job's first log lines would otherwise come
+ * out in its default French). */
 function waitForEngine(): Promise<void> {
   setStatus("starting");
   const attempt = new Promise<void>((resolve, reject) => {
     let attempts = 0;
     const poll = async () => {
       if (await healthy()) {
+        await fetch(`${await getEngineUrl()}/language`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await engineHeaders()) },
+          body: JSON.stringify({ language: currentLanguage() }),
+        }).catch(() => {});
         setStatus("ready");
         resolve();
       } else if (++attempts >= HEALTH_POLL_ATTEMPTS) {
         setStatus("unreachable");
-        reject(new Error("Le moteur ne répond pas."));
+        reject(new Error(t().startup.unreachable));
       } else {
         setTimeout(poll, HEALTH_POLL_INTERVAL_MS);
       }
