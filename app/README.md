@@ -26,11 +26,13 @@ Rechargement à chaud de l'interface ; le moteur démarre et s'arrête avec la f
 Elles tournent en local (GitHub Actions ne lance que les tests du moteur et le build, à la release : une vérification là-bas bloquerait la release tard).
 
 ```
-npm run check              # types, formatage, lint, code mort : quelques secondes
+npm run check              # types, formatage, lint, code mort, tests unitaires : quelques secondes
 npm run check -- --full    # + clippy et les tests du moteur : ~1 min (pas pendant `tauri dev`)
 ```
 
-`scripts/check.mjs` enchaîne `tsc`, Prettier, ESLint (règles des hooks React), knip (exports et dépendances inutilisés), ruff (`check` et `format`) sur le moteur et `cargo fmt`. `npm run format` reformate l'app (Prettier), `uv run ruff format` le moteur, `cargo fmt` la coquille Rust. `npm install` active un hook pre-commit (`.githooks/pre-commit`) qui vérifie le formatage et le lint des seuls fichiers commités.
+`scripts/check.mjs` enchaîne `tsc`, Prettier, ESLint (règles des hooks React), knip (exports et dépendances inutilisés), les tests unitaires, ruff (`check` et `format`) sur le moteur et `cargo fmt`. `npm run format` reformate l'app (Prettier), `uv run ruff format` le moteur, `cargo fmt` la coquille Rust. `npm install` active un hook pre-commit (`.githooks/pre-commit`) qui vérifie le formatage et le lint des seuls fichiers commités.
+
+Les tests unitaires (Vitest, `npm test`) couvrent la logique pure de l'interface, à côté de ce qu'ils testent (`src/*.test.ts`) : éditions de segments et leur historique, aperçu du recalage (le même calcul que `retime.py` du moteur), formats d'affichage.
 
 ## Empaqueter (`tauri build`)
 

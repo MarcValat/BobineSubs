@@ -3,7 +3,8 @@
 // late). Each step runs even when one before it failed; the summary lists
 // what failed, and the exit code says whether all passed.
 //
-//   npm run check             types, formatting, lint, dead code: seconds
+//   npm run check             types, formatting, lint, dead code, unit
+//                             tests: seconds
 //   npm run check -- --full   + clippy and the engine's tests: minutes
 //   npm run check -- --staged formatting and lint of the staged files only
 //                             (the pre-commit hook, .githooks/pre-commit)
@@ -46,6 +47,7 @@ if (staged) {
     ["Prettier", app, "npx", ["prettier", "--check", "."]],
     ["ESLint", app, "npx", ["eslint", ".", "--max-warnings", "0"]],
     ["knip (dead code)", app, "npx", ["knip"]],
+    ["unit tests", app, "npx", ["vitest", "run"]],
     ["ruff", engine, "uv", ["run", "ruff", "check", "."]],
     ["ruff format", engine, "uv", ["run", "ruff", "format", "--check", "."]],
     ["cargo fmt", tauri, "cargo", ["fmt", "--check"]],
