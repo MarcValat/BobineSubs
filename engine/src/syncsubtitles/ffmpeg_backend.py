@@ -11,8 +11,8 @@ from pathlib import Path
 from syncsubtitles.cancellation import Cancelled, current_cancel_event
 from syncsubtitles.models import StreamInfo, SubtitleStreamInfo
 from syncsubtitles.pgs import parse_sup
+from syncsubtitles.subformats import PGS, VOBSUB, SubtitleDocument, decode_subtitle_bytes, format_for_codec, parse
 from syncsubtitles.vobsub import split_packets, vobsub_cues
-from syncsubtitles.subformats import PGS, VOBSUB, Cue, SubtitleDocument, decode_subtitle_bytes, format_for_codec, parse
 
 # Never flash a console window per ffmpeg call once packaged without a console.
 _SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0

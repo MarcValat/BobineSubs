@@ -29,6 +29,26 @@ dev = [
     "pyinstaller>=6.22.3",
     "pyinstaller-hooks-contrib>=2026.7",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.0",
 ]
+
+[tool.ruff]
+line-length = 120
+
+# The rules checked, named: a newer ruff enabling more by default doesn't
+# change what passes. Ruff's classic defaults (syntax, undefined names,
+# unused imports and variables) and sorted imports.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+# `uv run pytest --cov`: which lines of the engine its tests run.
+[tool.coverage.run]
+source = ["syncsubtitles"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
 [tool.pytest.ini_options]
 pythonpath = ["tests"]

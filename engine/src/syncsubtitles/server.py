@@ -23,8 +23,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from syncsubtitles.episodes import natural_key, pair_files
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
 from syncsubtitles.jobs import get_job, start_job
-from syncsubtitles.outputs import OutputName, plan_outputs
 from syncsubtitles.models import SubtitleTrackSpec
+from syncsubtitles.outputs import OutputName, plan_outputs
 from syncsubtitles.render import default_mkv_output, default_subtitle_output
 from syncsubtitles.retime import Segment
 from syncsubtitles.service import Analysis, AnalysisError, analyze, load_target, write_result

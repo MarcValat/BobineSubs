@@ -255,7 +255,6 @@ def _detect_at_ratio(
 
     frames = _cue_frames(tgt_cues)
     durations = frames[:, 1] - frames[:, 0]
-    mids = frames.mean(axis=1)
     path = states[viterbi(_scores(ref_cumsum, frames, states))]
 
     # Runs of equal offset, each refined.
