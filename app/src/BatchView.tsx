@@ -460,7 +460,12 @@ export default function BatchView({
                 <th>
                   <div className="batch-th-add">
                     <span>{kind === "pairs" ? "Vidéo (référence)" : "Fichier"}</span>
-                    <button className="small-button" disabled={busy !== null} onClick={kind === "pairs" ? addVideos : addMultiVideos} title="Ajouter des vidéos">
+                    <button
+                      className="small-button"
+                      disabled={busy !== null}
+                      onClick={kind === "pairs" ? addVideos : addMultiVideos}
+                      title="Ajouter des vidéos"
+                    >
                       + Ajouter
                     </button>
                   </div>
@@ -491,7 +496,11 @@ export default function BatchView({
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="batch-empty">
-                    <DropZone title="Glisse des fichiers ou des dossiers ici" onClick={kind === "pairs" ? addVideos : addMultiVideos} disabled={busy !== null}>
+                    <DropZone
+                      title="Glisse des fichiers ou des dossiers ici"
+                      onClick={kind === "pairs" ? addVideos : addMultiVideos}
+                      disabled={busy !== null}
+                    >
                       {kind === "pairs"
                         ? "À gauche de la fenêtre, les vidéos de référence ; à droite, ce qu'il faut corriger (sous-titres ou vidéos), un par épisode : ils sont appariés d'après leur nom."
                         : "Des vidéos qui contiennent chacune la référence et la piste à corriger."}
@@ -550,7 +559,12 @@ export default function BatchView({
             Choisir un dossier…
           </button>
           {folder && (
-            <button className="small-button" disabled={busy !== null} onClick={() => changeFolder(null)} title="Écrire chaque export à côté de son original">
+            <button
+              className="small-button"
+              disabled={busy !== null}
+              onClick={() => changeFolder(null)}
+              title="Écrire chaque export à côté de son original"
+            >
               À côté des originaux
             </button>
           )}
@@ -596,10 +610,18 @@ export default function BatchView({
             <button
               className="primary-button"
               disabled={busy !== null || missing === 0}
-              title={analyzed > 0 ? `Analyse seulement les ${unit}s qui ne le sont pas encore ; les autres et leurs modifications sont gardées.` : undefined}
+              title={
+                analyzed > 0
+                  ? `Analyse seulement les ${unit}s qui ne le sont pas encore ; les autres et leurs modifications sont gardées.`
+                  : undefined
+              }
               onClick={() => analyzeRows(pendingAnalysis)}
             >
-              {analyzed > 0 ? (missing > 1 ? `Analyser les ${missing} ${unit}s restantes` : `Analyser la ${unit} restante`) : "Analyser tout"}
+              {analyzed > 0
+                ? missing > 1
+                  ? `Analyser les ${missing} ${unit}s restantes`
+                  : `Analyser la ${unit} restante`
+                : "Analyser tout"}
             </button>
           </>
         )}
@@ -738,7 +760,9 @@ function tracksLabel(
     const p = probes[path];
     const t = typeof p === "object" ? p.tracks.find((x) => x.index === index) : undefined;
     if (!t) return index === null ? "Réf. auto" : `@${index}`;
-    return full ? `@${t.index} ${t.language ?? "?"} (${t.codec})${t.title ? ` « ${t.title} »` : ""}${t.forced ? " forcés" : ""}` : `@${t.index} ${t.language ?? "?"}`;
+    return full
+      ? `@${t.index} ${t.language ?? "?"} (${t.codec})${t.title ? ` « ${t.title} »` : ""}${t.forced ? " forcés" : ""}`
+      : `@${t.index} ${t.language ?? "?"}`;
   };
   const reference = describe(row.video, tracks.reference.index, false);
   if (kind === "multi") return `${reference} → ${describe(row.video, tracks.target.index, true)}`;
@@ -795,7 +819,13 @@ function ChooseTracksDialog({
               <td className="batch-choice-title">{t.title ?? ""}</td>
               {pickReference && (
                 <td className="track-pick">
-                  <input type="radio" name={`${name}-ref`} checked={ref === t.index} disabled={t.format === null} onChange={() => setRef(t.index)} />
+                  <input
+                    type="radio"
+                    name={`${name}-ref`}
+                    checked={ref === t.index}
+                    disabled={t.format === null}
+                    onChange={() => setRef(t.index)}
+                  />
                 </td>
               )}
               {pickTarget && (
@@ -818,7 +848,13 @@ function ChooseTracksDialog({
 
   return (
     <Dialog onClose={onClose} className="batch-choice-panel" labelledBy="choice-title">
-      <DialogHeader id="choice-title" title={`Pistes de ${fileName(reference.path)}`} titleTooltip={reference.path} onClose={onClose} closeLabel="Annuler" />
+      <DialogHeader
+        id="choice-title"
+        title={`Pistes de ${fileName(reference.path)}`}
+        titleTooltip={reference.path}
+        onClose={onClose}
+        closeLabel="Annuler"
+      />
       {sameFile ? (
         table(reference, true, true, "multi")
       ) : (
@@ -834,7 +870,11 @@ function ChooseTracksDialog({
         </>
       )}
       <div className="batch-choice-actions">
-        <button className="primary-button" disabled={!valid} onClick={() => valid && onSave({ reference: ref!, target: target ? tgt : null })}>
+        <button
+          className="primary-button"
+          disabled={!valid}
+          onClick={() => valid && onSave({ reference: ref!, target: target ? tgt : null })}
+        >
           Valider
         </button>
       </div>
@@ -902,7 +942,12 @@ function BatchRow({
 }) {
   const chooseButtons = (
     <span className="batch-tracks-actions">
-      <button className="small-button" disabled={busy || !onChoose} onClick={() => onChoose?.()} title="Choisir à la main la référence et la piste à corriger de cette ligne">
+      <button
+        className="small-button"
+        disabled={busy || !onChoose}
+        onClick={() => onChoose?.()}
+        title="Choisir à la main la référence et la piste à corriger de cette ligne"
+      >
         Choisir
       </button>
       {manual && (
@@ -920,7 +965,13 @@ function BatchRow({
       result.target_cues.some((c) => c.corrected === null)
     : false;
   const analysisClass =
-    analysis.status === "idle" ? "pending" : analysis.status === "done" ? "done" : analysis.status === "running" ? "running" : analysis.status;
+    analysis.status === "idle"
+      ? "pending"
+      : analysis.status === "done"
+        ? "done"
+        : analysis.status === "running"
+          ? "running"
+          : analysis.status;
   const renderClass = render.status === "idle" ? "pending" : render.status;
 
   return (
@@ -1010,7 +1061,11 @@ function BatchRow({
                 disabled={busy}
                 onClick={onReanalyze}
                 aria-label="Réanalyser"
-                title={runs.edited ? "Réanalyser cette ligne seule : ses modifications faites avec « Modifier » sont perdues." : "Réanalyser cette ligne seule"}
+                title={
+                  runs.edited
+                    ? "Réanalyser cette ligne seule : ses modifications faites avec « Modifier » sont perdues."
+                    : "Réanalyser cette ligne seule"
+                }
               >
                 <RedoIcon />
               </button>

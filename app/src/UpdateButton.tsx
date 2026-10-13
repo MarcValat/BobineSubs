@@ -17,9 +17,7 @@ interface PendingUpdate {
   install(): Promise<void>;
 }
 type DownloadEvent =
-  | { event: "Started"; data: { contentLength?: number } }
-  | { event: "Progress"; data: { chunkLength: number } }
-  | { event: "Finished" };
+  { event: "Started"; data: { contentLength?: number } } | { event: "Progress"; data: { chunkLength: number } } | { event: "Finished" };
 
 /** Dev only (see devParam): `?update=1` shows a pretend update. */
 function devUpdate(): PendingUpdate | null {
@@ -148,12 +146,12 @@ export function UpdateButton() {
       </button>
       {open && (
         <div className="top-menu update-menu" role="dialog">
-          <p className="update-menu-title">
-            {failed ? "Échec de la mise à jour" : `Bobine Subs v${update.version} est disponible`}
-          </p>
+          <p className="update-menu-title">{failed ? "Échec de la mise à jour" : `Bobine Subs v${update.version} est disponible`}</p>
           {phase === "available" && (
             <>
-              <p className="update-menu-note">L'application redémarre une fois la mise à jour téléchargée : une analyse ou un export en cours sera interrompu.</p>
+              <p className="update-menu-note">
+                L'application redémarre une fois la mise à jour téléchargée : une analyse ou un export en cours sera interrompu.
+              </p>
               <button className="primary-button" onClick={install}>
                 Installer et redémarrer
               </button>

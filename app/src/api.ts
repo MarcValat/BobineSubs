@@ -104,12 +104,7 @@ export async function probe(path: string): Promise<ProbeResponse> {
 }
 
 /** Where an export goes by default: next to its source, or in `folder`. */
-export async function defaultOutput(
-  reference: string,
-  target: TrackRef,
-  subsOnly: boolean,
-  folder: string | null = null,
-): Promise<string> {
+export async function defaultOutput(reference: string, target: TrackRef, subsOnly: boolean, folder: string | null = null): Promise<string> {
   const params = new URLSearchParams({ reference, target: target.path, subs_only: String(subsOnly) });
   if (target.index !== null) params.set("target_index", String(target.index));
   if (folder) params.set("folder", folder);
@@ -139,11 +134,7 @@ export async function pathExists(path: string): Promise<boolean> {
 
 /** Where a batch's exports go, decided together: the original names in
  * another folder when free, ".synced" ones otherwise (see engine outputs.py). */
-export async function planOutputs(
-  items: [TrackRef, TrackRef][],
-  subsOnly: boolean,
-  folder: string | null,
-): Promise<string[]> {
+export async function planOutputs(items: [TrackRef, TrackRef][], subsOnly: boolean, folder: string | null): Promise<string[]> {
   return (await (await postJson("/plan-outputs", { items, subs_only: subsOnly, folder })).json()).paths;
 }
 
@@ -151,12 +142,7 @@ export async function startAnalyze(reference: TrackRef, target: TrackRef, consta
   return (await (await postJson("/jobs/analyze", { reference, target, constant })).json()).job_id;
 }
 
-export async function startRender(
-  reference: TrackRef,
-  target: TrackRef,
-  segments: Segment[],
-  options: RenderOptions,
-): Promise<string> {
+export async function startRender(reference: TrackRef, target: TrackRef, segments: Segment[], options: RenderOptions): Promise<string> {
   return (await (await postJson("/jobs/render", { reference, target, segments, ...options })).json()).job_id;
 }
 
@@ -165,10 +151,7 @@ export async function cancelJob(jobId: string): Promise<void> {
 }
 
 export type JobEvent<T> =
-  | { type: "log"; message: string }
-  | { type: "done"; result: T }
-  | { type: "error"; message: string }
-  | { type: "cancelled" };
+  { type: "log"; message: string } | { type: "done"; result: T } | { type: "error"; message: string } | { type: "cancelled" };
 
 /** A job's events as they happen; an unexpected close (engine crash) is an error. */
 async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => void): Promise<void> {
@@ -194,11 +177,7 @@ export class JobCancelled extends Error {
 
 /** A job as a promise: `onLog` gets its progress messages, `onStart` its id
  * (to cancel it); settles with its result, its error, or JobCancelled. */
-export function runJob<T>(
-  jobId: Promise<string>,
-  onLog: (message: string) => void,
-  onStart?: (id: string) => void,
-): Promise<T> {
+export function runJob<T>(jobId: Promise<string>, onLog: (message: string) => void, onStart?: (id: string) => void): Promise<T> {
   return new Promise((resolve, reject) => {
     jobId
       .then((id) => {

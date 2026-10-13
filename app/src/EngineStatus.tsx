@@ -15,7 +15,11 @@ export function EngineStatusBadge() {
     );
   }
   return (
-    <span className="engine-status engine-status-error" role="alert" title="Le moteur d'analyse ne répond pas. Réessaie, ou redémarre l'application.">
+    <span
+      className="engine-status engine-status-error"
+      role="alert"
+      title="Le moteur d'analyse ne répond pas. Réessaie, ou redémarre l'application."
+    >
       ⚠ Le moteur ne répond pas
       <button className="small-button" onClick={retryEngine}>
         Réessayer

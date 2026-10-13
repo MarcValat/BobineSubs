@@ -135,11 +135,14 @@ export default function SegmentEditor({
                 <li>Glisse une poignée ● pour déplacer une frontière.</li>
                 <li>Double-clique sur le graphe, ou « ✂ Couper ici », pour couper un segment à cet endroit.</li>
                 <li>
-                  Aligner : dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même chose : tout son
-                  segment se décale pour qu'elles commencent ensemble.
+                  Aligner : dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même chose :
+                  tout son segment se décale pour qu'elles commencent ensemble.
                 </li>
                 <li>Un segment marqué ⚠ est peu fiable : à vérifier.</li>
-                <li>« Retirer » supprime un segment (une fausse détection, par exemple) : son voisin s'étend sur sa durée, avec son propre décalage.</li>
+                <li>
+                  « Retirer » supprime un segment (une fausse détection, par exemple) : son voisin s'étend sur sa durée, avec son propre
+                  décalage.
+                </li>
                 <li>Ctrl+Z / Ctrl+Y : défaire / refaire.</li>
                 <li>Décalage : + = les sous-titres à corriger sont en retard sur la référence, − = en avance.</li>
               </ul>
@@ -257,7 +260,12 @@ export default function SegmentEditor({
           <button className="small-button" onClick={() => setHistory(redo)} disabled={!history.future.length} title="Ctrl+Y">
             ↷ Refaire
           </button>
-          <button className="small-button" onClick={() => apply(analysis.segments)} disabled={!dirty} title="Revient aux segments tels qu'à l'ouverture de l'éditeur.">
+          <button
+            className="small-button"
+            onClick={() => apply(analysis.segments)}
+            disabled={!dirty}
+            title="Revient aux segments tels qu'à l'ouverture de l'éditeur."
+          >
             Réinitialiser
           </button>
         </div>

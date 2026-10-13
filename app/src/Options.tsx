@@ -58,7 +58,9 @@ function OptionsDialog({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked={checkUpdates} onChange={(e) => saveCheckUpdates(e.target.checked)} />
             Vérifier au démarrage
           </label>
-          <InfoTip>Au lancement, l'application demande à GitHub si une nouvelle version existe ; rien n'est installé sans ton accord.</InfoTip>
+          <InfoTip>
+            Au lancement, l'application demande à GitHub si une nouvelle version existe ; rien n'est installé sans ton accord.
+          </InfoTip>
         </span>
       </div>
     </Dialog>

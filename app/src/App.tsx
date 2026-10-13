@@ -35,7 +35,11 @@ export default function App() {
           {/* Batch, and its sub-modes in a drawer that unrolls from under it
               (folded away, and out of the tab order, outside Batch). */}
           <div className={`batch-group${batch ? " open" : ""}`}>
-            <button className={batch ? "primary-button batch-main-button" : "batch-main-button"} onClick={() => setMode("batch")} aria-expanded={batch}>
+            <button
+              className={batch ? "primary-button batch-main-button" : "batch-main-button"}
+              onClick={() => setMode("batch")}
+              aria-expanded={batch}
+            >
               Batch
             </button>
             <div className="batch-drawer" inert={!batch}>
@@ -67,4 +71,3 @@ export default function App() {
     </div>
   );
 }
-

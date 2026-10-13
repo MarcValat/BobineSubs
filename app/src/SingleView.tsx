@@ -65,7 +65,8 @@ export default function SingleView({ active }: { active: boolean }) {
     : null;
   const sameTrack = targetMode === "same" && referenceIndex !== null && referenceIndex === targetIndex;
   // Only the reference to work with: what's to correct is still to add.
-  const nothingToCorrect = reference !== null && targetFile === null && (reference.kind === "subtitles" || textTracks(reference).length < 2);
+  const nothingToCorrect =
+    reference !== null && targetFile === null && (reference.kind === "subtitles" || textTracks(reference).length < 2);
   const canAnalyze = referenceRef !== null && target !== null && !sameTrack && analysis.status !== "running";
 
   // Any change of input makes a previous result stale.
@@ -79,14 +80,16 @@ export default function SingleView({ active }: { active: boolean }) {
     setOpening(role);
     try {
       const probed = await probe(path);
-      if (probed.kind === "container" && probed.tracks.length === 0) throw new Error(`${fileName(path)} ne contient aucune piste de sous-titres.`);
+      if (probed.kind === "container" && probed.tracks.length === 0)
+        throw new Error(`${fileName(path)} ne contient aucune piste de sous-titres.`);
       if (role === "reference") {
         setReference(probed);
         setTargetFile(null);
         // A video with a second text track: correcting one of its own
         // tracks is the likely intent.
         const text = textTracks(probed);
-        const target = probed.kind === "container" && text.length >= 2 ? (text.find((t) => t.default)?.index ?? text[text.length - 1].index) : null;
+        const target =
+          probed.kind === "container" && text.length >= 2 ? (text.find((t) => t.default)?.index ?? text[text.length - 1].index) : null;
         setTargetMode(target !== null ? "same" : "file");
         setTargetIndex(target);
         setReferenceIndex(probed.kind === "container" ? defaultReference(probed, target) : null);
@@ -162,8 +165,8 @@ export default function SingleView({ active }: { active: boolean }) {
           <h2>
             Pistes{" "}
             <InfoTip>
-              Réf. : la piste de sous-titres déjà bien calée, qui sert de modèle. À corriger : une piste du même fichier, ou d'un fichier ajouté
-              (SRT/ASS, ou une vidéo qui la contient). Survole une piste pour voir son titre ; (F) : sous-titres forcés.
+              Réf. : la piste de sous-titres déjà bien calée, qui sert de modèle. À corriger : une piste du même fichier, ou d'un fichier
+              ajouté (SRT/ASS, ou une vidéo qui la contient). Survole une piste pour voir son titre ; (F) : sous-titres forcés.
             </InfoTip>
           </h2>
           {reference && (
@@ -359,9 +362,15 @@ function SubtitleTrackTable({
             <tr
               key={key}
               className={source === "file" ? "added-file" : ""}
-              title={track ? [track.title && `« ${track.title} »`, track.forced && "sous-titres forcés"].filter(Boolean).join(" · ") || undefined : undefined}
+              title={
+                track
+                  ? [track.title && `« ${track.title} »`, track.forced && "sous-titres forcés"].filter(Boolean).join(" · ") || undefined
+                  : undefined
+              }
             >
-              <td title={probe.path}>{standalone ? fileName(probe.path) : `${source === "file" ? `${fileName(probe.path)} ` : ""}@${track.index}`}</td>
+              <td title={probe.path}>
+                {standalone ? fileName(probe.path) : `${source === "file" ? `${fileName(probe.path)} ` : ""}@${track.index}`}
+              </td>
               <td>
                 {track ? (track.language ?? "?") : "?"}
                 {track?.forced && <span className="track-forced"> (F)</span>}
@@ -412,7 +421,11 @@ function ExportPanel({ analysis, referenceIsVideo, sameFile }: { analysis: Analy
     });
     if (!output) return;
     if (output.toLowerCase() === analysis.reference.path.toLowerCase()) {
-      setRun({ status: "error", log: [], error: "Choisis un autre nom que le fichier d'origine : il ne peut pas être remplacé pendant sa lecture." });
+      setRun({
+        status: "error",
+        log: [],
+        error: "Choisis un autre nom que le fichier d'origine : il ne peut pas être remplacé pendant sa lecture.",
+      });
       return;
     }
     setCancelling(false);

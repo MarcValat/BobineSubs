@@ -39,8 +39,7 @@ export default function Timeline({ analysis, duration, editing }: Props) {
   const windowEnd = windowStart + zoom;
 
   const goToJump = (direction: 1 | -1) => {
-    const next =
-      direction > 0 ? boundaries.find((b) => b > centre + 0.01) : [...boundaries].reverse().find((b) => b < centre - 0.01);
+    const next = direction > 0 ? boundaries.find((b) => b > centre + 0.01) : [...boundaries].reverse().find((b) => b < centre - 0.01);
     if (next !== undefined) setCentre(next);
   };
 
@@ -191,7 +190,14 @@ function Overview({
           ))}
           {/* Where lines are: reference above, corrected target below. */}
           {analysis.reference_cues.map(([a, b], i) => (
-            <rect key={`r${i}`} x={x(a)} y={OVERVIEW_PAD.top + plotHeight + 3} width={Math.max(1, x(b) - x(a))} height={4} className="density ref" />
+            <rect
+              key={`r${i}`}
+              x={x(a)}
+              y={OVERVIEW_PAD.top + plotHeight + 3}
+              width={Math.max(1, x(b) - x(a))}
+              height={4}
+              className="density ref"
+            />
           ))}
           {analysis.target_cues.map((c, i) =>
             c.corrected ? (
@@ -210,9 +216,22 @@ function Overview({
             const end = Math.min(s.end_s, duration);
             return (
               <g key={i}>
-                <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className={`offset-line ${isDrift(s) ? "drift" : "constant"}${s.confidence < LOW_CONFIDENCE ? " low-confidence" : ""}`} />
+                <line
+                  x1={x(s.start_s)}
+                  x2={x(end)}
+                  y1={y(s.offset_start)}
+                  y2={y(offsetAt(s, end))}
+                  className={`offset-line ${isDrift(s) ? "drift" : "constant"}${s.confidence < LOW_CONFIDENCE ? " low-confidence" : ""}`}
+                />
                 {editing && (
-                  <line x1={x(s.start_s)} x2={x(end)} y1={y(s.offset_start)} y2={y(offsetAt(s, end))} className="offset-hit" data-segment={i}>
+                  <line
+                    x1={x(s.start_s)}
+                    x2={x(end)}
+                    y1={y(s.offset_start)}
+                    y2={y(offsetAt(s, end))}
+                    className="offset-hit"
+                    data-segment={i}
+                  >
                     <title>Glisser vers le haut ou le bas pour changer le décalage</title>
                   </line>
                 )}
@@ -222,7 +241,13 @@ function Overview({
           {editing &&
             analysis.segments.slice(1).map((s, k) => (
               <g key={`b${k}`}>
-                <line x1={x(s.start_s)} x2={x(s.start_s)} y1={OVERVIEW_PAD.top} y2={OVERVIEW_PAD.top + plotHeight} className="boundary-line" />
+                <line
+                  x1={x(s.start_s)}
+                  x2={x(s.start_s)}
+                  y1={OVERVIEW_PAD.top}
+                  y2={OVERVIEW_PAD.top + plotHeight}
+                  className="boundary-line"
+                />
                 <circle cx={x(s.start_s)} cy={OVERVIEW_PAD.top + plotHeight / 2} r={7} className="boundary-handle" data-boundary={k + 1}>
                   <title>Glisser pour déplacer la frontière</title>
                 </circle>
@@ -292,8 +317,19 @@ function Detail({
       cues: analysis.reference_cues
         .map(([a, b, text], ref) => ({ a, b, text, ref }))
         .filter(({ a, b }) => inView(a, b))
-        .map(({ a, b, text, ref }) => ({ a, b, text, kind: "ref", ref, tip: `${clock(a, 2)} → ${clock(b, 2)}${text ? `
-${text}` : ""}` })),
+        .map(({ a, b, text, ref }) => ({
+          a,
+          b,
+          text,
+          kind: "ref",
+          ref,
+          tip: `${clock(a, 2)} → ${clock(b, 2)}${
+            text
+              ? `
+${text}`
+              : ""
+          }`,
+        })),
     },
     {
       label: "Avant",

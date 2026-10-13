@@ -51,11 +51,7 @@ export function Dialog({
       aria-labelledby={labelledBy}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
-      <div
-        ref={panelRef}
-        className={`dialog-panel${fill ? " dialog-panel-fill" : ""} ${className}`}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div ref={panelRef} className={`dialog-panel${fill ? " dialog-panel-fill" : ""} ${className}`} onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>

@@ -87,9 +87,5 @@ export function summarize(analysis: Analysis): string {
 
 /** The end of everything on screen: the timeline's length. */
 export function analysisDuration(analysis: Analysis, known: number | null = null): number {
-  return Math.max(
-    known ?? 0,
-    ...analysis.reference_cues.map(([, b]) => b),
-    ...analysis.target_cues.map((c) => c.corrected?.[1] ?? 0),
-  );
+  return Math.max(known ?? 0, ...analysis.reference_cues.map(([, b]) => b), ...analysis.target_cues.map((c) => c.corrected?.[1] ?? 0));
 }
