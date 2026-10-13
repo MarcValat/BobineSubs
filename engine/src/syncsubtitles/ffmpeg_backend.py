@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -26,15 +27,40 @@ class FFmpegError(RuntimeError):
 _CANCEL_POLL_S = 0.2
 
 
+def _child_env(environ: dict[str, str], frozen: bool) -> dict[str, str] | None:
+    """The environment ffmpeg runs in: the system's own, not the one a
+    PyInstaller build gives itself on Linux, whose LD_LIBRARY_PATH points at
+    the libraries bundled with the engine. The system's ffmpeg (preferred
+    over the bundled one, see resolve_ffmpeg) then loaded the bundle's older
+    libstdc++ and failed at once ("GLIBCXX_3.4.32 not found", ffmpeg 8 on
+    Ubuntu 26.04; found in Bobine Audio). PyInstaller keeps the original
+    value in LD_LIBRARY_PATH_ORIG. ``None`` (inherit as is) when not frozen,
+    and on Windows."""
+    if not frozen or sys.platform == "win32":
+        return None
+    env = dict(environ)
+    original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if original is None:
+        env.pop("LD_LIBRARY_PATH", None)
+    else:
+        env["LD_LIBRARY_PATH"] = original
+    return env
+
+
+_CHILD_ENV = _child_env(dict(os.environ), getattr(sys, "frozen", False))
+
+
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
-    """Run ffmpeg, killing it (raising ``Cancelled``) as soon as the job
-    running it is cancelled."""
+    """Run ffmpeg in the system's environment (see _child_env), killing it
+    (raising ``Cancelled``) as soon as the job running it is cancelled."""
     event = current_cancel_event()
     if event is None:
-        return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS)
+        return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS, env=_CHILD_ENV)
     if event.is_set():
         raise Cancelled()
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS) as proc:
+    with subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS, env=_CHILD_ENV
+    ) as proc:
         while True:
             try:
                 out, err = proc.communicate(timeout=_CANCEL_POLL_S)
