@@ -35,6 +35,38 @@ fn engine_port(port: tauri::State<EnginePort>) -> u16 {
     port.0
 }
 
+/// The secret every request to the engine carries (the engine refuses any
+/// other: see its server.py, TokenGuard): it listens on 127.0.0.1, where
+/// this machine's other programs and the websites open in its browser could
+/// otherwise call it. The frontend asks for it through `engine_token`.
+struct EngineToken(String);
+
+/// The dev builds' token, fixed: a plain browser on the dev server (and the
+/// end-to-end tests, which may reuse `tauri dev`'s engine) knows it too --
+/// see the frontend's engine.ts.
+const DEV_TOKEN: &str = "bobine-dev";
+
+/// A new secret at each launch, in 64 hex digits: hashers keyed with the
+/// 128 random bits the standard library draws from the OS once per process.
+fn new_token() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    if cfg!(debug_assertions) {
+        return DEV_TOKEN.to_string();
+    }
+    (0..4u64)
+        .map(|i| {
+            let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+            hasher.write_u64(i);
+            format!("{:016x}", hasher.finish())
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn engine_token(token: tauri::State<EngineToken>) -> String {
+    token.0.clone()
+}
+
 /// The running engine: a dev-time `uv run` child (live Python source) or a
 /// packaged build's frozen engine -- see `spawn_sidecar` for why both exist.
 struct SidecarState(Mutex<Option<Child>>);
@@ -185,7 +217,7 @@ fn kill_process_tree(pid: u32) {
 /// A failure here (e.g. `uv` missing in dev, or the binary wasn't built for
 /// a release) is logged, not fatal: the GUI window still opens, it just
 /// can't reach the engine until fixed and restarted.
-fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
+fn spawn_sidecar(app: &tauri::AppHandle, port: u16, token: &str) -> Option<Child> {
     // Second, independent safety net next to the Job Object (see
     // KillOnCloseJob): the engine watches this PID itself and exits once
     // it's gone. Covers dev mode's `uv run` hop and any gap between spawning
@@ -197,6 +229,7 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
         match Command::new("uv")
             .args(["run", "syncsubtitles", "serve", "--port", &port, "--parent-pid", &parent_pid])
             .current_dir(&dir)
+            .env("SYNCSUBTITLES_TOKEN", token)
             .spawn()
         {
             Ok(child) => {
@@ -220,6 +253,7 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
         };
         match Command::new(&exe)
             .args(["serve", "--port", &port, "--parent-pid", &parent_pid])
+            .env("SYNCSUBTITLES_TOKEN", token)
             .spawn()
         {
             Ok(child) => {
@@ -259,13 +293,15 @@ pub fn run() {
             // Known before the window shows: the frontend asks for it at once.
             let port = free_port();
             app.manage(EnginePort(port));
+            let token = new_token();
+            app.manage(EngineToken(token.clone()));
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
             }
             let handle = app.handle().clone();
             #[cfg(windows)]
             let job = KillOnCloseJob::new();
-            let child = spawn_sidecar(&handle, port);
+            let child = spawn_sidecar(&handle, port, &token);
             #[cfg(windows)]
             {
                 // Right after spawning, before the engine has had time to
@@ -283,7 +319,11 @@ pub fn run() {
             app.manage(SidecarState(Mutex::new(child)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![engine_port, stop_sidecar])
+        .invoke_handler(tauri::generate_handler![
+            engine_port,
+            engine_token,
+            stop_sidecar
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
