@@ -1,0 +1,6 @@
+#!/bin/sh
+# The staged files' formatting and lint (app/scripts/check.mjs --staged): a
+# few seconds, only for what's committed. Enabled by `npm install` in app/
+# (its "prepare" script sets core.hooksPath to this folder). Skipped once
+# with `git commit --no-verify`.
+exec node "$(git rev-parse --show-toplevel)/app/scripts/check.mjs" --staged
