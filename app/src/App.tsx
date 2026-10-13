@@ -8,6 +8,7 @@ import { OptionsButton } from "./Options";
 import { PillSwitch } from "./PillSwitch";
 import { loadSetting, saveSetting } from "./util";
 import { UpdateButton } from "./UpdateButton";
+import { WindowControls } from "./WindowControls";
 import logoUrl from "../src-tauri/icons/128x128.png";
 
 type Mode = "single" | "batch";
@@ -37,8 +38,11 @@ export default function App() {
 
   return (
     <div className="container">
-      <div className="top-bar">
-        <span className="app-brand">
+      {/* The window's title bar (no system one: see WindowControls): dragged
+          by its free parts, where data-tauri-drag-region is -- the bar and
+          the name, not their children's buttons. */}
+      <div className="top-bar" data-tauri-drag-region>
+        <span className="app-brand" data-tauri-drag-region>
           <img src={logoUrl} alt="" />
           Bobine Subs
         </span>
@@ -79,6 +83,7 @@ export default function App() {
           <UpdateButton />
           <OptionsButton />
         </div>
+        <WindowControls />
       </div>
       <SingleView active={mode === "single"} />
       <BatchView active={batch} kind={kind} onKindChange={chooseKind} onBusyChange={setBatchBusy} />

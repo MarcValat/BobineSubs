@@ -156,6 +156,11 @@ body,
   margin: 0;
 }
 
+/* No pinch zoom on a touch screen: the app sizes itself (Paramètres). */
+html {
+  touch-action: pan-x pan-y;
+}
+
 body {
   background: var(--bg);
   /* An app, not a page: no text gets selected by a click-drag or a double
@@ -1436,6 +1441,11 @@ body {
   background: color-mix(in srgb, var(--surface) 45%, transparent);
 }
 
+/* With the window's buttons at its right end, closer to the edge. */
+.top-bar:has(.window-controls) {
+  padding-right: 8px;
+}
+
 .app-brand {
   display: inline-flex;
   align-items: center;
@@ -1451,6 +1461,66 @@ body {
   height: 28px;
   /* The name drags the window: not the logo in it (see App.tsx). */
   pointer-events: none;
+}
+
+/* Réduire, agrandir, fermer (WindowControls), after a thin separator. */
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.window-button {
+  width: 40px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+/* Maximized, the buttons are clicked from the screen's edges, as in other
+   apps: each one's click area grows up to the bar's top and bottom and over
+   the gaps between them, the close button's up to the right edge -- the
+   buttons look the same. */
+.window-controls-maximized .window-button {
+  position: relative;
+}
+
+.window-controls-maximized .window-button::after {
+  content: "";
+  position: absolute;
+  inset: -10px -1px;
+}
+
+.window-controls-maximized .window-close::after {
+  right: -8px;
+}
+
+.window-button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.window-close:hover:not(:disabled) {
+  background: #e81123;
+  color: #fff;
+}
+
+.window-button svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
 }
 
 .panel {

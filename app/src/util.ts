@@ -31,3 +31,7 @@ export function devParam(name: string): string | null {
   if (!import.meta.env.DEV) return null;
   return new URLSearchParams(window.location.search).get(name);
 }
+
+/** A typed field's props: no list of earlier entries under it (the
+ * WebView's autofill) and no spelling underlines ("VFF", "JP AAC 2.0"). */
+export const FIELD_PROPS = { autoComplete: "off", spellCheck: false } as const;

@@ -26,7 +26,7 @@ import { InfoTip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
 import { PillSwitch } from "./PillSwitch";
 import { IDLE, LANGUAGES, pickFile, type Run, textTracks } from "./shared";
-import { errorMessage } from "./util";
+import { errorMessage, FIELD_PROPS } from "./util";
 
 const EXPORT_KINDS = [
   ["mkv", "Nouveau MKV"],
@@ -484,7 +484,13 @@ function ExportPanel({ analysis, referenceIsVideo, sameFile }: { analysis: Analy
             </label>
             <label>
               Titre :
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Français" disabled={running} />
+              <input
+                {...FIELD_PROPS}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="ex. Français"
+                disabled={running}
+              />
             </label>
             <label className="export-check">
               <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} disabled={running} />

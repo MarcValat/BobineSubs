@@ -14,6 +14,13 @@ export const fr = {
     connectionLost: "Connexion interrompue avant la fin du traitement (le moteur a-t-il planté ?).",
   },
 
+  window: {
+    minimize: "Réduire",
+    maximize: "Agrandir",
+    restore: "Restaurer",
+    close: "Fermer",
+  },
+
   startup: {
     ready: "Moteur prêt",
     starting: "Démarrage du moteur…",
@@ -30,6 +37,9 @@ export const fr = {
     language: "Langue",
     systemLanguage: "Système",
     languageHint: "« Système » suit la langue de ton système : français s'il est en français, anglais sinon.",
+    uiScale: "Taille de l'interface",
+    uiScaleHint: "Agrandit ou réduit toute l'interface : textes, boutons et frise des répliques.",
+    uiScaleLimited: (percent: number) => `Réduite à ${percent} % : l'écran n'a pas la place pour plus.`,
     updates: "Mises à jour",
     checkUpdates: "Vérifier au démarrage",
     updatesHint: "Au lancement, l'application demande à GitHub si une nouvelle version existe ; rien n'est installé sans ton accord.",

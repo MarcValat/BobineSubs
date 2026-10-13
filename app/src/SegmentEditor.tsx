@@ -23,6 +23,7 @@ import { ConfidenceGauge } from "./ConfidenceGauge";
 import { Dialog, DialogHeader } from "./Dialog";
 import { InfoTip } from "./InfoTip";
 import "./SegmentEditor.css";
+import { FIELD_PROPS } from "./util";
 
 /** "1:02:03.4", "2:03.4", "123.4" -> seconds; null if unreadable. */
 function parseClock(text: string): number | null {
@@ -37,6 +38,7 @@ function LazyInput({ value, onCommit, title }: { value: string; onCommit: (text:
   useEffect(() => setText(value), [value]);
   return (
     <input
+      {...FIELD_PROPS}
       inputMode="decimal"
       value={text}
       title={title}

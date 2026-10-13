@@ -26,7 +26,7 @@ import { FolderIcon, RedoIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
 import { IDLE, LANGUAGES, languageName, LOW_CONFIDENCE, pickFiles, pickFolder, type Run, textTracks, VIDEO_FILTER } from "./shared";
-import { errorMessage, loadSetting, saveSetting } from "./util";
+import { errorMessage, FIELD_PROPS, loadSetting, saveSetting } from "./util";
 import "./BatchView.css";
 
 /** Fichiers multipistes / Paires de fichiers: picked in the top bar (App.tsx). */
@@ -417,7 +417,13 @@ export default function BatchView({
             </label>
             <label>
               Titre :
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Français" disabled={busy !== null} />
+              <input
+                {...FIELD_PROPS}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="ex. Français"
+                disabled={busy !== null}
+              />
             </label>
           </>
         )}

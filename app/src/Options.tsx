@@ -4,6 +4,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { InfoTip, Tooltip } from "./InfoTip";
 import { PillSwitch } from "./PillSwitch";
 import { applyTheme, loadTheme, type ThemeChoice } from "./theme";
+import { UI_SCALES, loadUiScale, saveUiScale, useEffectiveUiScale, type UiScale } from "./uiScale";
 import "./Options.css";
 import { GearIcon } from "./icons";
 import { Dialog, DialogHeader } from "./Dialog";
@@ -83,6 +84,8 @@ function OptionsDrawer({ closing, onClose }: { closing: boolean; onClose: () => 
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme);
   const [language, setLanguage] = useLanguageChoice();
   const checkUpdates = useCheckUpdates();
+  const [uiScale, setUiScale] = useState<UiScale>(loadUiScale);
+  const effectiveScale = useEffectiveUiScale();
   const version = useAppVersion();
 
   function chooseTheme(choice: ThemeChoice) {
@@ -115,6 +118,23 @@ function OptionsDrawer({ closing, onClose }: { closing: boolean; onClose: () => 
             { value: "en", label: "English" },
           ]}
           onChange={(choice: LanguageChoice) => setLanguage(choice)}
+        />
+      </Setting>
+
+      <Setting
+        label={t.options.uiScale}
+        hint={t.options.uiScaleHint}
+        note={effectiveScale < uiScale && t.options.uiScaleLimited(effectiveScale)}
+      >
+        <PillSwitch
+          className="pill-switch-wide"
+          label={t.options.uiScale}
+          options={UI_SCALES.map((value) => [value, `${value} %`] as const)}
+          value={uiScale}
+          onChange={(choice) => {
+            setUiScale(choice);
+            saveUiScale(choice);
+          }}
         />
       </Setting>
 

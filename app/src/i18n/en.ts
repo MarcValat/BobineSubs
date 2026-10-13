@@ -11,6 +11,13 @@ export const en: Messages = {
     connectionLost: "Connection lost before the processing finished (did the engine crash?).",
   },
 
+  window: {
+    minimize: "Minimize",
+    maximize: "Maximize",
+    restore: "Restore",
+    close: "Close",
+  },
+
   startup: {
     ready: "Engine ready",
     starting: "Starting the engine…",
@@ -27,6 +34,9 @@ export const en: Messages = {
     language: "Language",
     systemLanguage: "System",
     languageHint: "“System” follows your system's language: French if it's in French, English otherwise.",
+    uiScale: "Interface size",
+    uiScaleHint: "Makes the whole interface bigger or smaller: text, buttons and the timeline of lines.",
+    uiScaleLimited: (percent: number) => `Reduced to ${percent}%: the screen has no room for more.`,
     updates: "Updates",
     checkUpdates: "Check at startup",
     updatesHint: "At launch, the app asks GitHub whether a new version exists; nothing is installed without your consent.",

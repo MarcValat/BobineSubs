@@ -283,6 +283,43 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16, token: &str) -> Option<Child
     }
 }
 
+/// What's remembered of the main window: everything but its decorations --
+/// it has none (its title bar is the app's own, tauri.conf.json), and a
+/// state saved by a version that had them would bring them back.
+fn window_state_flags() -> StateFlags {
+    StateFlags::all() - StateFlags::DECORATIONS
+}
+
+/// Before the window first shows: on a screen with less room than its
+/// minimum size (tauri.conf.json) or its size (the default, or one saved on
+/// a bigger screen), e.g. a 1366x768 laptop at 125%, its minimum shrinks to
+/// the screen's free area (taskbar excluded) and it opens maximized, all of
+/// it on screen. The page then zooms out to fit there (uiScale.ts).
+///
+/// Not for a window restored maximized (window-state): it fills the screen
+/// already, and a new minimum size would take it out of maximized at that
+/// size -- the size it then got back once unmaximized, past the screen's
+/// edges, instead of the one it had before being maximized.
+fn fit_to_screen(window: &tauri::WebviewWindow) {
+    if window.is_maximized().unwrap_or(false) {
+        return;
+    }
+    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else {
+        return;
+    };
+    let area = monitor.work_area().size;
+    if size.width <= area.width && size.height <= area.height {
+        return;
+    }
+    let scale = monitor.scale_factor();
+    let min = tauri::LogicalSize::new(
+        f64::min(1024.0, area.width as f64 / scale),
+        f64::min(640.0, area.height as f64 / scale),
+    );
+    let _ = window.set_min_size(Some(min));
+    let _ = window.maximize();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -303,7 +340,11 @@ pub fn run() {
         // Restores the main window's size, position and maximized state as
         // it's created. It's created hidden (tauri.conf.json) and only shown
         // here, once restored, so it doesn't flash at the default size first.
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(window_state_flags())
+                .build(),
+        )
         .setup(|app| {
             // Known before the window shows: the frontend asks for it at once.
             let port = free_port();
@@ -311,6 +352,7 @@ pub fn run() {
             let token = new_token();
             app.manage(EngineToken(token.clone()));
             if let Some(window) = app.get_webview_window("main") {
+                fit_to_screen(&window);
                 let _ = window.show();
             }
             let handle = app.handle().clone();
@@ -343,7 +385,8 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                let _ = app_handle.save_window_state(StateFlags::all());
+                // Also covers exits that close no window first (the updater's restart).
+                let _ = app_handle.save_window_state(window_state_flags());
                 let state = app_handle.state::<SidecarState>();
                 let mut guard = state.0.lock().unwrap();
                 if let Some(child) = guard.take() {
