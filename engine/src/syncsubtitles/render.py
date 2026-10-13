@@ -5,7 +5,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from syncsubtitles.ffmpeg_backend import probe_streams, remux_shift, resolve_ffmpeg, run_checked
+from syncsubtitles.ffmpeg_backend import FFmpegError, probe_streams, remux_shift, resolve_ffmpeg, run_checked
+from syncsubtitles.matroska import MatroskaError, cluster_timestamps, out_of_order
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.subformats import SubtitleDocument
 
@@ -108,11 +109,34 @@ def mux(
                     *tags,
                     "-c",
                     "copy",
+                    # Waits for every stream before writing a cluster: by
+                    # default ffmpeg stops waiting for one lagging 10 s, and
+                    # sparse subtitles read from their own file then land in
+                    # clusters out of order (found in Bobine Style: one at
+                    # 3:19 before one at 0:14). VLC skips those blocks: the
+                    # lines never show.
+                    "-max_interleave_delta",
+                    "0",
                     "-f",
                     "matroska",
                     str(partial),
                 ]
             )
+        check_cluster_order(partial)
         os.replace(partial, output)
     finally:
         partial.unlink(missing_ok=True)
+
+
+def check_cluster_order(path: str | Path) -> None:
+    """Refuses a written file whose clusters go back in time: VLC skips the
+    blocks of one written too early (subtitles that never show), however
+    well ffmpeg itself reads it."""
+    try:
+        backwards = out_of_order(cluster_timestamps(path))
+    except (MatroskaError, OSError) as exc:
+        raise FFmpegError(f"fichier écrit illisible : {exc}") from exc
+    if backwards:
+        raise FFmpegError(
+            f"{backwards} groupe(s) de blocs hors de l'ordre du temps : certains lecteurs n'afficheraient pas tout"
+        )
