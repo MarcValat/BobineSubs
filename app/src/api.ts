@@ -1,5 +1,5 @@
 // Client for the engine sidecar (engine/src/syncsubtitles/server.py).
-import { engineReady, getEngineUrl } from "./engine";
+import { engineHeaders, engineReady, getEngineToken, getEngineUrl } from "./engine";
 
 export interface TrackInfo {
   index: number;
@@ -76,7 +76,9 @@ export interface RenderOptions {
 
 async function engineFetch(path: string, init?: RequestInit): Promise<Response> {
   await engineReady();
-  const resp = await fetch(`${await getEngineUrl()}${path}`, init);
+  const headers = new Headers(init?.headers);
+  for (const [name, value] of Object.entries(await engineHeaders())) headers.set(name, value);
+  const resp = await fetch(`${await getEngineUrl()}${path}`, { ...init, headers });
   if (!resp.ok) {
     let detail: unknown = `Erreur ${resp.status}`;
     try {
@@ -170,7 +172,9 @@ export type JobEvent<T> =
 
 /** A job's events as they happen; an unexpected close (engine crash) is an error. */
 async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => void): Promise<void> {
-  const ws = new WebSocket(`${(await getEngineUrl()).replace("http", "ws")}/jobs/${jobId}/ws`);
+  // A WebSocket takes no header: the token goes in its address.
+  const token = encodeURIComponent(await getEngineToken());
+  const ws = new WebSocket(`${(await getEngineUrl()).replace("http", "ws")}/jobs/${jobId}/ws?token=${token}`);
   let finished = false;
   ws.onmessage = (msg) => {
     const event = JSON.parse(msg.data) as JobEvent<T>;

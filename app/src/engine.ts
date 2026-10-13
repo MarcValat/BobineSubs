@@ -18,6 +18,25 @@ export async function getEngineUrl(): Promise<string> {
   return engineUrl;
 }
 
+/** The dev builds' token (src-tauri/src/lib.rs's DEV_TOKEN): what a plain
+ * browser on the dev server sends to the engine that `tauri dev` (or the
+ * end-to-end tests) started. */
+const DEV_TOKEN = "bobine-dev";
+
+let engineToken: string | null = null;
+
+/** The secret the engine asks of every request (see lib.rs's new_token),
+ * asked once to the app. */
+export async function getEngineToken(): Promise<string> {
+  if (engineToken === null) engineToken = isTauri() ? await invoke<string>("engine_token") : DEV_TOKEN;
+  return engineToken;
+}
+
+/** What a request to the engine carries for it to answer. */
+export async function engineHeaders(): Promise<Record<string, string>> {
+  return { "X-Bobine-Token": await getEngineToken() };
+}
+
 const HEALTH_POLL_INTERVAL_MS = 100;
 const HEALTH_POLL_ATTEMPTS = 300; // 30 s before giving up
 
