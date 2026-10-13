@@ -5,27 +5,23 @@ import { clock, offset } from "./format";
 import { segmentFor } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import Timeline from "./Timeline";
+import { WarningIcon } from "./icons";
 
-/** Everything an analysis found, inside the Analyse panel (as Bobine
- * Audio's): what was found, the timeline, then the segments' table. */
-export default function AnalysisView({
+/** What an analysis found, in a few words: the drift, a hand edit, how
+ * many lines on each side, those without a counterpart or dropped, and its
+ * warnings. */
+export function AnalysisSummary({
   analysis,
-  duration,
   edited = false,
 }: {
   analysis: Analysis;
-  duration: number;
   /** The segments were changed by hand since the analysis. */
   edited?: boolean;
 }) {
-  const segments = analysis.segments;
-  // By where each line falls now (hand edits move them between segments).
-  const counts = segments.map((_, g) => analysis.target_cues.filter((c) => segmentFor((c.start + c.end) / 2, segments) === g).length);
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
   const dropped = analysis.target_cues.filter((c) => c.corrected === null || c.corrected[1] <= 0).length;
-
   return (
-    <div className="analysis-content">
+    <>
       <div className="analysis-summary">
         <span className="analysis-found">{summarize(analysis)}</span>
         {analysis.ratio_name && <span className="badge">Dérive : {analysis.ratio_name}</span>}
@@ -38,9 +34,21 @@ export default function AnalysisView({
       </div>
       {analysis.warnings.map((w) => (
         <p key={w} className="warning">
-          ⚠ {w}
+          <WarningIcon /> {w}
         </p>
       ))}
+    </>
+  );
+}
+
+/** The timeline and the segments' table of an analysis. */
+export default function AnalysisView({ analysis, duration }: { analysis: Analysis; duration: number }) {
+  const segments = analysis.segments;
+  // By where each line falls now (hand edits move them between segments).
+  const counts = segments.map((_, g) => analysis.target_cues.filter((c) => segmentFor((c.start + c.end) / 2, segments) === g).length);
+
+  return (
+    <div className="analysis-content">
       <Timeline analysis={analysis} duration={duration} />
       <div className="tracks-table-wrap">
         <table className="data-table segments-table">

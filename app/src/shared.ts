@@ -1,6 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import type { ProbeResponse } from "./api";
-import { SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
+import { VIDEO_EXTENSIONS } from "./format";
 
 /** Below this share of a segment's lines landing on reference lines, flag it. */
 export const LOW_CONFIDENCE = 0.8;
@@ -39,17 +39,6 @@ export function textTracks(probe: ProbeResponse | null) {
 }
 
 export const VIDEO_FILTER = { name: "Vidéos", extensions: VIDEO_EXTENSIONS };
-const SUBTITLE_FILTER = { name: "Sous-titres", extensions: SUBTITLE_EXTENSIONS };
-
-export async function pickFile(title: string, subtitlesFirst = false): Promise<string | null> {
-  const all = { name: "Vidéos et sous-titres", extensions: [...VIDEO_EXTENSIONS, ...SUBTITLE_EXTENSIONS] };
-  const picked = await open({
-    title,
-    multiple: false,
-    filters: subtitlesFirst ? [SUBTITLE_FILTER, all, VIDEO_FILTER] : [all, VIDEO_FILTER, SUBTITLE_FILTER],
-  });
-  return typeof picked === "string" ? picked : null;
-}
 
 export async function pickFiles(title: string, filter: { name: string; extensions: string[] }): Promise<string[]> {
   const picked = await open({ title, multiple: true, filters: [filter] });

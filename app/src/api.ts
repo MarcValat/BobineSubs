@@ -67,6 +67,22 @@ export interface RenderResult {
   dropped: { start: number; text: string }[];
 }
 
+/** A multi-track export's result: the first track's, then each one's. */
+export interface RenderResponse extends RenderResult {
+  tracks: RenderResult[];
+}
+
+/** One corrected track of an export (see startRenderTracks). */
+export interface RenderTrack {
+  target: TrackRef;
+  segments: Segment[];
+  language?: string | null;
+  title?: string | null;
+  default?: boolean | null;
+  /** Its own file, in a subtitles-only export. */
+  output?: string | null;
+}
+
 export interface RenderOptions {
   output: string | null;
   subs_only: boolean;
@@ -110,13 +126,6 @@ export async function probe(path: string): Promise<ProbeResponse> {
 }
 
 /** Where an export goes by default: next to its source, or in `folder`. */
-export async function defaultOutput(reference: string, target: TrackRef, subsOnly: boolean, folder: string | null = null): Promise<string> {
-  const params = new URLSearchParams({ reference, target: target.path, subs_only: String(subsOnly) });
-  if (target.index !== null) params.set("target_index", String(target.index));
-  if (folder) params.set("folder", folder);
-  return (await (await engineFetch(`/default-output?${params}`)).json()).path;
-}
-
 /** Dropped paths as files, a folder standing for its files with one of
  * `extensions`, in name order. */
 export async function expandPaths(paths: string[], extensions: string[]): Promise<string[]> {
@@ -148,15 +157,32 @@ export async function startRender(reference: TrackRef, target: TrackRef, segment
   return (await (await postJson("/jobs/render", { reference, target, segments, ...options })).json()).job_id;
 }
 
+/** Several corrected tracks of one reference file: all in one new MKV
+ * (`output`), or each in its own subtitle file (`subsOnly`, each track's
+ * `output`). */
+export async function startRenderTracks(
+  reference: TrackRef,
+  tracks: RenderTrack[],
+  options: { output: string | null; subsOnly: boolean },
+): Promise<string> {
+  return (await (await postJson("/jobs/render", { reference, tracks, output: options.output, subs_only: options.subsOnly })).json()).job_id;
+}
+
+/** Every readable subtitle track of a container read (and kept by the
+ * engine for the analysis): how many lines each has, by track index. */
+export async function readTracks(path: string): Promise<Record<number, number>> {
+  return (await (await postJson("/read-tracks", { path })).json()).cues;
+}
+
 export async function cancelJob(jobId: string): Promise<void> {
   await postJson(`/jobs/${jobId}/cancel`, {});
 }
 
-type JobEvent<T> =
+export type JobEvent<T> =
   { type: "log"; message: string } | { type: "done"; result: T } | { type: "error"; message: string } | { type: "cancelled" };
 
 /** A job's events as they happen; an unexpected close (engine crash) is an error. */
-async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => void): Promise<void> {
+export async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => void): Promise<void> {
   // A WebSocket takes no header: the token goes in its address.
   const token = encodeURIComponent(await getEngineToken());
   const ws = new WebSocket(`${(await getEngineUrl()).replace("http", "ws")}/jobs/${jobId}/ws?token=${token}`);
@@ -169,28 +195,4 @@ async function connectJobWS<T>(jobId: string, onEvent: (event: JobEvent<T>) => v
   ws.onclose = () => {
     if (!finished) onEvent({ type: "error", message: t().common.connectionLost });
   };
-}
-
-export class JobCancelled extends Error {
-  constructor() {
-    super(t().common.cancelled);
-  }
-}
-
-/** A job as a promise: `onLog` gets its progress messages, `onStart` its id
- * (to cancel it); settles with its result, its error, or JobCancelled. */
-export function runJob<T>(jobId: Promise<string>, onLog: (message: string) => void, onStart?: (id: string) => void): Promise<T> {
-  return new Promise((resolve, reject) => {
-    jobId
-      .then((id) => {
-        onStart?.(id);
-        return connectJobWS<T>(id, (event) => {
-          if (event.type === "log") onLog(event.message);
-          else if (event.type === "done") resolve(event.result);
-          else if (event.type === "error") reject(new Error(event.message));
-          else reject(new JobCancelled());
-        });
-      })
-      .catch(reject);
-  });
 }

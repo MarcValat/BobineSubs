@@ -32,6 +32,24 @@ export function devParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+/** `list` with `item` added, or removed if it was there (a ticked/unticked box). */
+export function toggled<T>(list: T[], item: T): T[] {
+  return list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
+}
+
+/** Whether a key press is free for the window's shortcuts (↑ ↓ through the
+ * list, Space to listen): not with a modifier, not while typing or picking
+ * in a drop-down, not on a button the key would press -- but a list row
+ * (focused once clicked) leaves them free. */
+export function shortcutKey(e: KeyboardEvent): boolean {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return false;
+  const target = e.target instanceof HTMLElement ? e.target : null;
+  if (!target || target === document.body) return true;
+  if (target.closest(".list-row-main")) return true;
+  if (target.isContentEditable || target.closest("input, textarea, select, button, a, [role=listbox], [role=option]")) return false;
+  return true;
+}
+
 /** A typed field's props: no list of earlier entries under it (the
  * WebView's autofill) and no spelling underlines ("VFF", "JP AAC 2.0"). */
 export const FIELD_PROPS = { autoComplete: "off", spellCheck: false } as const;

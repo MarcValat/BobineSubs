@@ -63,6 +63,56 @@ export function FolderIcon() {
   );
 }
 
+/** Stacked layers: files that each hold every track (multitrack mode). */
+export function LayersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3l9 5-9 5-9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </svg>
+  );
+}
+
+/** Two chain links: the tracks come from two files (pairs mode). */
+export function LinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+    </svg>
+  );
+}
+
+/** Two chevrons to the left: fold a column away (turned around to unfold). */
+export function FoldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M11 17l-5-5 5-5" />
+      <path d="M18 17l-5-5 5-5" />
+    </svg>
+  );
+}
+
+/** An arrow up: move a row up the list. */
+export function ArrowUpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 19V5" />
+      <path d="M6 11l6-6 6 6" />
+    </svg>
+  );
+}
+
+/** An arrow down: move a row down the list. */
+export function ArrowDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M6 13l6 6 6-6" />
+    </svg>
+  );
+}
+
 /** A triangle with "!": something to check (a flagged file, a weak
  * segment, an engine that doesn't answer). Drawn in place of a typed
  * "⚠", which each font -- and Windows' emoji -- draws its own way. */

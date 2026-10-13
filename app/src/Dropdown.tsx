@@ -15,7 +15,7 @@ const EDGE_PX = 8;
  * elsewhere closes it (Escape only it, not a dialog it's in); the arrows
  * move between its options. `children` gets `close`, for a pick that ends
  * the choice. */
-function Dropdown({
+export function Dropdown({
   label,
   shown,
   badge,
@@ -176,7 +176,7 @@ function Dropdown({
 /** One option of a drop-down: a row with its text, what tells it apart on
  * the right, a check box for one of several (`check`), or the accent for
  * the one picked. */
-function DropdownOption({
+export function DropdownOption({
   selected,
   check = false,
   label,
@@ -203,6 +203,11 @@ function DropdownOption({
       {detail && <span className="dropdown-detail">{detail}</span>}
     </button>
   );
+}
+
+/** A section's title in a list ("NUMÉRO DE PISTE"). */
+export function DropdownHeading({ children }: { children: ReactNode }) {
+  return <span className="dropdown-heading">{children}</span>;
 }
 
 /** The app's single-choice drop-down, in place of a <select>: the options'
