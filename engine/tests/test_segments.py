@@ -9,9 +9,9 @@ from syncsubtitles.subformats import SRT, SubtitleDocument
 PAL = STANDARD_RATIOS[2]  # 23.976 film played at 25 fps: the target runs fast
 
 
-def _check(jumps=(), ratio=1.0, offset=0.0, duration=2400.0):
+def _check(jumps=(), ratio=1.0, offset=0.0, duration=2400.0, ref_cues=None):
     """Detect, correct, and compare every corrected line to where it belongs."""
-    ref_cues = dialogue_cues(duration)
+    ref_cues = ref_cues or dialogue_cues(duration)
     target = edited(translated(ref_cues, offset), list(jumps), ratio)
     detection = detect_segments(SubtitleDocument(SRT, ref_cues), SubtitleDocument(SRT, target))
     corrected = retime(SubtitleDocument(SRT, target), detection.segments)
@@ -68,3 +68,12 @@ def test_scene_only_in_the_target_has_its_lines_dropped():
     extra = sum(c.text == "extra" for c in target)
     assert extra > 10
     assert sum(c.text == "extra" for c in corrected.cues) <= 1
+
+
+def test_a_teaser_before_credits_the_target_lacks_is_its_own_segment():
+    # Seen on a real episode: a 45 s teaser, then a minute of opening
+    # credits (no dialogue) the target's version doesn't have, at PAL speed.
+    # Its stretch is shorter than the long windows: they all see the rest.
+    ref_cues = [c for c in dialogue_cues(2400.0) if c.end < 45.0 or c.start >= 105.0]
+    detection = _check(jumps=[(46.0, -55.0)], ratio=PAL, ref_cues=ref_cues)
+    assert len(detection.segments) == 2

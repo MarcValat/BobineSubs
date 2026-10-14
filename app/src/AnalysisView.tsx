@@ -119,7 +119,14 @@ export function chartCues(analysis: Analysis) {
   };
 }
 
+/** A corrected line this long after the reference's last one is a stray
+ * (a credit line timed hours later): left off the timeline (the engine's
+ * filters._STRAY_GAP_S). */
+const STRAY_GAP_S = 600;
+
 /** The end of everything on screen: the timeline's length. */
 export function analysisDuration(analysis: Analysis, known: number | null = null): number {
-  return Math.max(known ?? 0, ...analysis.reference_cues.map(([, b]) => b), ...analysis.target_cues.map((c) => c.corrected?.[1] ?? 0));
+  const reference = Math.max(known ?? 0, ...analysis.reference_cues.map(([, b]) => b));
+  const corrected = analysis.target_cues.map((c) => c.corrected?.[1] ?? 0).filter((end) => end <= reference + STRAY_GAP_S);
+  return Math.max(reference, ...corrected);
 }

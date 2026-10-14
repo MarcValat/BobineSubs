@@ -76,3 +76,10 @@ def test_sdh_only_lines_are_ignored_for_sync_but_still_retimed():
     truth = {c.text: c.start for c in ref_cues}
     errors = np.array([c.start - truth[c.text] for c in corrected.cues if c.text in truth])
     assert abs(np.median(errors)) < 0.03
+
+
+def test_a_stray_line_hours_after_the_others_is_not_synced_on():
+    # Seen: a "Sous-titres : ..." credit line timed at 27 h.
+    cues = [Cue(10.0, 12.0, "Bonjour."), Cue(15.0, 17.0, "Salut."), Cue(100100.0, 100101.0, "Sous-titres : X")]
+    assert dialogue_indices(cues) == [0, 1]
+    assert dialogue_indices(cues[:2]) == [0, 1]

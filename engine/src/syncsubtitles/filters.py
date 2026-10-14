@@ -28,6 +28,10 @@ _NON_DIALOGUE_STYLE = re.compile(
 # Below this share of cues left, filtering is more likely wrong than the
 # track (e.g. a track entirely in a "Signs"-named style): use every cue.
 _MIN_KEPT_SHARE = 0.5
+# A last line this long after all the others is a stray (a credit line
+# timed hours later, seen at 27 h): not synced on, it would make every
+# signal that long.
+_STRAY_GAP_S = 600.0
 
 
 def plain_text(text: str) -> str:
@@ -53,5 +57,13 @@ def dialogue_indices(cues: Sequence[Cue]) -> list[int]:
     leave too few)."""
     kept = [i for i, cue in enumerate(cues) if is_dialogue(cue)]
     if len(kept) < _MIN_KEPT_SHARE * len(cues):
-        return list(range(len(cues)))
-    return kept
+        kept = list(range(len(cues)))
+    return _without_strays(cues, kept)
+
+
+def _without_strays(cues: Sequence[Cue], indices: list[int]) -> list[int]:
+    """``indices`` but the last lines that come _STRAY_GAP_S after all the others."""
+    kept = sorted(indices, key=lambda i: cues[i].start)
+    while len(kept) > 1 and cues[kept[-1]].start - max(cues[i].end for i in kept[:-1]) > _STRAY_GAP_S:
+        kept.pop()
+    return sorted(kept)
