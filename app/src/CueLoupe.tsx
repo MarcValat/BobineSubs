@@ -58,7 +58,8 @@ const MIN_TEXT_PX = 28;
  * (`cues` by start time): each line in view, as wide as it lasts -- except
  * lines too narrow to read and that close together (zoomed out), drawn as
  * one block of `count` lines: a whole episode is a few hundred blocks, not
- * a thousand lines of text redrawn at every notch of the wheel. */
+ * a thousand lines of text redrawn at every notch of the wheel. A line
+ * across the lane's edge is cut there. */
 export function laneBlocks(
   cues: Cue[],
   start: number,
@@ -80,7 +81,11 @@ export function laneBlocks(
       blocks.push({ x, w, cue, count: 1 });
     }
   }
-  return blocks;
+  // Within the lane: a line across its edge is cut there.
+  return blocks.map((b) => {
+    const left = Math.max(0, b.x);
+    return { ...b, x: left, w: Math.max(0, Math.min(width, b.x + b.w) - left) };
+  });
 }
 
 /**

@@ -1100,9 +1100,9 @@ input {
   background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
-/* A drift's offsets (start -> end), in the drift orange. */
+/* A drift's offsets (start -> end), in the drift orange (its text shade). */
 .drift-text {
-  color: var(--drift);
+  color: var(--drift-text);
 }
 
 /* The loupe's toolbars, as Bobine Audio's preview toolbar. */

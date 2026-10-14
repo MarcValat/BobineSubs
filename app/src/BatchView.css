@@ -327,3 +327,23 @@ td > input[type="checkbox"] {
   flex: 0 0 auto;
   min-width: 9em;
 }
+
+/* Bobine Subs: the footer on one line, its export summary and progress cut
+   short ("…") on a small window instead of the buttons going to a second
+   line. */
+.batch-footer {
+  flex-wrap: nowrap;
+}
+
+.batch-footer button,
+.batch-output-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.batch-progress {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

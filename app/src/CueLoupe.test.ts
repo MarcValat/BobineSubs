@@ -26,4 +26,12 @@ describe("laneBlocks", () => {
     const blocks = laneBlocks([cue(0, 1), cue(1.5, 100), cue(200, 201), cue(300, 301)], 0, 1000, 1000);
     expect(blocks.map((b) => b.count)).toEqual([1, 1, 1, 1]);
   });
+
+  it("cuts a line across the lane's edges", () => {
+    const blocks = laneBlocks([cue(-1, 2), cue(9, 12)], 0, 10, 1000);
+    expect(blocks.map(({ x, w }) => [x, w])).toEqual([
+      [0, 200],
+      [900, 100],
+    ]);
+  });
 });

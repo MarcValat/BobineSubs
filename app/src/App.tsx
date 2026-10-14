@@ -20,9 +20,14 @@ const MODE_KEY = "syncsubtitles.batchMode";
  * file dropped works as well as a whole season. From Bobine Audio. */
 export default function App() {
   const t = useT();
-  // Dev only (see devParam): the mode of the files given by `?batchFiles=`.
+  // Dev only (see devParam): the mode of the files given by `?batchFiles=`
+  // or `?pairRefs=` / `?pairTargets=`.
   const [mode, setMode] = useState<BatchMode>(() =>
-    devParam("batchFiles") ? "multi" : loadSetting(MODE_KEY) === "pairs" ? "pairs" : "multi",
+    devParam("batchFiles")
+      ? "multi"
+      : devParam("pairRefs") || devParam("pairTargets") || loadSetting(MODE_KEY) === "pairs"
+        ? "pairs"
+        : "multi",
   );
   // An analysis or export is running: the other mode waits.
   const [busy, setBusy] = useState(false);

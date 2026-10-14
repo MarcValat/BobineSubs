@@ -147,7 +147,8 @@
 }
 
 .list-row-manual {
-  color: var(--accent-2);
+  /* Bobine Subs: its --accent-2 is a light green, too pale for text. */
+  color: var(--accent-text);
 }
 
 .list-row-issues {
@@ -434,7 +435,8 @@
 
 .detail-tracks .detail-heading button {
   margin-left: auto;
-  padding: 0.1em 0.6em;
+  /* 24px tall, as every small button (0.1em made it 20.4px). */
+  padding: 3px 0.6em;
 }
 
 /* About four tracks, then it scrolls (headers stay). */
@@ -1037,4 +1039,24 @@
    as a whole: the loupe keeps its height (Audio's waveforms fill theirs). */
 .file-detail .detail-body > .segments-result {
   flex: 0 0 auto;
+}
+
+/* A narrow detail (a small window, the list unfolded): the tracks above the
+   chart, not beside it -- side by side, the chart was left 180px, its times
+   piled on one another. */
+.file-detail {
+  container-type: inline-size;
+}
+
+@container (max-width: 700px) {
+  .detail-top,
+  .workspace-pairs .detail-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Its natural height then, the detail's body scrolling (on a low window's
+     Segments tab, the fill squeezed the chart to nothing). */
+  .detail-top.detail-top-fill {
+    flex: 0 0 auto;
+  }
 }
