@@ -142,6 +142,27 @@ export const en: Messages = {
       vie: "Vietnamese",
     },
   },
+  exportOptions: {
+    label: "Export:",
+    edit: "Edit…",
+    editHint: "Output folder, what the export holds and the cleanup",
+    editHintPairs: "Output folder, what the export holds, the cleanup and the corrected track",
+    title: "Export options",
+    folder: "Output folder",
+    folderHint:
+      "In another folder than the original's, an export keeps the original's name (unless it's taken there); next to the original, it gets the “.synced” suffix.",
+    kind: "Contents",
+    kindHint:
+      "New MKVs: the reference video, as it is, with the corrected tracks. Subtitles only: an SRT or ASS file per corrected track, the videos left alone.",
+    mkvShort: "new MKVs",
+    subsOnlyShort: "subtitles only",
+    cleanShort: "cleaned up",
+    cleanLabel: "Fix the corrected SRT files' obvious faults",
+    replaceShort: "replaces the same-language track",
+    keepShort: "added track",
+    addedNote: "For every pair; each can decide otherwise in its detail.",
+  },
+
   batch: {
     multiMode: "Multitrack files",
     pairsMode: "File pairs",
@@ -304,7 +325,7 @@ export const en: Messages = {
     byDefaultHint: "Back to the top bar's tracks",
     languageFromName: (language) => `${language} · from the name`,
     languageFromTrack: (language) => `${language} · the track's`,
-    languageFromBar: (language) => `${language} · top bar`,
+    languageFromBar: (language) => `${language} · export options`,
     languageUnknown: "unknown",
     progressPairs: (n) => `${n} pair${n > 1 ? "s" : ""}`,
     progressAnalyzed: (done, total) => ` · ${done} of ${total} analyzed`,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Segment } from "./api";
 import { t } from "./i18n";
-import { describeSegments, drawnOffsets, offsetRange, offsetTicks, segmentOffsetLabel } from "./SegmentChart";
+import { describeSegments, drawnOffsets, offsetRange, offsetTicks, placeLabels, segmentOffsetLabel } from "./SegmentChart";
 
 const seg = (offset_start: number, offset_end: number, confidence = 1, start_s = 0, end_s = 10): Segment => ({
   start_s,
@@ -47,5 +47,29 @@ describe("describeSegments", () => {
     expect(describeSegments([seg(1, 1, 1, 0, 10), seg(1.5, 1.5, 0.3, 10, 20), seg(1.5, 2.5, 1, 20, 30)])).toBe(
       [m.segments(3), m.jumps(1), m.drifts(1), m.unreliableCount(1)].join(" · "),
     );
+  });
+});
+
+describe("placeLabels", () => {
+  const label = (x: number, y: number, weight = 1) => ({ x, y, width: 100, weight });
+
+  it("puts a label above its line, kept within the plot's sides", () => {
+    expect(placeLabels([label(500, 100), label(10, 100)], 1000, 200)).toEqual([
+      { x: 500, y: 92 },
+      { x: 50, y: 92 },
+    ]);
+  });
+
+  it("moves a shorter segment's label out of a longer one's way, else hides it", () => {
+    const [long, short, third, fourth, fifth] = placeLabels(
+      [label(500, 100, 10), label(520, 100, 1), label(510, 100, 0.5), label(505, 100, 0.4), label(515, 100, 0.3)],
+      1000,
+      200,
+    );
+    expect(long).toEqual({ x: 500, y: 92 });
+    expect(short).toEqual({ x: 520, y: 116 });
+    expect(third).toEqual({ x: 510, y: 78 });
+    expect(fourth).toEqual({ x: 505, y: 130 });
+    expect(fifth).toBeNull();
   });
 });

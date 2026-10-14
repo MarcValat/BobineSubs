@@ -48,7 +48,6 @@ import { SegmentEditor } from "./SegmentEditor";
 import { withSegments } from "./retime";
 import { clock, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
-import { PillSwitch } from "./PillSwitch";
 import { Select } from "./Dropdown";
 import { TrackTable, type ExternalTrack } from "./TrackTable";
 import { useCueView } from "./CueLoupe";
@@ -57,7 +56,7 @@ import { devParam, errorMessage, toggled } from "./util";
 import { useT } from "./i18n";
 import { languageCode } from "./languages";
 import { WarningIcon } from "./icons";
-import { saveCleanSubtitles, useCleanSubtitles, useListCollapsed } from "./settings";
+import { useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
 
 /** One file's analyses (one per corrected track) and its single export. Kept
  * with the reference they were made against: a different one since makes
@@ -126,7 +125,8 @@ export function MultiTrackBatch({
   const [choices, setChoices] = useState<Record<string, TrackChoice>>({});
   // Standalone subtitle files added to a file's tracks to correct.
   const [externals, setExternals] = useState<Record<string, ExternalTrack[]>>({});
-  const [subsOnly, setSubsOnly] = useState(false);
+  // What an export writes, as the export options say (both modes alike).
+  const subsOnly = useSubsOnly();
   const [runs, setRuns] = useState<Record<string, FileRun>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const queue = useExportQueue(outputDir, subsOnly);
@@ -504,23 +504,6 @@ export function MultiTrackBatch({
                 disabled={busy}
               />
             </span>
-            <span className="config-field">
-              {m.common.labelled(m.batch.export)}
-              <PillSwitch
-                label={m.batch.export}
-                options={[
-                  ["mkv", m.batch.newMkv],
-                  ["subs", m.batch.subsOnly],
-                ]}
-                value={subsOnly ? "subs" : "mkv"}
-                onChange={(v) => setSubsOnly(v === "subs")}
-                disabled={busy}
-              />
-            </span>
-            <label className="config-field config-check" title={m.cleanup.hint}>
-              <input type="checkbox" checked={cleanSubtitles} disabled={busy} onChange={(e) => saveCleanSubtitles(e.target.checked)} />
-              {m.cleanup.toggle}
-            </label>
             <InfoTip>{m.multi.hint}</InfoTip>
           </div>
 

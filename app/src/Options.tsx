@@ -65,7 +65,7 @@ const CLOSE_MS = 220;
 
 /** One setting: its name with what it does in a "?" tip (as everywhere in
  * the suite), its control, and `note`, a fact worth seeing at once. */
-function Setting({ label, hint, note, children }: { label: ReactNode; hint?: ReactNode; note?: ReactNode; children?: ReactNode }) {
+export function Setting({ label, hint, note, children }: { label: ReactNode; hint?: ReactNode; note?: ReactNode; children?: ReactNode }) {
   const name = <span className="setting-name">{label}</span>;
   return (
     <div className="setting">

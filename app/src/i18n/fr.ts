@@ -146,6 +146,27 @@ export const fr = {
       vie: "Vietnamien",
     },
   },
+  exportOptions: {
+    label: "Export :",
+    edit: "Modifier…",
+    editHint: "Dossier de sortie, contenu de l'export et nettoyage",
+    editHintPairs: "Dossier de sortie, contenu de l'export, nettoyage et piste corrigée",
+    title: "Options d'export",
+    folder: "Dossier de sortie",
+    folderHint:
+      "Dans un autre dossier que celui de l'original, un export garde le nom de l'original (sauf s'il y est déjà pris) ; à côté de l'original, il prend le suffixe « .synced ».",
+    kind: "Contenu",
+    kindHint:
+      "Nouveaux MKV : la vidéo de référence, telle quelle, avec les pistes corrigées. Sous-titres seuls : un fichier SRT ou ASS par piste corrigée, sans toucher aux vidéos.",
+    mkvShort: "nouveaux MKV",
+    subsOnlyShort: "sous-titres seuls",
+    cleanShort: "nettoyés",
+    cleanLabel: "Corriger les défauts évidents des SRT corrigés",
+    replaceShort: "remplace la piste de même langue",
+    keepShort: "piste ajoutée",
+    addedNote: "Pour toutes les paires ; chacune peut en décider autrement dans son détail.",
+  },
+
   batch: {
     multiMode: "Fichiers multipistes",
     pairsMode: "Paires de fichiers",
@@ -310,7 +331,7 @@ export const fr = {
     byDefaultHint: "Revenir aux pistes de la barre du haut",
     languageFromName: (language: string) => `${language} · d'après le nom`,
     languageFromTrack: (language: string) => `${language} · celle de la piste`,
-    languageFromBar: (language: string) => `${language} · barre du haut`,
+    languageFromBar: (language: string) => `${language} · options d'export`,
     languageUnknown: "inconnue",
     progressPairs: (n: number) => `${n} paire${n > 1 ? "s" : ""}`,
     progressAnalyzed: (done: number, total: number) => ` · ${done} sur ${total} analysée${done > 1 ? "s" : ""}`,

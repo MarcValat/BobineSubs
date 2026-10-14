@@ -4,7 +4,7 @@ import { cancelJob, planOutputs, type Analysis, type RenderResponse, type TrackR
 import { JobCancelled, runJob, type RunStatus } from "./jobs";
 import { FolderIcon } from "./icons";
 import { Tooltip } from "./InfoTip";
-import { pickFolder } from "./shared";
+import { ExportChooser, type AddedTrackOptions } from "./exportOptions";
 import { errorMessage, loadSetting, saveSetting } from "./util";
 import { t, useT } from "./i18n";
 
@@ -245,50 +245,7 @@ export function useExportQueue(outputDir: string | null, subsOnly: boolean) {
   return { exporting, cancelling, run, cancel };
 }
 
-/** "Sortie :" in a mode's footer: next to the originals, or a folder
- * (until the export options' dialog). */
-function OutputChooser({
-  outputDir,
-  onOutputDirChange,
-  disabled,
-}: {
-  outputDir: string | null;
-  onOutputDirChange: (dir: string | null) => void;
-  disabled: boolean;
-}) {
-  const t = useT();
-  return (
-    <div className="batch-output">
-      <span className="batch-output-label">{t.batch.output}</span>
-      <span className={outputDir ? "batch-output-dir batch-output-path" : "batch-output-dir"} title={outputDir ?? undefined}>
-        {outputDir ?? t.batch.nextToOriginals}
-      </span>
-      <button
-        className="small-button"
-        disabled={disabled}
-        title={t.batch.chooseFolderHint}
-        onClick={async () => {
-          const dir = await pickFolder(t.batch.outputFolder, outputDir);
-          if (dir) onOutputDirChange(dir);
-        }}
-      >
-        {t.batch.chooseFolder}
-      </button>
-      {outputDir && (
-        <button
-          className="small-button"
-          disabled={disabled}
-          onClick={() => onOutputDirChange(null)}
-          title={t.batch.backNextToOriginalsHint}
-        >
-          {t.batch.backNextToOriginals}
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** A mode's footer: output folder, progress line, analyze and export (or
+/** A mode's footer: the export's summary ("Modifier…" opens its options), progress line, analyze and export (or
  * cancel) buttons, the export the gradient when it's the next step
  * (`exportNext`). */
 export function BatchFooter({
@@ -302,9 +259,12 @@ export function BatchFooter({
   canExport,
   exportNext,
   onExport,
+  added,
 }: {
   outputDir: string | null;
   onOutputDirChange: (dir: string | null) => void;
+  /** Paires de fichiers: the added track's options (see ExportChooser). */
+  added?: AddedTrackOptions;
   busy: boolean;
   blocked: boolean;
   progress: ReactNode;
@@ -317,7 +277,7 @@ export function BatchFooter({
   const t = useT();
   return (
     <div className="batch-footer panel">
-      <OutputChooser outputDir={outputDir} onOutputDirChange={onOutputDirChange} disabled={busy} />
+      <ExportChooser outputDir={outputDir} onOutputDirChange={onOutputDirChange} added={added} disabled={busy} />
       <span className="batch-progress">{progress}</span>
       {analyzeButton}
       {queue.exporting ? (

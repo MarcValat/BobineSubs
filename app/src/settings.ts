@@ -62,3 +62,20 @@ export function saveCleanSubtitles(clean: boolean): void {
 export function useCleanSubtitles(): boolean {
   return useSyncExternalStore(subscribe, loadCleanSubtitles);
 }
+
+const SUBS_ONLY_KEY = "syncsubtitles.subsOnly";
+
+/** What an export writes, in both modes: new MKVs holding the corrected
+ * tracks (the default), or the corrected subtitle files alone. */
+function loadSubsOnly(): boolean {
+  return loadSetting(SUBS_ONLY_KEY) === "1";
+}
+
+export function saveSubsOnly(subsOnly: boolean): void {
+  saveSetting(SUBS_ONLY_KEY, subsOnly ? "1" : null);
+  changed();
+}
+
+export function useSubsOnly(): boolean {
+  return useSyncExternalStore(subscribe, loadSubsOnly);
+}

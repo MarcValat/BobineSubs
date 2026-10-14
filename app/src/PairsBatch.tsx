@@ -40,14 +40,13 @@ import { SegmentEditor } from "./SegmentEditor";
 import { withSegments } from "./retime";
 import { isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
-import { PillSwitch } from "./PillSwitch";
 import { Select } from "./Dropdown";
 import { useCueView } from "./CueLoupe";
 import { SegmentChart } from "./SegmentChart";
 import { devParam, errorMessage, FIELD_PROPS } from "./util";
 import { useT } from "./i18n";
 import { languageCode, languageLabel, LanguageSelect } from "./languages";
-import { saveCleanSubtitles, useCleanSubtitles, useListCollapsed } from "./settings";
+import { useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
 
 /** One row of the list: a reference video and what to correct (a subtitle
  * file, or a video holding the track), as the engine paired them by
@@ -244,13 +243,13 @@ export function PairsBatch({
   const [choices, setChoices] = useState<Record<string, PairChoice>>({});
   const [pairExports, setPairExports] = useState<Record<string, PairExport>>({});
   // The added track, for every pair: "" its own language, else this one.
-  const [addedLanguage, setAddedLanguage] = useState("");
-  const [addedTitle, setAddedTitle] = useState("");
-  const [addedDefault, setAddedDefault] = useState(false);
-  // The video's track in the corrected track's language replaced (the
-  // default: it's often a poor one), or kept beside it.
-  const [replaceSame, setReplaceSame] = useState(true);
-  const [subsOnly, setSubsOnly] = useState(false);
+  // The added track, for every pair (the export options): "" its own
+  // language, else this one; its title, its default flag; the video's track
+  // in its language replaced (the default: it's often a poor one), or kept.
+  const [added, setAdded] = useState({ language: "", title: "", isDefault: false, replaceSame: true });
+  const { language: addedLanguage, title: addedTitle, isDefault: addedDefault, replaceSame } = added;
+  // What an export writes, as the export options say (both modes alike).
+  const subsOnly = useSubsOnly();
   // Keyed by what each was made of (trackKey: both files and both tracks),
   // not by row: swapping files or adding more never shows a pair another
   // one's, and one that comes back finds its own again.
@@ -675,67 +674,6 @@ export function PairsBatch({
                 />
               </span>
             )}
-            <span className="config-field">
-              {m.common.labelled(m.pairs.addedTrack)}
-              <LanguageSelect
-                label={m.pairs.language}
-                value={addedLanguage}
-                onChange={setAddedLanguage}
-                emptyLabel={m.pairs.languageAuto}
-                disabled={busy}
-              />
-              <InfoTip>{m.pairs.languageHint}</InfoTip>
-            </span>
-            {!subsOnly && (
-              <>
-                <label className="config-field" title={m.pairs.titleHint}>
-                  {m.common.labelled(m.pairs.title)}
-                  <input
-                    {...FIELD_PROPS}
-                    className="config-title"
-                    value={addedTitle}
-                    placeholder={m.pairs.titlePlaceholder}
-                    onChange={(e) => setAddedTitle(e.target.value)}
-                    disabled={busy}
-                  />
-                </label>
-                <label className="config-field config-check" title={m.pairs.defaultTrackHint}>
-                  <input type="checkbox" checked={addedDefault} disabled={busy} onChange={(e) => setAddedDefault(e.target.checked)} />
-                  {m.pairs.defaultTrack}
-                </label>
-                <span className="config-field">
-                  {m.common.labelled(m.pairs.sameLanguage)}
-                  <PillSwitch
-                    label={m.pairs.sameLanguage}
-                    options={[
-                      ["replace", m.pairs.replace],
-                      ["keep", m.pairs.keep],
-                    ]}
-                    value={replaceSame ? "replace" : "keep"}
-                    onChange={(v) => setReplaceSame(v === "replace")}
-                    disabled={busy}
-                  />
-                  <InfoTip>{m.pairs.sameLanguageHint}</InfoTip>
-                </span>
-              </>
-            )}
-            <span className="config-field">
-              {m.common.labelled(m.batch.export)}
-              <PillSwitch
-                label={m.batch.export}
-                options={[
-                  ["mkv", m.batch.newMkv],
-                  ["subs", m.batch.subsOnly],
-                ]}
-                value={subsOnly ? "subs" : "mkv"}
-                onChange={(v) => setSubsOnly(v === "subs")}
-                disabled={busy}
-              />
-            </span>
-            <label className="config-field config-check" title={m.cleanup.hint}>
-              <input type="checkbox" checked={cleanSubtitles} disabled={busy} onChange={(e) => saveCleanSubtitles(e.target.checked)} />
-              {m.cleanup.toggle}
-            </label>
             <InfoTip>{m.pairs.hint}</InfoTip>
           </div>
 
@@ -986,6 +924,7 @@ export function PairsBatch({
           </div>
 
           <BatchFooter
+            added={{ ...added, onChange: (patch) => setAdded((c) => ({ ...c, ...patch })) }}
             outputDir={outputDir}
             onOutputDirChange={onOutputDirChange}
             busy={busy}

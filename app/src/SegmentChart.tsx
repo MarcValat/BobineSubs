@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Segment } from "./api";
 import { isDrift } from "./editing";
 import { clock, offset } from "./format";
@@ -30,6 +30,56 @@ function useShortWindow(): boolean {
 // and the time axis.
 const CUE_ROWS = 12;
 const MARGIN = { top: 14, right: 16, bottom: 26 + CUE_ROWS, left: 70 };
+
+/** A segment label's width (px) at the charts' 11px: a guess from its
+ * length, the digits all one width (tabular). */
+export const labelWidth = (text: string) => text.length * 6.3 + 4;
+
+/** Where each segment's label goes on a plot `width` x `height` px, each
+ * wanted at (`x`, `y`): above its line, else below, else higher still --
+ * never over another label nor past the plot's sides -- or hidden when
+ * none of those is free. The longest segments placed first (`weight`):
+ * a short one's label gives way. */
+export function placeLabels(
+  labels: { x: number; y: number; width: number; weight: number }[],
+  width: number,
+  height: number,
+): ({ x: number; y: number } | null)[] {
+  const placed: { left: number; right: number; top: number; bottom: number }[] = [];
+  const result: ({ x: number; y: number } | null)[] = labels.map(() => null);
+  const order = labels.map((_, i) => i).sort((a, b) => labels[b].weight - labels[a].weight);
+  for (const i of order) {
+    const label = labels[i];
+    const half = label.width / 2;
+    const x = Math.max(Math.min(half, width / 2), Math.min(width - half, label.x));
+    for (const dy of [-8, 16, -22, 30]) {
+      const y = label.y + dy;
+      const box = { left: x - half, right: x + half, top: y - 11, bottom: y + 3 };
+      if (box.top < -10 || box.bottom > height + 4) continue;
+      if (placed.some((p) => p.left < box.right && box.left < p.right && p.top < box.bottom && box.top < p.bottom)) continue;
+      placed.push(box);
+      result[i] = { x, y };
+      break;
+    }
+  }
+  return result;
+}
+
+/** The width of the element given the returned callback ref, by steps of
+ * `step` px: enough to lay labels out, without rendering again at every
+ * pixel of a resize. */
+function useCoarseWidth<T extends Element>(step: number): [(el: T | null) => void, number] {
+  const [element, setElement] = useState<T | null>(null);
+  const [width, setWidth] = useState(0);
+  const ref = useCallback((el: T | null) => setElement(el), []);
+  useEffect(() => {
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.round(entry.contentRect.width / step) * step));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element, step]);
+  return [ref, width];
+}
 
 // Offset change at a boundary below which it isn't counted as a jump.
 const JUMP_MIN_S = 0.001;
@@ -178,6 +228,9 @@ export function SegmentChart({
   const tr = useT();
   const compact = useShortWindow();
   const plot = useRef<SVGSVGElement>(null);
+  // The plot's width, for its labels (see placeLabels).
+  const [measure, boxWidth] = useCoarseWidth<HTMLDivElement>(16);
+  const plotWidth = Math.max(0, boxWidth - MARGIN.left - MARGIN.right);
   const total = duration > 0 ? duration : (segments[segments.length - 1]?.end_s ?? 0);
   // Once per analysis, not at every move of the loupe.
   const ticks = useMemo(
@@ -194,6 +247,23 @@ export function SegmentChart({
   const x = (time: number) => pct(total > 0 ? Math.min(time, total) / total : 0);
   const yShare = (o: number) => 1 - (o - minOffset) / (maxOffset - minOffset);
   const y = (o: number) => pct(yShare(o));
+
+  // Each segment's label where it doesn't cover another one.
+  const plotHeight = height - MARGIN.top - MARGIN.bottom;
+  const labels = segments.map((seg) => segmentOffsetLabel(seg));
+  const places = placeLabels(
+    segments.map((seg, i) => {
+      const [start, end] = drawnOffsets(seg);
+      return {
+        x: total > 0 ? ((seg.start_s + Math.min(seg.end_s, total)) / 2 / total) * plotWidth : 0,
+        y: ((yShare(start) + yShare(end)) / 2) * plotHeight,
+        width: labelWidth(labels[i]),
+        weight: seg.end_s - seg.start_s,
+      };
+    }),
+    plotWidth,
+    plotHeight,
+  );
 
   const timeTicks = 5;
   const timeTickValues = Array.from({ length: timeTicks + 1 }, (_, i) => (total * i) / timeTicks);
@@ -228,7 +298,7 @@ export function SegmentChart({
 
   return (
     <div className="segment-chart">
-      <div className={`segment-chart-box${onPick ? " pickable" : ""}`} style={{ height }} onPointerDown={onPointerDown}>
+      <div ref={measure} className={`segment-chart-box${onPick ? " pickable" : ""}`} style={{ height }} onPointerDown={onPointerDown}>
         {/* The plot's own box, inside the axes' margins; the labels drawn
           past its edges (overflow visible). */}
         <svg ref={plot} className="segment-chart-plot" style={plotBox} role="img" aria-label={tr.chart.ariaLabel}>
@@ -264,15 +334,11 @@ export function SegmentChart({
                   y2={y(end)}
                   className={`segment-line ${isDrift(seg) ? "drift" : "constant"}${seg.confidence < LOW_CONFIDENCE ? " low-confidence" : ""}`}
                 />
-                <text
-                  x={pct(total > 0 ? (seg.start_s + Math.min(seg.end_s, total)) / 2 / total : 0)}
-                  y={pct((yShare(start) + yShare(end)) / 2)}
-                  dy={-8}
-                  className="segment-label"
-                  textAnchor="middle"
-                >
-                  {segmentOffsetLabel(seg)}
-                </text>
+                {plotWidth > 0 && places[i] && (
+                  <text x={places[i].x} y={places[i].y} className="segment-label" textAnchor="middle">
+                    {labels[i]}
+                  </text>
+                )}
               </g>
             );
           })}

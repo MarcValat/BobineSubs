@@ -15,7 +15,7 @@ import {
   startHistory,
   undo,
 } from "./editing";
-import { drawnOffsets, offsetRange, offsetTicks, segmentOffsetLabel, SegmentLegend } from "./SegmentChart";
+import { drawnOffsets, labelWidth, offsetRange, offsetTicks, placeLabels, segmentOffsetLabel, SegmentLegend } from "./SegmentChart";
 import { CueLoupe } from "./CueLoupe";
 import { ConfidenceGauge } from "./ConfidenceGauge";
 import { InfoTip } from "./InfoTip";
@@ -154,15 +154,28 @@ export function SegmentEditor({
   const x = (time: number) => (view.duration > 0 ? ((time - view.start) / view.duration) * PLOT_W : 0);
   const xInv = (px: number) => (view.duration > 0 ? view.start + (px / PLOT_W) * view.duration : 0);
   const inView = (px: number) => px >= 0 && px <= PLOT_W;
-  // A segment's label sits in the middle of its visible part, never cut
-  // by the plot's edges (a drift's label is about 160px wide).
-  const LABEL_HALF = 80;
-  const labelX = (seg: Segment) =>
-    Math.max(
-      Math.min(LABEL_HALF, PLOT_W / 2),
-      Math.min(PLOT_W - LABEL_HALF, (Math.max(0, x(seg.start_s)) + Math.min(PLOT_W, x(seg.end_s))) / 2),
-    );
   const y = (value: number) => PLOT_H - ((value - minOffset) / (maxOffset - minOffset)) * PLOT_H;
+  // Each segment's label in the middle of its visible part, on its line,
+  // where it doesn't cover another one (see placeLabels); none for a
+  // segment out of view.
+  const labels = segments.map((seg) => segmentOffsetLabel(seg));
+  const places = placeLabels(
+    segments.map((seg, i) => {
+      const [yStart, yEnd] = drawnOffsets(seg).map(y);
+      const x0 = x(seg.start_s);
+      const x1 = x(seg.end_s);
+      const mid = (Math.max(0, x0) + Math.min(PLOT_W, x1)) / 2;
+      const visible = x1 > 0 && x0 < PLOT_W;
+      return {
+        x: mid,
+        y: yStart + (yEnd - yStart) * ((mid - x0) / (x1 - x0 || 1)),
+        width: labelWidth(labels[i]),
+        weight: visible ? Math.min(PLOT_W, x1) - Math.max(0, x0) : -1,
+      };
+    }),
+    PLOT_W,
+    PLOT_H,
+  ).map((place, i) => (x(segments[i].end_s) > 0 && x(segments[i].start_s) < PLOT_W ? place : null));
 
   function timeFromClientX(clientX: number): number {
     const rect = svgRef.current!.getBoundingClientRect();
@@ -354,15 +367,14 @@ export function SegmentEditor({
                         className="segment-hit"
                         onPointerDown={(e) => startDrag(e, { kind: "segment", index: i, grabOffset: offsetFromClientY(e.clientY) })}
                       />
-                      {/* Its label only while some of it is in view. */}
-                      {x(seg.end_s) > 0 && x(seg.start_s) < PLOT_W && (
+                      {places[i] && (
                         <text
-                          x={labelX(seg)}
-                          y={yStart + (yEnd - yStart) * ((labelX(seg) - x(seg.start_s)) / (x(seg.end_s) - x(seg.start_s) || 1)) - 10}
+                          x={places[i].x}
+                          y={places[i].y}
                           className={`segment-label${isDragged ? " dragged" : ""}${low ? " low-confidence" : ""}`}
                           textAnchor="middle"
                         >
-                          {segmentOffsetLabel(seg)}
+                          {labels[i]}
                         </text>
                       )}
                     </g>
