@@ -36,7 +36,7 @@ import AnalysisView, { AnalysisSummary, analysisDuration, chartCues } from "./An
 import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop, type DropSide } from "./FileDrop";
 import { basename } from "./paths";
-import SegmentEditor from "./SegmentEditor";
+import { SegmentEditor } from "./SegmentEditor";
 import { withSegments } from "./retime";
 import { isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
@@ -627,6 +627,14 @@ export function PairsBatch({
   const editingIndex = editing === null ? -1 : rows.find((i) => trackKey(i) === editing);
   const editingRun = editing ? analyses[editing] : undefined;
 
+  /** "file · @1 fre contre @0 eng": what the editor corrects. */
+  function editorSubtitle(i: number): string | undefined {
+    const res = resolved(i);
+    if (!res?.reference || !pairs[i].target) return undefined;
+    const label = res.targetTrack ? trackName(res.targetTrack.index, res.targetTrack) : basename(pairs[i].target!);
+    return m.editor.subtitle(basename(pairs[i].video!), label, trackName(res.reference.index, res.reference));
+  }
+
   return (
     <main className="batch-main" style={hidden ? { display: "none" } : undefined}>
       {rowCount === 0 ? (
@@ -1020,6 +1028,7 @@ export function PairsBatch({
               ? (probes[pairs[editingIndex].video!]?.duration ?? null)
               : null,
           )}
+          subtitle={editingIndex !== undefined && editingIndex >= 0 ? editorSubtitle(editingIndex) : undefined}
           onClose={() => setEditing(null)}
           onSave={(segments) => {
             updateRun(editing, (a) => ({ result: a.result ? withSegments(a.result, segments) : a.result, edited: true }));

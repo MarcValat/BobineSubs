@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { Analysis } from "./api";
 import { clock } from "./format";
 import { useT } from "./i18n";
+import { AlignIcon, ScissorsIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { segmentFor } from "./retime";
 import { panView, useDragPan, useWheel, WHEEL_ZOOM_IN_FACTOR, WHEEL_ZOOM_OUT_FACTOR, zoomView, type TimeView } from "./timeView";
@@ -234,7 +235,8 @@ export function CueLoupe({
             {m.nextJump}
           </button>
           {editing && (
-            <button className="small-button" onClick={() => editing.onSplit(centre)} title={t.editor.splitHint}>
+            <button className="small-button with-icon" onClick={() => editing.onSplit(centre)} title={t.editor.splitHint}>
+              <ScissorsIcon />
               {t.editor.split}
             </button>
           )}
@@ -257,7 +259,21 @@ export function CueLoupe({
           <InfoTip>{m.zoomHint}</InfoTip>
         </div>
       </div>
-      {editing && <p className="hint align-hint">{picked === null ? t.editor.alignHint : t.editor.alignHintPicked}</p>}
+      {/* Aligner: what to click, then the line picked and how to drop it. */}
+      {editing && (
+        <div className={`align-banner${picked !== null ? " picked" : ""}`}>
+          <AlignIcon />
+          <span>
+            <b>{t.common.labelled(t.editor.align)}</b>{" "}
+            {picked === null ? t.editor.alignHint : t.editor.alignPicked(analysis.target_cues[picked]?.text.split("\n").join(" / ") ?? "")}
+          </span>
+          {picked !== null && (
+            <button className="small-button" onClick={() => setPicked(null)}>
+              {t.editor.alignCancel}
+            </button>
+          )}
+        </div>
+      )}
       <div
         ref={lanes}
         className={`loupe-lanes${editing ? " clickable" : ""}`}

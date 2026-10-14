@@ -44,7 +44,7 @@ import AnalysisView, { AnalysisSummary, analysisDuration, chartCues } from "./An
 import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { basename } from "./paths";
-import SegmentEditor from "./SegmentEditor";
+import { SegmentEditor } from "./SegmentEditor";
 import { withSegments } from "./retime";
 import { clock, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
@@ -406,6 +406,14 @@ export function MultiTrackBatch({
       : null;
 
   const editingRun = editing ? runOf(editing.path)?.targets[editing.target] : null;
+
+  /** "file · @1 fre contre @0 eng": what the editor corrects. */
+  function editorSubtitle(path: string, target: string): string {
+    const index = runOf(path)?.referenceIndex;
+    const reference = probes[path]?.tracks?.find((tr) => tr.index === index);
+    const label = targetsOf(path).find((t) => t.id === target)?.label ?? target;
+    return m.editor.subtitle(basename(path), label, index === undefined ? "?" : trackName(index, reference));
+  }
 
   /** "Réf. auto @0 eng → @1 fre, extra.srt": a file's tracks as used now. */
   function tracksSummary(path: string, res: Resolution): string {
@@ -796,6 +804,7 @@ export function MultiTrackBatch({
         <SegmentEditor
           analysis={editingRun.result}
           duration={analysisDuration(editingRun.result, probes[editing.path]?.duration ?? null)}
+          subtitle={editorSubtitle(editing.path, editing.target)}
           onClose={() => setEditing(null)}
           onSave={(segments) => {
             const { path, target } = editing;

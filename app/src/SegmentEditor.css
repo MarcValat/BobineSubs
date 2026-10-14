@@ -1,7 +1,21 @@
-/* The segment editor, laid out as Bobine Audio's: a `fill` Dialog, the
-   timeline on top, the segments' table scrolling in its own frame below,
-   the actions at the bottom. */
+/* The segment editor (SegmentEditor.tsx), from Bobine Audio's. A `fill`
+   Dialog (the whole window, bar the backdrop's margin): the chart takes the
+   height left over, the cue loupe under it where Audio has its waveforms
+   beside it, the segment table scrolling in its own frame. */
 .editor-panel {
+  max-width: 960px;
+}
+
+/* Wider when the waveform column is present -- side by side, both the
+   offset chart/table and the waveforms need close to their normal full
+   width to stay usable, so this doesn't just split the plain panel's width
+   in two. A vw-relative cap, not a fixed px one: a hardcoded number (tried
+   1500px, then 1800px) is either too narrow on a bigger/higher-res display
+   (unused space either side, the exact complaint that led here) or
+   potentially too wide on a small one -- scaling with the viewport avoids
+   both, and the 2400px ceiling only guards against the columns stretching
+   absurdly thin-and-wide on an ultra-wide monitor. */
+.editor-panel-wide {
   max-width: min(94vw, 2400px);
 }
 
@@ -9,20 +23,68 @@
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
-  align-items: stretch;
-  gap: 1.4em;
-}
-
-.editor-primary {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
   flex-direction: column;
   gap: 0.8em;
 }
 
-.editor-timeline {
-  flex: 0 0 auto;
+.editor-chart-box {
+  flex: 1 1 auto;
+  min-height: 150px;
+  max-height: 260px;
+}
+
+.editor-chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.editor-chart .zero-line {
+  stroke: var(--text-muted);
+  stroke-dasharray: 4 3;
+}
+
+.editor-chart .grid-line {
+  stroke: currentColor;
+  opacity: 0.12;
+}
+
+.editor-chart .axis-label {
+  font-size: 11px;
+  fill: currentColor;
+  opacity: 0.7;
+}
+
+.editor-chart .segment-line {
+  stroke-width: 3;
+  fill: none;
+}
+
+.editor-chart .segment-line.constant {
+  stroke: var(--constant);
+}
+
+.editor-chart .segment-line.drift {
+  stroke: var(--drift);
+}
+
+.editor-chart .segment-line.low-confidence {
+  stroke-dasharray: 7 5;
+}
+
+/* "Retirer" hovered: the segment going away, and its neighbour stretched over it. */
+.editor-chart .segment-line.removal-target {
+  stroke: var(--danger);
+  opacity: 0.45;
+}
+
+.editor-chart .segment-line.removal-ghost {
+  stroke: var(--success);
+  stroke-dasharray: 6 4;
+  pointer-events: none;
 }
 
 .editor-confirm-close {
@@ -32,10 +94,75 @@
   font-size: 0.9em;
 }
 
-/* Its natural height, then it scrolls in its own frame, headers kept in view. */
+.editor-chart .segment-label {
+  font-size: 11px;
+  fill: currentColor;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.editor-chart .segment-label.low-confidence {
+  /* Unreliable: its value in red (its line dotted). */
+  fill: var(--danger);
+  font-weight: 600;
+}
+
+.editor-chart .segment-label.dragged {
+  font-weight: 700;
+  opacity: 1;
+}
+
+/* The grab area over each segment line (see SegmentEditor's segment-hit). */
+.editor-chart .segment-hit {
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: ns-resize;
+  pointer-events: stroke;
+}
+
+/* No text selection from dragging or double-clicking on the chart (same
+   concern as Bobine Audio's waveform handle), and the drag's cursor kept
+   even when the pointer outruns the grabbed line. */
+.editor-chart {
+  user-select: none;
+  -webkit-user-select: none;
+  /* The background drags the view, as the loupe's rows. */
+  cursor: grab;
+}
+
+.editor-chart-dragging,
+.editor-chart-dragging * {
+  cursor: grabbing !important;
+}
+
+.boundary-handle {
+  cursor: ew-resize;
+  /* Belt-and-suspenders alongside preventDefault() on pointerdown --
+     stops the page-text-selection gesture dragging this handle could
+     otherwise trigger. */
+  user-select: none;
+}
+
+.boundary-line {
+  stroke: var(--danger);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+
+.boundary-handle circle {
+  fill: var(--danger);
+}
+
+/* Its natural height up to 40% of the column, then it scrolls in its own
+   frame, headers kept in view: the chart above takes the rest. */
+/* Its rows' height, up to a third of the editor -- but always room for
+   its header and two rows (a short window: one segment scrolled). */
 .editor-table-wrap {
-  flex: 0 1 auto;
-  min-height: 5.5em;
+  /* Never squeezed below its rows (a scrollbar for one row): the chart and
+     the waveforms above give way instead. */
+  flex: 0 0 auto;
+  max-height: max(33%, 112px);
+  margin-top: 0.8em;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -44,21 +171,34 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85em;
-  font-variant-numeric: tabular-nums;
+}
+
+/* Lines between the rows and the columns; the frame's own border
+   outside (hidden: no double edge). */
+.editor-table {
+  border-style: hidden;
 }
 
 .editor-table th,
 .editor-table td {
-  padding: 0.35em 0.5em;
-  text-align: center;
+  padding: 0.35em 0.6em;
+  text-align: left;
   border: 1px solid var(--border);
 }
 
+/* The segment's number, quieter than its values. */
+.editor-table td:first-child {
+  color: var(--text-muted);
+}
+
+/* Headers may wrap at a space ("DÉCAL. / DÉBUT (ms)"): kept on one line,
+   with the confidence gauge they made the table wider than a 1280px
+   editor and cut the number fields. */
 .editor-table th {
+  white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 1;
-  white-space: nowrap;
   font-size: 0.75em;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -71,23 +211,27 @@
   white-space: nowrap;
 }
 
-/* As wide as its column, not a fixed width. */
+/* As wide as its column, not a fixed width: the table then fits its frame
+   instead of scrolling sideways in a narrow editor. */
 .editor-table input {
   width: 100%;
   min-width: 4.8em;
-  max-width: 7em;
+  /* Bobine Subs: room for "1:02:03.45" or "-157632", no more. */
+  max-width: 8.5em;
   box-sizing: border-box;
-  padding: 0.25em 0.4em;
-  font-size: 0.95em;
+  padding: 1px 7px;
+  font-size: 13px;
+  /* Digits of one width: values line up from row to row. */
+  font-variant-numeric: tabular-nums;
 }
 
 .editor-confidence-cell {
   white-space: nowrap;
 }
 
-.editor-confidence-cell.low {
-  color: var(--danger);
-  font-weight: 600;
+/* A shorter bar than elsewhere: this table's number fields need the room. */
+.editor-confidence-cell .confidence-bar {
+  width: 2.5em;
 }
 
 .editor-row-low-confidence {
@@ -98,8 +242,43 @@
   flex: 0 0 auto;
   margin-top: 1em;
   display: flex;
-  justify-content: center;
-  gap: 0.8em;
+  align-items: center;
+  gap: 0.6em;
+}
+
+/* Side by side, one height (as everywhere). */
+.editor-actions button {
+  height: 36px;
+  padding-block: 0;
+}
+
+/* "file · track", beside the title. */
+.editor-subtitle {
+  margin-left: 0.6em;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.editor-panel .segment-chart-legend {
+  font-size: 12px;
+}
+
+/* A text button led by its icon (Défaire, Refaire). */
+.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.with-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Undo/redo/reset, apart on the left: they act on the edits, not on the result. */
@@ -107,4 +286,28 @@
   display: flex;
   gap: 0.4em;
   margin-right: auto;
+}
+
+/* ---- Bobine Subs only. ---- */
+
+/* The cue loupe under the chart, its own height. */
+.editor-preview {
+  flex: 0 0 auto;
+}
+
+/* "Modifié · 2 changements", beside the title. */
+.editor-changes {
+  font-size: 12.5px;
+  color: var(--drift-text);
+  white-space: nowrap;
+}
+
+/* A segment's end (its next one's start) and its lines: read, not typed. */
+.editor-end-cell,
+.editor-cues-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-cues-cell {
+  text-align: right;
 }

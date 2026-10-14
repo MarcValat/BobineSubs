@@ -113,6 +113,50 @@ export function ArrowDownIcon() {
   );
 }
 
+/** A hooked arrow back: undo the last edit. */
+export function UndoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
+  );
+}
+
+/** A hooked arrow forward: redo what was undone. */
+export function RedoEditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 14l5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </svg>
+  );
+}
+
+/** Scissors: cut a segment in two ("Couper ici"). */
+export function ScissorsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M20 4L8.12 15.88" />
+      <path d="M14.47 14.48L20 20" />
+      <path d="M8.12 8.12L12 12" />
+    </svg>
+  );
+}
+
+/** A line onto lines: align a cue onto a reference one (Aligner). */
+export function AlignIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 9h14" />
+      <path d="M8 15h8" />
+    </svg>
+  );
+}
+
 /** A triangle with "!": something to check (a flagged file, a weak
  * segment, an engine that doesn't answer). Drawn in place of a typed
  * "⚠", which each font -- and Windows' emoji -- draws its own way. */
