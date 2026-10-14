@@ -371,6 +371,7 @@ export const fr = {
     after: "Après",
     ariaLabel: "Répliques de la référence, puis à corriger avant et après correction",
     noCounterpart: "(sans équivalent dans la référence)",
+    lines: (n: number) => `${n} répliques : zoome pour les lire`,
   },
 
   editor: {

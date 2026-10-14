@@ -77,13 +77,22 @@
   border-radius: 5px;
   font-size: 11px;
   line-height: 26px;
-  padding: 0 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
   min-width: 2px;
   color: var(--text);
+}
+
+/* Room for its text: inset a little. A narrower line keeps its own width. */
+.cue.labelled {
+  padding: 0 5px;
+}
+
+/* Lines too narrow to read and close together (zoomed out), as one. */
+.cue.merged {
+  opacity: 0.8;
 }
 
 .cue.ref {

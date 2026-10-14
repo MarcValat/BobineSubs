@@ -364,6 +364,7 @@ export const en: Messages = {
     before: "Before",
     after: "After",
     ariaLabel: "The reference's lines, then those to correct before and after correction",
+    lines: (n) => `${n} lines: zoom in to read them`,
     noCounterpart: "(no counterpart in the reference)",
   },
 
