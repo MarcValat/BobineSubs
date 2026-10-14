@@ -39,7 +39,7 @@ import {
   type BadgeKind,
   type BatchMode,
 } from "./Workspace";
-import { DetailChart, DetailExport, DetailHeader, DetailTabs, TracksHeading } from "./Detail";
+import { DetailChart, DetailExport, DetailHeader, DetailTabs, TracksHeading, useDetailView } from "./Detail";
 import AnalysisView, { AnalysisSummary, analysisDuration, chartCues } from "./AnalysisView";
 import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop } from "./FileDrop";
@@ -136,6 +136,8 @@ export function MultiTrackBatch({
   const [selected, setSelected] = useState<string | null>(null);
   const [shownTargets, setShownTargets] = useState<Record<string, string>>({});
   const collapsed = useListCollapsed();
+  // Segments / Loupe, when the detail is too low for both.
+  const view = useDetailView();
   const cleanSubtitles = useCleanSubtitles();
   const busy = analyzing || queue.exporting;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
@@ -149,7 +151,7 @@ export function MultiTrackBatch({
   }
 
   async function pickVideos() {
-    addPaths(await pickFiles(m.files.addVideos, { name: m.files.videosFilter, extensions: VIDEO_EXTENSIONS }));
+    addPaths(await pickFiles(m.files.addVideos, { name: m.files.videosFilter, extensions: VIDEO_EXTENSIONS }, "references"));
   }
 
   const dropBlocked = dropBlockedReason(busy, blocked);
@@ -343,7 +345,10 @@ export function MultiTrackBatch({
   /** "+ Ajouter des sous-titres": standalone files to correct, added to
    * `path`'s tracks (ticked), each read for its line count. */
   async function addExternal(path: string) {
-    addExternalPaths(path, await pickFiles(m.files.addSubtitles, { name: m.files.subtitlesFilter, extensions: SUBTITLE_EXTENSIONS }));
+    addExternalPaths(
+      path,
+      await pickFiles(m.files.addSubtitles, { name: m.files.subtitlesFilter, extensions: SUBTITLE_EXTENSIONS }, "targets"),
+    );
   }
 
   function addExternalPaths(path: string, picked: string[]) {
@@ -606,16 +611,17 @@ export function MultiTrackBatch({
 
                 {detailProbe?.error && <p className="error">{detailProbe.error}</p>}
                 {detailRes && detailProbe?.tracks && (
-                  <div className="detail-body">
-                    {detailTargets.length > 1 && shownTarget && (
+                  <div className="detail-body" ref={view.ref}>
+                    {shownTarget && (
                       <DetailTabs
                         tracks={detailTargets.map((t) => [t.id, t.label] as const)}
                         value={shownTarget.id}
                         onChange={(id) => setShownTargets((c) => ({ ...c, [detailPath]: id }))}
+                        view={view.compact && shownResult ? { value: view.view, onChange: view.setView } : undefined}
                       />
                     )}
 
-                    <div className="detail-top">
+                    <div className={view.topClass(!!shownResult)}>
                       <div className="detail-tracks">
                         <TracksHeading
                           hint={m.multi.tracksHint}
@@ -734,7 +740,11 @@ export function MultiTrackBatch({
                       </DetailChart>
                     </div>
 
-                    {shownResult && <AnalysisView analysis={shownResult} duration={shownDuration} view={loupeView} onView={setLoupeView} />}
+                    {shownResult && (
+                      <div className={view.loupeClass()}>
+                        <AnalysisView analysis={shownResult} duration={shownDuration} view={loupeView} onView={setLoupeView} />
+                      </div>
+                    )}
                   </div>
                 )}
 

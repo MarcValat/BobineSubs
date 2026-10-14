@@ -29,6 +29,8 @@ export const fr = {
     reference: "Référence",
     toCorrect: "À corriger",
     segments: "Segments",
+    loupe: "Loupe",
+    view: "Affichage",
     log: (n: number) => `Journal (${n})`,
     labelled: (label: string) => `${label} :`,
     connectionLost: "Connexion interrompue avant la fin du traitement (le moteur a-t-il planté ?).",

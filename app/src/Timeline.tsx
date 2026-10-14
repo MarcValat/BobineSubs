@@ -6,7 +6,7 @@ import { clock, offset as formatOffset } from "./format";
 import { t } from "./i18n";
 import { SegmentLegend } from "./SegmentChart";
 import { LOW_CONFIDENCE } from "./shared";
-import { useElementWidth } from "./useElementWidth";
+import { useElementSize } from "./useElementSize";
 import "./Timeline.css";
 
 const OVERVIEW_HEIGHT = 130;
@@ -62,7 +62,7 @@ function Overview({
   onPick,
   editing,
 }: Props & { windowStart: number; windowEnd: number; onPick: (t: number) => void }) {
-  const [ref, width] = useElementWidth<HTMLDivElement>();
+  const [ref, { width }] = useElementSize<HTMLDivElement>();
   const drag = useRef<Drag | null>(null);
   const [frozen, setFrozen] = useState<[number, number] | null>(null);
   const plotWidth = Math.max(1, width - OVERVIEW_PAD.left - OVERVIEW_PAD.right);

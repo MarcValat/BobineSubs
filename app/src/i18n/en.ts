@@ -26,6 +26,8 @@ export const en: Messages = {
     reference: "Reference",
     toCorrect: "To correct",
     segments: "Segments",
+    loupe: "Loupe",
+    view: "View",
     log: (n) => `Log (${n})`,
     labelled: (label) => `${label}:`,
     connectionLost: "Connection lost before the processing finished (did the engine crash?).",

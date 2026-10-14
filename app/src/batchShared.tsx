@@ -268,7 +268,7 @@ function OutputChooser({
         disabled={disabled}
         title={t.batch.chooseFolderHint}
         onClick={async () => {
-          const dir = await pickFolder(t.batch.outputFolder);
+          const dir = await pickFolder(t.batch.outputFolder, outputDir);
           if (dir) onOutputDirChange(dir);
         }}
       >

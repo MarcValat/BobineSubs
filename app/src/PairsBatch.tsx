@@ -31,7 +31,7 @@ import {
   type BatchMode,
   type FileProbe,
 } from "./Workspace";
-import { DetailChart, DetailExport, DetailHeader, TracksHeading } from "./Detail";
+import { DetailChart, DetailExport, DetailHeader, DetailTabs, TracksHeading, useDetailView } from "./Detail";
 import AnalysisView, { AnalysisSummary, analysisDuration, chartCues } from "./AnalysisView";
 import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop, type DropSide } from "./FileDrop";
@@ -262,6 +262,8 @@ export function PairsBatch({
   // The row shown in the detail.
   const [selected, setSelected] = useState(0);
   const collapsed = useListCollapsed();
+  // Segments / Loupe, when the detail is too low for both.
+  const view = useDetailView();
   const cleanSubtitles = useCleanSubtitles();
   const busy = analyzing || queue.exporting;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
@@ -294,13 +296,17 @@ export function PairsBatch({
   }
 
   const pickVideos = async () =>
-    addFiles(await pickFiles(m.pairs.pickReferences, { name: m.files.videosFilter, extensions: VIDEO_EXTENSIONS }), "left");
+    addFiles(await pickFiles(m.pairs.pickReferences, { name: m.files.videosFilter, extensions: VIDEO_EXTENSIONS }, "references"), "left");
   const pickTargets = async () =>
     addFiles(
-      await pickFiles(m.pairs.pickCandidates, {
-        name: m.pairs.candidatesFilter,
-        extensions: [...SUBTITLE_EXTENSIONS, ...VIDEO_EXTENSIONS],
-      }),
+      await pickFiles(
+        m.pairs.pickCandidates,
+        {
+          name: m.pairs.candidatesFilter,
+          extensions: [...SUBTITLE_EXTENSIONS, ...VIDEO_EXTENSIONS],
+        },
+        "targets",
+      ),
       "right",
     );
 
@@ -831,8 +837,23 @@ export function PairsBatch({
                   </p>
                 ))}
                 {detailPaired && unreadable(selected).length === 0 && (
-                  <div className="detail-body">
-                    <div className="detail-top">
+                  <div className="detail-body" ref={view.ref}>
+                    {detailRes?.target && (
+                      <DetailTabs
+                        tracks={[
+                          [
+                            "target",
+                            detailRes.targetTrack
+                              ? trackName(detailRes.targetTrack.index, detailRes.targetTrack)
+                              : basename(detail!.target!),
+                          ],
+                        ]}
+                        value="target"
+                        onChange={() => {}}
+                        view={view.compact && detailResult ? { value: view.view, onChange: view.setView } : undefined}
+                      />
+                    )}
+                    <div className={view.topClass(!!detailResult)}>
                       <div className="detail-tracks">
                         <TracksHeading
                           hint={m.pairs.tracksHint}
@@ -944,7 +965,9 @@ export function PairsBatch({
                     </div>
 
                     {detailResult && (
-                      <AnalysisView analysis={detailResult} duration={detailDuration} view={loupeView} onView={setLoupeView} />
+                      <div className={view.loupeClass()}>
+                        <AnalysisView analysis={detailResult} duration={detailDuration} view={loupeView} onView={setLoupeView} />
+                      </div>
                     )}
                   </div>
                 )}

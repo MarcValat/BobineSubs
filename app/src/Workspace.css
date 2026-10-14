@@ -1032,3 +1032,9 @@
 .pair-export input {
   min-width: 0;
 }
+
+/* The loupe and the segments' table under the tracks, the body scrolling
+   as a whole: the loupe keeps its height (Audio's waveforms fill theirs). */
+.file-detail .detail-body > .segments-result {
+  flex: 0 0 auto;
+}

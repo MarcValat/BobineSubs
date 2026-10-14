@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { nextStep, RevealButton, writtenFile, type AnalysisRun, type ExportFields } from "./batchShared";
 import { useT } from "./i18n";
 import { RedoIcon } from "./icons";
@@ -7,11 +7,58 @@ import { LogPanel } from "./LogPanel";
 import { basename } from "./paths";
 import { PillSwitch } from "./PillSwitch";
 import { SegmentChartPlaceholder } from "./SegmentChart";
+import { useShorterThan } from "./useElementSize";
 
 /** The parts of a list item's detail (Workspace.css), shared by both batch
  * modes: a multitrack file's and a pair's are laid out alike -- a header
  * with the item's next step, a tab per corrected track, its tracks beside
  * what its analysis found, how its export went. From Bobine Audio. */
+
+/** Segments / Loupe: the tracks and the chart, or the loupe and the
+ * segments' table, when there isn't room for both (Bobine Audio's Segments
+ * / Écoute, the loupe in place of its waveforms). */
+type AnalysisView = "segments" | "loupe";
+
+// Height of the detail's body below which the tracks and chart, and the
+// loupe, are shown one at a time (the Segments / Loupe tabs).
+const COMPACT_HEIGHT = 560;
+
+/** The detail's body (`ref`), and whether it's too low for the tracks, the
+ * chart and the loupe at once: then they're two tabs, the `view` picked;
+ * the classes put each part on its tab. From Bobine Audio. */
+export function useDetailView() {
+  const [ref, compact] = useShorterThan<HTMLDivElement>(COMPACT_HEIGHT);
+  const [view, setView] = useState<AnalysisView>("loupe");
+  return {
+    ref,
+    compact,
+    view,
+    setView,
+    /** The tracks and the chart: hidden on the Loupe tab, the whole
+     * height on the Segments one. `analyzed`: there's a loupe (else no tabs). */
+    topClass: (analyzed: boolean) =>
+      compact && analyzed ? (view === "loupe" ? "view-hidden" : "detail-top detail-top-fill") : "detail-top",
+    /** The loupe and the segments' table: hidden on the Segments tab. */
+    loupeClass: () => (compact && view !== "loupe" ? "view-hidden" : "segments-result"),
+  };
+}
+
+/** The Segments / Loupe switch. */
+function ViewSwitch({ value, onChange }: { value: AnalysisView; onChange: (view: AnalysisView) => void }) {
+  const t = useT();
+  return (
+    <PillSwitch
+      className="view-switch"
+      label={t.common.view}
+      options={[
+        ["segments", t.common.segments],
+        ["loupe", t.common.loupe],
+      ]}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
 
 /** The detail's title row: the item's name and what it is, then its
  * buttons -- "Réanalyser" (the shown track alone), "Modifier les segments",
@@ -115,20 +162,24 @@ export function DetailHeader({
   );
 }
 
-/** The row above the tracks and the analysis: one tab per corrected track. */
+/** The row above the tracks and the analysis: one tab per corrected track,
+ * and Segments / Loupe when there isn't room for both (`view`). */
 export function DetailTabs({
   tracks,
   value,
   onChange,
+  view,
 }: {
   tracks: readonly (readonly [string, string])[];
   value: string;
   onChange: (value: string) => void;
+  view?: { value: AnalysisView; onChange: (view: AnalysisView) => void };
 }) {
   const t = useT();
   return (
     <div className="detail-tabs">
       <PillSwitch className="detail-track-tabs" label={t.multi.shownTrack} options={tracks} value={value} onChange={onChange} />
+      {view && <ViewSwitch value={view.value} onChange={view.onChange} />}
     </div>
   );
 }
