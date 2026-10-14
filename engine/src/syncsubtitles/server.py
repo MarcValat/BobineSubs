@@ -342,6 +342,7 @@ class AnalysisModel(BaseModel):
     reference_cues: list[tuple[float, float, str]]
     target_cues: list[TargetCueModel]
     warnings: list[str]
+    cleanup: dict[str, int] = {}
 
     @classmethod
     def of(cls, a: Analysis) -> AnalysisModel:
@@ -355,6 +356,7 @@ class AnalysisModel(BaseModel):
             reference_cues=a.reference_cues,
             target_cues=[TargetCueModel(**vars(c)) for c in a.target_cues],
             warnings=a.warnings,
+            cleanup=a.cleanup,
         )
 
 
@@ -399,6 +401,8 @@ class RenderRequest(BaseModel):
     # ...or several: all in one new MKV, or (``subs_only``) each in its own
     # file.
     tracks: list[RenderTrack] = []
+    # The corrected SRT files' obvious faults fixed too (see cleanup).
+    clean: bool = True
 
 
 def _written(written: Written) -> dict:
@@ -407,6 +411,7 @@ def _written(written: Written) -> dict:
         "kind": written.kind,
         "language": written.language,
         "dropped": [{"start": start, "text": text} for start, text in written.dropped],
+        "cleaned": written.cleaned,
     }
 
 
@@ -436,6 +441,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                     track.output or (req.output if len(tracks) == 1 else None),
                     True,
                     log=log,
+                    clean=req.clean,
                 )
                 for track in tracks
             ]
@@ -450,6 +456,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                 ],
                 req.output,
                 log,
+                req.clean,
             )
         log(tr("Écrit : {path}", path=written[0].path))
         # The first track's, and every track's.

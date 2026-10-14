@@ -9,6 +9,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from syncsubtitles.cleanup import clean as clean_document
 from syncsubtitles.detect import detect_constant
 from syncsubtitles.ffmpeg_backend import extract_subtitles, probe_subtitle_streams
 from syncsubtitles.filters import plain_text
@@ -81,6 +82,9 @@ class Analysis:
     reference_cues: list[tuple[float, float, str]]
     target_cues: list[TargetCue]
     warnings: list[str] = field(default_factory=list)
+    # What the cleanup would fix in the corrected file, by kind (see
+    # cleanup.clean): the export says what it did.
+    cleanup: dict[str, int] = field(default_factory=dict)
 
     @property
     def ratio_name(self) -> str | None:
@@ -135,6 +139,7 @@ def analyze(
     if any(seg.confidence < LOW_CONFIDENCE for seg in segments):
         warnings.append(tr("Certains segments sont peu fiables : vérifie-les."))
     log(tr("{count} segment(s) trouvé(s)", count=len(segments)))
+    _, cleanup = clean_document(retime(tgt_doc, segments), _source_language(pair.target))
 
     return Analysis(
         reference=pair.reference,
@@ -148,6 +153,7 @@ def analyze(
             for i, c in enumerate(tgt_doc.cues)
         ],
         warnings=warnings,
+        cleanup=dict(cleanup),
     )
 
 
@@ -168,6 +174,8 @@ class Written:
     kind: str
     language: str | None
     dropped: list[tuple[float, str]]
+    # What the cleanup fixed, by kind (see cleanup.clean).
+    cleaned: dict[str, int] = field(default_factory=dict)
 
 
 def write_result(
@@ -180,16 +188,25 @@ def write_result(
     title: str | None = None,
     default: bool | None = None,
     log: Log = _no_log,
+    clean: bool = True,
 ) -> Written:
     """Retime the target by ``segments`` and write it: a standalone
     subtitle file, or a new MKV (the reference's) where it replaces the
-    original track (same file) or is added (anything else)."""
+    original track (same file) or is added (anything else). ``clean``:
+    its obvious faults fixed too (see cleanup)."""
     if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
-        corrected, dropped = _retimed(target, segments, log)
+        corrected, dropped, cleaned = _retimed(target, segments, log, clean, language or _source_language(target))
         out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
         write_subtitle(corrected, out)
-        return Written(out, "subtitles", None, dropped)
-    return write_tracks(reference, [TrackToWrite(target, segments, language, title, default)], output, log)[0]
+        return Written(out, "subtitles", None, dropped, cleaned)
+    return write_tracks(reference, [TrackToWrite(target, segments, language, title, default)], output, log, clean)[0]
+
+
+def _source_language(target: SubtitleTrackSpec) -> str | None:
+    """The target's language: its file name's, or its track's."""
+    if target.is_external:
+        return guess_language(target.path)
+    return probe_subtitle_streams(target.path)[target.stream_index or 0].language
 
 
 @dataclass(frozen=True)
@@ -205,9 +222,10 @@ class TrackToWrite:
 
 
 def _retimed(
-    target: SubtitleTrackSpec, segments: Sequence[Segment], log: Log
-) -> tuple[SubtitleDocument, list[tuple[float, str]]]:
-    """The target retimed by ``segments``, and the lines that fell off."""
+    target: SubtitleTrackSpec, segments: Sequence[Segment], log: Log, clean: bool, language: str | None
+) -> tuple[SubtitleDocument, list[tuple[float, str]], dict[str, int]]:
+    """The target retimed by ``segments`` (and cleaned, in ``language``),
+    the lines that fell off, and what the cleanup fixed."""
     if not target.is_external and target.stream_index is None:
         raise AnalysisError(tr("Piste cible non précisée."))
     log(tr("Lecture de la piste à corriger…"))
@@ -217,7 +235,11 @@ def _retimed(
         for c, m in zip(document.cues, corrected_cues(document, segments))
         if m is None or m[1] <= 0
     ]
-    return retime(document, segments), dropped
+    corrected = retime(document, segments)
+    if not clean:
+        return corrected, dropped, {}
+    corrected, fixed = clean_document(corrected, language)
+    return corrected, dropped, dict(fixed)
 
 
 def write_tracks(
@@ -225,6 +247,7 @@ def write_tracks(
     tracks: Sequence[TrackToWrite],
     output: str | None = None,
     log: Log = _no_log,
+    clean: bool = True,
 ) -> list[Written]:
     """A new MKV (the reference's) with every track of ``tracks`` retimed:
     one of the reference's own tracks takes its place, any other is added.
@@ -242,7 +265,6 @@ def write_tracks(
     written: list[Written] = []
     for track in tracks:
         target = track.target
-        corrected, dropped = _retimed(target, track.segments, log)
         replace_index = None
         metadata = TrackMetadata(
             language=track.language or guess_language(target.path), title=track.title, default=bool(track.default)
@@ -259,8 +281,11 @@ def write_tracks(
                 else track.default,
                 forced=source.forced,
             )
+        corrected, dropped, cleaned = _retimed(target, track.segments, log, clean, metadata.language)
         muxed.append(MuxTrack(corrected, metadata, replace_index))
-        written.append(Written(out, "replaced" if replace_index is not None else "added", metadata.language, dropped))
+        written.append(
+            Written(out, "replaced" if replace_index is not None else "added", metadata.language, dropped, cleaned)
+        )
     log(tr("Écriture du MKV…"))
     mux_tracks(reference.path, muxed, out)
     return written

@@ -291,4 +291,21 @@ export const en: Messages = {
     alignHint: "Align: click a line of the “After” row, then the reference line it should fall on.",
     alignHintPicked: "Now click the reference line it should fall on (or click it again to cancel).",
   },
+
+  cleanup: {
+    toggle: "Clean up subtitles",
+    hint: "On export, fixes the corrected SRT files' obvious faults: extra spaces, dialogue dashes stuck to their line, sentences run together, punctuation (in French, a no-break space before ? ! : ;), mixed apostrophes, a site's ad lines (the translator's credit stays), lines overlapping or too short to be read. ASS files aren't touched.",
+    summary: (fixes) => `Cleanup on export: ${fixes}`,
+    kinds: {
+      spaces: (n) => `${n} extra space${n > 1 ? "s" : ""}`,
+      dashes: (n) => `${n} stuck dash${n > 1 ? "es" : ""}`,
+      glued: (n) => `${n} run-together sentence${n > 1 ? "s" : ""}`,
+      punctuation: (n) => `${n} punctuation fix${n > 1 ? "es" : ""}`,
+      apostrophes: (n) => `${n} apostrophe${n > 1 ? "s" : ""}`,
+      ads: (n) => `${n} ad${n > 1 ? "s" : ""} removed`,
+      overlaps: (n) => `${n} overlap${n > 1 ? "s" : ""}`,
+      short: (n) => `${n} line${n > 1 ? "s" : ""} too short`,
+      inverted: (n) => `${n} ending${n > 1 ? "s" : ""} before the start`,
+    },
+  },
 };

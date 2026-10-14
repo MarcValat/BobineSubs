@@ -55,7 +55,7 @@ import { SegmentChart } from "./SegmentChart";
 import { devParam, errorMessage, toggled } from "./util";
 import { useT } from "./i18n";
 import { WarningIcon } from "./icons";
-import { useListCollapsed } from "./settings";
+import { saveCleanSubtitles, useCleanSubtitles, useListCollapsed } from "./settings";
 
 /** One file's analyses (one per corrected track) and its single export. Kept
  * with the reference they were made against: a different one since makes
@@ -123,6 +123,7 @@ export function MultiTrackBatch({
   const [selected, setSelected] = useState<string | null>(null);
   const [shownTargets, setShownTargets] = useState<Record<string, string>>({});
   const collapsed = useListCollapsed();
+  const cleanSubtitles = useCleanSubtitles();
   const busy = analyzing || queue.exporting;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
 
@@ -307,7 +308,7 @@ export function MultiTrackBatch({
               startRenderTracks(
                 reference,
                 done.map(([target, r], k) => ({ target: target.ref, segments: r.result!.segments, output: subsOnly ? outputs[k] : null })),
-                { output: subsOnly ? null : outputs[0], subsOnly },
+                { output: subsOnly ? null : outputs[0], subsOnly, clean: cleanSubtitles },
               ),
             update: (patch: (entry: ExportFields) => Partial<ExportFields>) => updateRun(path, (r) => ({ ...r, ...patch(r) })),
           };
@@ -464,6 +465,10 @@ export function MultiTrackBatch({
                 disabled={busy}
               />
             </span>
+            <label className="config-field config-check" title={m.cleanup.hint}>
+              <input type="checkbox" checked={cleanSubtitles} disabled={busy} onChange={(e) => saveCleanSubtitles(e.target.checked)} />
+              {m.cleanup.toggle}
+            </label>
             <InfoTip>{m.multi.hint}</InfoTip>
           </div>
 
@@ -640,7 +645,7 @@ export function MultiTrackBatch({
                       >
                         {shownResult && (
                           <div className="detail-summary">
-                            <AnalysisSummary analysis={shownResult} edited={shownRun?.edited} />
+                            <AnalysisSummary analysis={shownResult} edited={shownRun?.edited} cleanup={cleanSubtitles} />
                             <SegmentChart
                               segments={shownResult.segments}
                               duration={shownDuration}

@@ -45,3 +45,20 @@ export function saveListCollapsed(collapsed: boolean): void {
 export function useListCollapsed(): boolean {
   return useSyncExternalStore(subscribe, loadListCollapsed);
 }
+
+const CLEAN_SUBTITLES_KEY = "syncsubtitles.cleanSubtitles";
+
+/** Whether an export fixes the corrected SRT files' obvious faults too
+ * (the engine's cleanup: the default). */
+function loadCleanSubtitles(): boolean {
+  return loadSetting(CLEAN_SUBTITLES_KEY) !== "0";
+}
+
+export function saveCleanSubtitles(clean: boolean): void {
+  saveSetting(CLEAN_SUBTITLES_KEY, clean ? null : "0");
+  changed();
+}
+
+export function useCleanSubtitles(): boolean {
+  return useSyncExternalStore(subscribe, loadCleanSubtitles);
+}

@@ -62,6 +62,9 @@ export interface Analysis {
   reference_cues: [number, number, string][];
   target_cues: TargetCue[];
   warnings: string[];
+  /** What the cleanup would fix in the corrected SRT file, by kind
+   * (engine cleanup.clean): empty for ASS, or nothing to fix. */
+  cleanup?: Record<string, number>;
 }
 
 export interface RenderResult {
@@ -167,9 +170,10 @@ export async function startRender(reference: TrackRef, target: TrackRef, segment
 export async function startRenderTracks(
   reference: TrackRef,
   tracks: RenderTrack[],
-  options: { output: string | null; subsOnly: boolean },
+  options: { output: string | null; subsOnly: boolean; clean: boolean },
 ): Promise<string> {
-  return (await (await postJson("/jobs/render", { reference, tracks, output: options.output, subs_only: options.subsOnly })).json()).job_id;
+  const body = { reference, tracks, output: options.output, subs_only: options.subsOnly, clean: options.clean };
+  return (await (await postJson("/jobs/render", body)).json()).job_id;
 }
 
 /** Every readable subtitle track of a container read (and kept by the

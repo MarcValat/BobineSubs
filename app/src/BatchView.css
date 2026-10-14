@@ -26,6 +26,12 @@
   font-size: 0.9em;
 }
 
+/* A checkbox among the fields ("Nettoyer les sous-titres"). */
+.batch-config .config-check {
+  gap: 0.4em;
+  cursor: pointer;
+}
+
 .batch-footer {
   flex: 0 0 auto;
   display: flex;

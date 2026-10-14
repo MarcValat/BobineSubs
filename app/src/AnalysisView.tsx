@@ -11,17 +11,21 @@ import { LOW_CONFIDENCE } from "./shared";
 import type { TimeView } from "./timeView";
 
 /** What an analysis found, in a few words: the drift, a hand edit, how
- * many lines on each side, those without a counterpart or dropped, and its
- * warnings. */
+ * many lines on each side, those without a counterpart or dropped, what
+ * the export's cleanup will fix (`cleanup`: it's on), and its warnings. */
 export function AnalysisSummary({
   analysis,
   edited = false,
+  cleanup = false,
 }: {
   analysis: Analysis;
   /** The segments were changed by hand since the analysis. */
   edited?: boolean;
+  cleanup?: boolean;
 }) {
-  const m = useT().analysis;
+  const t = useT();
+  const m = t.analysis;
+  const fixes = Object.entries(analysis.cleanup ?? {}).filter(([kind, n]) => n > 0 && kind in t.cleanup.kinds);
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
   const dropped = analysis.target_cues.filter((c) => c.corrected === null || c.corrected[1] <= 0).length;
   return (
@@ -36,6 +40,11 @@ export function AnalysisSummary({
           {dropped > 0 && <span className="warn-text">{m.dropped(dropped)}</span>}
         </span>
       </div>
+      {cleanup && fixes.length > 0 && (
+        <p className="analysis-cleanup" title={t.cleanup.hint}>
+          {t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))}
+        </p>
+      )}
       {analysis.warnings.map((w) => (
         <p key={w} className="warning">
           <WarningIcon /> {w}

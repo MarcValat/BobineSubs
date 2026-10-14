@@ -295,6 +295,23 @@ export const fr = {
     alignHint: "Aligner : clique une réplique de la ligne « Après », puis la réplique de référence où elle doit tomber.",
     alignHintPicked: "Maintenant, clique la réplique de référence où elle doit tomber (ou reclique-la pour annuler).",
   },
+
+  cleanup: {
+    toggle: "Nettoyer les sous-titres",
+    hint: "À l'export, corrige les défauts évidents des SRT corrigés : espaces en trop, tirets de dialogue collés, phrases collées, ponctuation (en français, une espace insécable avant ? ! : ;), apostrophes mélangées, lignes de pub d'un site (le crédit du traducteur reste), lignes qui se chevauchent ou trop courtes pour être lues. Les fichiers ASS ne sont pas touchés.",
+    summary: (fixes: string) => `Nettoyage à l'export : ${fixes}`,
+    kinds: {
+      spaces: (n: number) => `${n} espace${n > 1 ? "s" : ""} en trop`,
+      dashes: (n: number) => `${n} tiret${n > 1 ? "s" : ""} collé${n > 1 ? "s" : ""}`,
+      glued: (n: number) => `${n} phrase${n > 1 ? "s" : ""} collée${n > 1 ? "s" : ""}`,
+      punctuation: (n: number) => `${n} ponctuation${n > 1 ? "s" : ""}`,
+      apostrophes: (n: number) => `${n} apostrophe${n > 1 ? "s" : ""}`,
+      ads: (n: number) => `${n} pub${n > 1 ? "s" : ""} retirée${n > 1 ? "s" : ""}`,
+      overlaps: (n: number) => `${n} chevauchement${n > 1 ? "s" : ""}`,
+      short: (n: number) => `${n} ligne${n > 1 ? "s" : ""} trop courte${n > 1 ? "s" : ""}`,
+      inverted: (n: number) => `${n} fin${n > 1 ? "s" : ""} avant le début`,
+    },
+  },
 };
 
 export type Messages = typeof fr;

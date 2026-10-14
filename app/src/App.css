@@ -870,6 +870,13 @@ button:focus-visible {
   font-weight: 600;
 }
 
+/* What the export's cleanup will fix. */
+.analysis-cleanup {
+  margin: 0.3em 0 0;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
 .analysis-counts {
   margin-left: auto;
   color: var(--text-muted);
