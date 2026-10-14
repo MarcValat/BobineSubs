@@ -149,21 +149,32 @@ def mux_tracks(container: str, tracks: list[MuxTrack], output: str | Path) -> No
                     str(partial),
                 ]
             )
-        check_cluster_order(partial)
+        check_cluster_order(partial, _backwards_in(container))
         os.replace(partial, output)
     finally:
         partial.unlink(missing_ok=True)
 
 
-def check_cluster_order(path: str | Path) -> None:
+def _backwards_in(container: str | Path) -> int:
+    """How many clusters of the source go back in time already (0: not
+    Matroska): a remux copies them as they are."""
+    try:
+        return out_of_order(cluster_timestamps(container))
+    except MatroskaError, OSError:
+        return 0
+
+
+def check_cluster_order(path: str | Path, allowed: int = 0) -> None:
     """Refuses a written file whose clusters go back in time: VLC skips the
     blocks of one written too early (subtitles that never show), however
-    well ffmpeg itself reads it."""
+    well ffmpeg itself reads it. ``allowed``: as many as its source had
+    already (seen: a video one cluster 35 ms back near its end; every
+    export of it was refused, for nothing the export did)."""
     try:
         backwards = out_of_order(cluster_timestamps(path))
     except (MatroskaError, OSError) as exc:
         raise FFmpegError(tr("Fichier écrit illisible : {error}", error=exc)) from exc
-    if backwards:
+    if backwards > allowed:
         raise FFmpegError(
             tr(
                 "{count} groupe(s) de blocs hors de l'ordre du temps : certains lecteurs n'afficheraient pas tout",

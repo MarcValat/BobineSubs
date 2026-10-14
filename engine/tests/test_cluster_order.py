@@ -91,6 +91,22 @@ def test_a_file_with_clusters_out_of_order_is_refused(mkv: Path, tmp_path: Path)
     assert out_of_order(cluster_timestamps(out)) == 1
     with pytest.raises(FFmpegError, match="ordre du temps"):
         check_cluster_order(out)
+    # Unless its source was so already: the remux only copied that.
+    check_cluster_order(out, allowed=1)
+
+
+def test_a_source_out_of_order_can_still_be_exported(mkv: Path, tmp_path: Path):  # noqa: F811
+    """A video one cluster back already (seen near a file's end): exporting
+    it keeps that one, and isn't refused for it."""
+    source = tmp_path / "source.mkv"
+    mux(str(mkv), DOC, source, TrackMetadata(language="fre"))
+    pos, size = _timestamp_offsets(source)[2]
+    data = bytearray(source.read_bytes())
+    data[pos : pos + size] = bytes(size)
+    source.write_bytes(bytes(data))
+    out = tmp_path / "out.mkv"
+    mux(str(source), DOC, out, TrackMetadata(language="ger"))
+    assert out.exists()
 
 
 def _element(element_id: int, payload: bytes, width: int) -> bytes:

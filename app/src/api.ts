@@ -20,6 +20,8 @@ export interface ProbeResponse {
   duration: number | null;
   tracks: TrackInfo[];
   cue_count: number | null;
+  /** A standalone file's language, from its name ("Film.fr.srt"). */
+  language?: string | null;
 }
 
 /** A standalone subtitle file (index null), or track `index` of a container
@@ -88,6 +90,8 @@ export interface RenderTrack {
   default?: boolean | null;
   /** Its own file, in a subtitles-only export. */
   output?: string | null;
+  /** The reference file's subtitle track it takes the place of. */
+  replaces?: number | null;
 }
 
 export interface RenderOptions {
@@ -96,6 +100,9 @@ export interface RenderOptions {
   language: string | null;
   title: string | null;
   default: boolean | null;
+  /** Take the place of the reference file's track in the same language, if
+   * there's one. */
+  replace_same_language: boolean;
 }
 
 async function engineFetch(path: string, init?: RequestInit): Promise<Response> {

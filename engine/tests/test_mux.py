@@ -11,7 +11,7 @@ from syncsubtitles.ffmpeg_backend import extract_subtitle, probe_subtitle_stream
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.render import TrackMetadata, mux
 from syncsubtitles.retime import Segment
-from syncsubtitles.service import TrackToWrite, write_tracks
+from syncsubtitles.service import AnalysisError, TrackToWrite, write_tracks
 from syncsubtitles.subformats import ASS, SRT, Cue, SubtitleDocument, parse
 
 REF = "1\n00:00:10,000 --> 00:00:12,000\nHello\n\n2\n00:00:20,000 --> 00:00:21,500\nWorld\n"
@@ -234,3 +234,64 @@ def test_the_render_job_writes_several_subtitle_files(mkv: Path, tmp_path: Path)
     assert state["status"] == "done", state
     assert [t["path"] for t in state["result"]["tracks"]] == [str(out) for out in outs]
     assert all(out.exists() for out in outs)
+
+
+def test_a_standalone_file_takes_the_place_of_a_poor_track(mkv: Path, tmp_path: Path):
+    """A new French file replacing the video's own French track: in its
+    place, with its title, and no second French track."""
+    new = tmp_path / "Film.fr.srt"
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    out = tmp_path / "out.mkv"
+    written = write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [TrackToWrite(SubtitleTrackSpec(str(new), str(new), None, is_external=True), segments, replaces=1)],
+        str(out),
+    )
+    assert [w.kind for w in written] == ["replaced"]
+    streams = probe_subtitle_streams(str(out))
+    assert [(s.language, s.title) for s in streams] == [("eng", None), ("fre", "VF")]
+    video_start = _first_pts_ms(mkv, "0:v:0")
+    assert _subtitle_offset_from_video(out, 1) == pytest.approx(6000 - video_start, abs=10)
+
+
+def test_two_tracks_cannot_take_the_same_place(mkv: Path, tmp_path: Path):
+    new = tmp_path / "Film.fr.srt"
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    with pytest.raises(AnalysisError):
+        write_tracks(
+            SubtitleTrackSpec(str(mkv), str(mkv), 0),
+            [
+                TrackToWrite(SubtitleTrackSpec(str(mkv), str(mkv), 1), segments),
+                TrackToWrite(SubtitleTrackSpec(str(new), str(new), None, is_external=True), segments, replaces=1),
+            ],
+            str(tmp_path / "out.mkv"),
+        )
+
+
+@pytest.mark.parametrize(
+    ("name", "kind", "languages"),
+    [
+        ("Film.fr.srt", "replaced", [("eng", None), ("fre", "VF")]),
+        # No German track to replace: added.
+        ("Film.de.srt", "added", [("eng", None), ("fre", "VF"), ("ger", None)]),
+    ],
+)
+def test_a_standalone_file_replaces_the_track_in_its_language(mkv: Path, tmp_path: Path, name, kind, languages):
+    new = tmp_path / name
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    out = tmp_path / "out.mkv"
+    written = write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [
+            TrackToWrite(
+                SubtitleTrackSpec(str(new), str(new), None, is_external=True),
+                [Segment(0.0, 30.0, -1.0, -1.0)],
+                replace_same_language=True,
+            )
+        ],
+        str(out),
+    )
+    assert [w.kind for w in written] == [kind]
+    assert [(s.language, s.title) for s in probe_subtitle_streams(str(out))] == languages

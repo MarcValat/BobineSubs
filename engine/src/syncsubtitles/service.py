@@ -6,7 +6,7 @@ Messages (``log``, warnings, errors) are in French, the UI's language.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from syncsubtitles.cleanup import clean as clean_document
@@ -14,7 +14,7 @@ from syncsubtitles.detect import detect_constant
 from syncsubtitles.ffmpeg_backend import extract_subtitles, probe_subtitle_streams
 from syncsubtitles.filters import plain_text
 from syncsubtitles.i18n import tr
-from syncsubtitles.languages import guess_language
+from syncsubtitles.languages import guess_language, language_code
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.render import (
     MuxTrack,
@@ -189,6 +189,8 @@ def write_result(
     default: bool | None = None,
     log: Log = _no_log,
     clean: bool = True,
+    replaces: int | None = None,
+    replace_same_language: bool = False,
 ) -> Written:
     """Retime the target by ``segments`` and write it: a standalone
     subtitle file, or a new MKV (the reference's) where it replaces the
@@ -199,7 +201,8 @@ def write_result(
         out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
         write_subtitle(corrected, out)
         return Written(out, "subtitles", None, dropped, cleaned)
-    return write_tracks(reference, [TrackToWrite(target, segments, language, title, default)], output, log, clean)[0]
+    track = TrackToWrite(target, segments, language, title, default, replaces, replace_same_language)
+    return write_tracks(reference, [track], output, log, clean)[0]
 
 
 def _source_language(target: SubtitleTrackSpec) -> str | None:
@@ -219,6 +222,12 @@ class TrackToWrite:
     language: str | None = None
     title: str | None = None
     default: bool | None = None
+    # A track of the reference's file (subtitle index) this one takes the
+    # place of: a standalone file replacing a poor track of the video.
+    replaces: int | None = None
+    # Without ``replaces``: take the place of the reference file's track in
+    # the same language, if there's one (not a forced one), else be added.
+    replace_same_language: bool = False
 
 
 def _retimed(
@@ -242,6 +251,21 @@ def _retimed(
     return corrected, dropped, dict(fixed)
 
 
+def _with_same_language_replaced(track: TrackToWrite, streams: list, taken: list[int | None]) -> TrackToWrite:
+    """``track`` replacing the reference file's track in its language
+    (``replace_same_language``), the first full one not taken already (by
+    ``taken``, extended with it); as is when there's none."""
+    if not track.replace_same_language or track.replaces is not None or not track.target.is_external:
+        return track
+    language = language_code(track.language or guess_language(track.target.path))
+    # By its place among the subtitle tracks, as ``replaces`` counts.
+    for index, stream in enumerate(streams):
+        if language and language_code(stream.language) == language and not stream.forced and index not in taken:
+            taken.append(index)
+            return replace(track, replaces=index)
+    return track
+
+
 def write_tracks(
     reference: SubtitleTrackSpec,
     tracks: Sequence[TrackToWrite],
@@ -252,7 +276,8 @@ def write_tracks(
     """A new MKV (the reference's) with every track of ``tracks`` retimed:
     one of the reference's own tracks takes its place, any other is added.
     The new track keeps its source's language, title and flags unless told
-    otherwise; an added standalone file takes the language its name says."""
+    otherwise; an added standalone file takes the language its name says,
+    one replacing a track (``replaces``) that track's title and flags."""
     if reference.is_external:
         raise AnalysisError(tr("La référence est un fichier de sous-titres seul : pas de MKV où ajouter la piste."))
     out = Path(output) if output else default_mkv_output(reference.path)
@@ -260,6 +285,17 @@ def write_tracks(
         not t.target.is_external and same_file(out, t.target.path) for t in tracks
     ):
         raise AnalysisError(tr("Le fichier de sortie ne peut pas être un fichier d'origine."))
+
+    replaced = [
+        t.replaces if t.replaces is not None else t.target.stream_index
+        for t in tracks
+        if t.replaces is not None or (not t.target.is_external and same_file(t.target.path, reference.path))
+    ]
+    if len(replaced) != len(set(replaced)):
+        raise AnalysisError(tr("Deux pistes corrigées prennent la place de la même piste."))
+    lookup = any(t.replaces is not None or t.replace_same_language for t in tracks)
+    streams = probe_subtitle_streams(reference.path) if lookup else []
+    tracks = [_with_same_language_replaced(t, streams, replaced) for t in tracks]
 
     muxed: list[MuxTrack] = []
     written: list[Written] = []
@@ -269,7 +305,18 @@ def write_tracks(
         metadata = TrackMetadata(
             language=track.language or guess_language(target.path), title=track.title, default=bool(track.default)
         )
-        if not target.is_external:
+        if track.replaces is not None:
+            if not 0 <= track.replaces < len(streams):
+                raise AnalysisError(tr("La piste à remplacer n'existe pas dans la vidéo."))
+            old = streams[track.replaces]
+            replace_index = track.replaces
+            metadata = TrackMetadata(
+                language=track.language or guess_language(target.path) or old.language,
+                title=track.title or old.title,
+                default=old.default if track.default is None else track.default,
+                forced=old.forced,
+            )
+        elif not target.is_external:
             source = probe_subtitle_streams(target.path)[target.stream_index]
             if same_file(target.path, reference.path):
                 replace_index = target.stream_index

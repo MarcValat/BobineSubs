@@ -979,6 +979,15 @@
   color: var(--text-muted);
 }
 
+/* A standalone file's line: what it does on export, a list to change it. */
+.detail-export-choice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 .detail-summary {
   display: flex;
   flex-direction: column;

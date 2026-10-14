@@ -30,6 +30,7 @@ from syncsubtitles.ffmpeg_backend import (
 )
 from syncsubtitles.i18n import LANGUAGES, set_language, tr
 from syncsubtitles.jobs import get_job, start_job
+from syncsubtitles.languages import guess_language
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.outputs import OutputName, plan_outputs
 from syncsubtitles.render import default_mkv_output, default_subtitle_output
@@ -166,6 +167,8 @@ class ProbeResponse(BaseModel):
     duration: float | None
     tracks: list[TrackInfo]
     cue_count: int | None = None
+    # A standalone file's language, from its name ("Film.fr.srt").
+    language: str | None = None
 
 
 @app.get("/probe", response_model=ProbeResponse)
@@ -178,7 +181,14 @@ def probe(path: str) -> ProbeResponse:
         except (ValueError, OSError) as exc:
             raise HTTPException(400, tr("Sous-titres illisibles : {error}", error=exc)) from exc
         duration = max((c.end for c in doc.cues), default=None)
-        return ProbeResponse(path=path, kind="subtitles", duration=duration, tracks=[], cue_count=len(doc.cues))
+        return ProbeResponse(
+            path=path,
+            kind="subtitles",
+            duration=duration,
+            tracks=[],
+            cue_count=len(doc.cues),
+            language=guess_language(path),
+        )
     tracks = [
         TrackInfo(
             index=s.index,
@@ -384,6 +394,10 @@ class RenderTrack(BaseModel):
     default: bool | None = None
     # Its own file, for a standalone subtitle export (``subs_only``).
     output: str | None = None
+    # The reference's subtitle track it takes the place of, or the one in
+    # its language if there's one (see TrackToWrite).
+    replaces: int | None = None
+    replace_same_language: bool = False
 
 
 class RenderRequest(BaseModel):
@@ -398,6 +412,8 @@ class RenderRequest(BaseModel):
     language: str | None = None
     title: str | None = None
     default: bool | None = None
+    replaces: int | None = None
+    replace_same_language: bool = False
     # ...or several: all in one new MKV, or (``subs_only``) each in its own
     # file.
     tracks: list[RenderTrack] = []
@@ -420,7 +436,13 @@ def start_render(req: RenderRequest) -> JobStarted:
     tracks = req.tracks or (
         [
             RenderTrack(
-                target=req.target, segments=req.segments, language=req.language, title=req.title, default=req.default
+                target=req.target,
+                segments=req.segments,
+                language=req.language,
+                title=req.title,
+                default=req.default,
+                replaces=req.replaces,
+                replace_same_language=req.replace_same_language,
             )
         ]
         if req.target
@@ -450,7 +472,13 @@ def start_render(req: RenderRequest) -> JobStarted:
                 req.reference.to_spec(),
                 [
                     TrackToWrite(
-                        t.target.to_spec(), [s.to_segment() for s in t.segments], t.language, t.title, t.default
+                        t.target.to_spec(),
+                        [s.to_segment() for s in t.segments],
+                        t.language,
+                        t.title,
+                        t.default,
+                        t.replaces,
+                        t.replace_same_language,
                     )
                     for t in tracks
                 ],

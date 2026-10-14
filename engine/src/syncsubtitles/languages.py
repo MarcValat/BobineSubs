@@ -39,6 +39,13 @@ _TAGS = {
 }
 
 
+def language_code(code: str | None) -> str | None:
+    """``code`` as Matroska stores it ("fra", "fr" -> "fre"), to compare two."""
+    if not code:
+        return None
+    return _TAGS.get(code.lower(), code.lower())
+
+
 def guess_language(path: str | Path) -> str | None:
     """Language of a standalone subtitle file from its name (``Film.fr.srt``,
     ``episode-VF.srt``...), or None. The last matching word wins."""

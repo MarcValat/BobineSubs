@@ -11,6 +11,11 @@ export interface ExternalTrack {
   format: string | null;
   cues: number | null;
   checked: boolean;
+  /** From its name, once read. */
+  language: string | null;
+  /** The video's track it takes the place of on export, null: added;
+   * undefined: the one in its language (see replacedTrack). */
+  replaces?: number | null;
 }
 
 /** A file's subtitle tracks, one row each: index, language, format (forced

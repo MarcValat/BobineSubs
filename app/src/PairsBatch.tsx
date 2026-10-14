@@ -110,6 +110,9 @@ export default function PairsBatch({
   };
   const [addedLanguage, setAddedLanguage] = useState("");
   const [title, setTitle] = useState("");
+  // Pairs: the video's track in the added file's language replaced (the
+  // default), or kept beside it.
+  const [replaceSame, setReplaceSame] = useState(true);
   const [busy, setBusy] = useState<null | "analysis" | "render">(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<Row | null>(null);
@@ -327,6 +330,7 @@ export default function PairsBatch({
             language: kind === "pairs" ? addedLanguage || null : null,
             title: kind === "pairs" ? title || null : null,
             default: null,
+            replace_same_language: kind === "pairs" && replaceSame,
           }),
           () => {},
           (id) => (currentJob.current = id),
@@ -415,6 +419,19 @@ export default function PairsBatch({
                 ))}
               </select>
             </label>
+            <span className="config-field">
+              Piste de même langue :
+              <PillSwitch
+                label="Piste de même langue dans la vidéo"
+                options={[
+                  ["replace", "Remplacer"],
+                  ["keep", "Garder"],
+                ]}
+                value={replaceSame ? "replace" : "keep"}
+                onChange={(v) => setReplaceSame(v === "replace")}
+                disabled={busy !== null}
+              />
+            </span>
             <label>
               Titre :
               <input

@@ -49,6 +49,7 @@ import { withSegments } from "./retime";
 import { clock, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
 import { PillSwitch } from "./PillSwitch";
+import { Select } from "./Dropdown";
 import { TrackTable, type ExternalTrack } from "./TrackTable";
 import { useCueView } from "./CueLoupe";
 import { SegmentChart } from "./SegmentChart";
@@ -73,6 +74,20 @@ interface Target {
   ref: TrackRef;
   label: string;
   track?: TrackInfo;
+  /** A standalone file: the video's track it takes the place of (null: added). */
+  replaces?: number | null;
+}
+
+/** "fra", "fr" -> "fre": two language codes compared. */
+const languageCode = (code: string | null | undefined) => (code === "fra" || code === "fr" ? "fre" : (code ?? null));
+
+/** The video's track a standalone file takes the place of on export: the
+ * one picked, or by default the first full one in its language that isn't
+ * corrected itself (`taken`), else none (it's added). */
+function replacedTrack(ext: ExternalTrack, tracks: TrackInfo[], taken: number[]): number | null {
+  if (ext.replaces !== undefined) return ext.replaces;
+  const language = languageCode(ext.language);
+  return tracks.find((tr) => language && languageCode(tr.language) === language && !tr.forced && !taken.includes(tr.index))?.index ?? null;
 }
 
 /** Whether an analysis found something worth a look: an unreliable
@@ -195,9 +210,15 @@ export function MultiTrackBatch({
       label: trackName(tr.index, tr),
       track: tr,
     }));
+    const taken = own.map((t) => t.track.index);
+    const tracks = probes[path]?.tracks ?? [];
     const added = (externals[path] ?? [])
       .filter((e) => e.checked)
-      .map((e) => ({ id: e.path, ref: { path: e.path, index: null }, label: basename(e.path) }));
+      .map((e) => {
+        const replaces = replacedTrack(e, tracks, taken);
+        if (replaces !== null) taken.push(replaces);
+        return { id: e.path, ref: { path: e.path, index: null }, label: basename(e.path), replaces };
+      });
     return [...own, ...added];
   }
 
@@ -307,7 +328,12 @@ export function MultiTrackBatch({
             start: (outputs: string[]) =>
               startRenderTracks(
                 reference,
-                done.map(([target, r], k) => ({ target: target.ref, segments: r.result!.segments, output: subsOnly ? outputs[k] : null })),
+                done.map(([target, r], k) => ({
+                  target: target.ref,
+                  segments: r.result!.segments,
+                  output: subsOnly ? outputs[k] : null,
+                  replaces: target.replaces ?? null,
+                })),
                 { output: subsOnly ? null : outputs[0], subsOnly, clean: cleanSubtitles },
               ),
             update: (patch: (entry: ExportFields) => Partial<ExportFields>) => updateRun(path, (r) => ({ ...r, ...patch(r) })),
@@ -330,12 +356,16 @@ export function MultiTrackBatch({
       format: p.split(".").pop()?.toLowerCase() ?? null,
       cues: null,
       checked: true,
+      language: null,
     }));
     setExternals((c) => ({ ...c, [path]: [...(c[path] ?? []), ...added] }));
     for (const ext of added) {
       probe(ext.path)
         .then((res) =>
-          setExternals((c) => ({ ...c, [path]: (c[path] ?? []).map((e) => (e.path === ext.path ? { ...e, cues: res.cue_count } : e)) })),
+          setExternals((c) => ({
+            ...c,
+            [path]: (c[path] ?? []).map((e) => (e.path === ext.path ? { ...e, cues: res.cue_count, language: res.language ?? null } : e)),
+          })),
         )
         .catch(() => {});
     }
@@ -626,11 +656,43 @@ export function MultiTrackBatch({
                         </div>
                         {detailRes.issues.length > 0 && <Issues issues={detailRes.issues} />}
                         {!subsOnly &&
-                          detailTargets.map((t) => (
-                            <span key={t.id} className="detail-export-note">
-                              {t.track ? m.multi.exportReplaces(t.label) : m.multi.exportAdds(t.label)}
-                            </span>
-                          ))}
+                          detailTargets.map((t) =>
+                            t.track ? (
+                              <span key={t.id} className="detail-export-note">
+                                {m.multi.exportReplaces(t.label)}
+                              </span>
+                            ) : (
+                              <span key={t.id} className="detail-export-note detail-export-choice">
+                                {m.common.labelled(t.label)}
+                                <Select
+                                  label={m.multi.exportOf(t.label)}
+                                  value={t.replaces === null || t.replaces === undefined ? "add" : String(t.replaces)}
+                                  options={[
+                                    ...(detailProbe.tracks ?? [])
+                                      .filter(
+                                        (tr) =>
+                                          tr.index === t.replaces ||
+                                          !detailTargets.some((o) => o !== t && (o.track?.index ?? o.replaces) === tr.index),
+                                      )
+                                      .map((tr) => ({
+                                        value: String(tr.index),
+                                        label: m.multi.exportReplacesTrack(trackName(tr.index, tr)),
+                                      })),
+                                    { value: "add", label: m.multi.exportAdded },
+                                  ]}
+                                  onChange={(v) =>
+                                    setExternals((c) => ({
+                                      ...c,
+                                      [detailPath]: (c[detailPath] ?? []).map((e) =>
+                                        e.path === t.id ? { ...e, replaces: v === "add" ? null : Number(v) } : e,
+                                      ),
+                                    }))
+                                  }
+                                  disabled={busy}
+                                />
+                              </span>
+                            ),
+                          )}
                       </div>
 
                       <DetailChart

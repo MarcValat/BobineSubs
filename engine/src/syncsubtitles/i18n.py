@@ -43,6 +43,8 @@ _EN: dict[str, str] = {
     # tracks
     "{path} a {count} pistes de sous-titres texte : indique laquelle corriger avec {path}@N (voir `probe`).": "{path} has {count} text subtitle tracks: say which one to correct with {path}@N (see `probe`).",
     "La référence et la cible sont la même piste.": "The reference and the target are the same track.",
+    "Deux pistes corrigées prennent la place de la même piste.": "Two corrected tracks take the place of the same track.",
+    "La piste à remplacer n'existe pas dans la vidéo.": "The track to replace isn't in the video.",
     "Aucune piste de sous-titres utilisable comme référence dans {path}.": "No usable reference subtitle track in {path}.",
     "@{index} ({codec}, {language}{title}, {count} répliques)": "@{index} ({codec}, {language}{title}, {count} lines)",
     "langue ?": "language ?",
