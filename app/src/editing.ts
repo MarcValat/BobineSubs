@@ -1,6 +1,7 @@
 // Hand edits of a segment list, as pure functions (the editor keeps an
 // undo history of their results).
 import type { Segment } from "./api";
+import { boundaryCut } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 
 /** A boundary never comes closer than this to its neighbours. */
@@ -17,8 +18,17 @@ export function offsetAt(s: Segment, t: number): number {
   return span > 0 ? s.offset_start + ((s.offset_end - s.offset_start) * (t - s.start_s)) / span : s.offset_start;
 }
 
+/** Segment `i`'s two boundaries fixed where they are in target time
+ * (target_cut), before its offset changes: the cues each side of them stay
+ * with their segment instead of following its span (moved down, a segment
+ * would take the previous one's last cues). */
+function pinned(segments: Segment[], i: number): Segment[] {
+  return segments.map((s, k) => ((k === i || k === i + 1) && k > 0 && !s.target_cut ? { ...s, target_cut: boundaryCut(segments, k) } : s));
+}
+
 /** Move the boundary between segments `i - 1` and `i` to `t`, each side
- * keeping its own line (a drift stays the same drift). */
+ * keeping its own line (a drift stays the same drift). One fixed by hand
+ * moves with it, where the two lines meet it. */
 export function moveBoundary(segments: Segment[], i: number, t: number): Segment[] {
   if (i <= 0 || i >= segments.length) return segments;
   const before = segments[i - 1];
@@ -27,19 +37,27 @@ export function moveBoundary(segments: Segment[], i: number, t: number): Segment
   const next = [...segments];
   next[i - 1] = { ...before, end_s: clamped, offset_end: offsetAt(before, clamped) };
   next[i] = { ...after, start_s: clamped, offset_start: offsetAt(after, clamped) };
+  if (after.target_cut) {
+    const cut = clamped + (next[i - 1].offset_end + next[i].offset_start) / 2;
+    next[i].target_cut = [cut, cut];
+  }
   return next;
 }
 
 /** Shift segment `i`'s whole line by `delta` seconds. */
 export function shiftOffset(segments: Segment[], i: number, delta: number): Segment[] {
-  return segments.map((s, k) => (k === i ? { ...s, offset_start: s.offset_start + delta, offset_end: s.offset_end + delta } : s));
+  return pinned(segments, i).map((s, k) =>
+    k === i ? { ...s, offset_start: s.offset_start + delta, offset_end: s.offset_end + delta } : s,
+  );
 }
 
 export function setOffsets(segments: Segment[], i: number, start: number, end: number): Segment[] {
-  return segments.map((s, k) => (k === i ? { ...s, offset_start: start, offset_end: end } : s));
+  return pinned(segments, i).map((s, k) => (k === i ? { ...s, offset_start: start, offset_end: end } : s));
 }
 
-/** Cut the segment holding `t` in two, each half on the original line. */
+/** Cut the segment holding `t` in two, each half on the original line;
+ * the cut fixed there in target time (moving either half later keeps the
+ * cues each side of it). */
 export function split(segments: Segment[], t: number): Segment[] {
   const i = segments.findIndex((s) => s.start_s + MIN_SEGMENT_S <= t && t <= s.end_s - MIN_SEGMENT_S);
   if (i < 0) return segments;
@@ -48,7 +66,7 @@ export function split(segments: Segment[], t: number): Segment[] {
   return [
     ...segments.slice(0, i),
     { ...s, end_s: t, offset_end: middle },
-    { ...s, start_s: t, offset_start: middle },
+    { ...s, start_s: t, offset_start: middle, target_cut: [t + middle, t + middle] },
     ...segments.slice(i + 1),
   ];
 }
@@ -60,7 +78,11 @@ export function remove(segments: Segment[], i: number): Segment[] {
   const j = i < segments.length - 1 ? i + 1 : i - 1;
   const gone = segments[i];
   const keep = segments[j];
-  const merged: Segment = j > i ? { ...keep, start_s: gone.start_s, offset_start: keep.offset_start } : { ...keep, end_s: gone.end_s };
+  // The next one taking its place takes its boundary before it too.
+  const merged: Segment =
+    j > i
+      ? { ...keep, start_s: gone.start_s, offset_start: keep.offset_start, target_cut: gone.target_cut }
+      : { ...keep, end_s: gone.end_s };
   // A drift's line extended over the freed time.
   if (isDrift(keep)) {
     if (j > i) merged.offset_start = offsetAt(keep, gone.start_s);

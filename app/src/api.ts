@@ -35,6 +35,10 @@ export interface Segment {
   offset_start: number;
   offset_end: number;
   confidence: number;
+  /** The target-time stretch between the previous segment's cues and this
+   * one's, fixed once the boundary was edited by hand (see retime.ts's
+   * boundaryCut); absent: from the two spans. */
+  target_cut?: [number, number] | null;
 }
 
 interface TargetCue {

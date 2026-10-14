@@ -14,6 +14,7 @@ import {
   startHistory,
   undo,
 } from "./editing";
+import { segmentFor } from "./retime";
 
 const seg = (start_s: number, end_s: number, offset_start: number, offset_end: number, confidence = 0.9): Segment => ({
   start_s,
@@ -62,7 +63,8 @@ describe("moveBoundary", () => {
 describe("shiftOffset", () => {
   it("moves one segment's whole line", () => {
     const shifted = shiftOffset(segments, 2, 0.5);
-    expect(shifted[2]).toEqual(seg(200, 300, 3.5, 4.5, 0.95));
+    // Its boundary before it fixed where it was: the gap from 200 + 2 to 200 + 3 in target time.
+    expect(shifted[2]).toEqual({ ...seg(200, 300, 3.5, 4.5, 0.95), target_cut: [202, 203] });
     expect(shifted[0]).toBe(segments[0]);
   });
 });
@@ -72,7 +74,7 @@ describe("split", () => {
     const cut = split(segments, 250);
     expect(cut).toHaveLength(4);
     expect(cut[2]).toEqual(seg(200, 250, 3, 3.5, 0.95));
-    expect(cut[3]).toEqual(seg(250, 300, 3.5, 4, 0.95));
+    expect(cut[3]).toEqual({ ...seg(250, 300, 3.5, 4, 0.95), target_cut: [253.5, 253.5] });
   });
 
   it("refuses a cut too close to a boundary", () => {
@@ -147,5 +149,42 @@ describe("history", () => {
     let h = startHistory(segments);
     for (let i = 0; i < 205; i++) h = commit(h, shiftOffset(h.present, 0, 0.1));
     expect(h.past).toHaveLength(200);
+  });
+});
+
+describe("boundaries edited by hand", () => {
+  // One segment, 1 s late; cut at 100 (target time 101).
+  const cut = split([seg(0, 200, 1, 1)], 100);
+
+  it("keeps the cues before a cut with their segment when the next one moves earlier", () => {
+    const moved = shiftOffset(cut, 1, -10);
+    // Target 95: before the cut, though the second span now starts at 91.
+    expect(segmentFor(95, moved)).toBe(0);
+    expect(segmentFor(101, moved)).toBe(1);
+  });
+
+  it("keeps the cues after a cut with their segment when the previous one moves later", () => {
+    const moved = shiftOffset(cut, 0, 10);
+    expect(segmentFor(105, moved)).toBe(1);
+    expect(segmentFor(100, moved)).toBe(0);
+  });
+
+  it("fixes a detected boundary where it was before moving a segment", () => {
+    // Spans [1, 101] and [97, 197]: cut at 99 until moved, and after.
+    const detected = [seg(0, 100, 1, 1), seg(100, 200, -3, -3)];
+    const moved = shiftOffset(detected, 1, -20);
+    expect(segmentFor(98.5, moved)).toBe(0);
+    expect(segmentFor(99, moved)).toBe(1);
+  });
+
+  it("moves a cut fixed by hand with its boundary", () => {
+    const moved = moveBoundary(shiftOffset(cut, 1, -10), 1, 150);
+    // Where the two lines meet the boundary: 150 + (1 - 9) / 2.
+    expect(moved[1].target_cut).toEqual([146, 146]);
+  });
+
+  it("gives a removed segment's boundary to the next one taking its place", () => {
+    const three = split(cut, 150);
+    expect(remove(three, 1)[1].target_cut).toEqual(three[1].target_cut);
   });
 });

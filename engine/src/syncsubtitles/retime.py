@@ -30,6 +30,12 @@ class Segment:
     offset_start: float
     offset_end: float
     confidence: float = 1.0
+    # The target-time stretch between the previous segment's cues and this
+    # one's (cues inside it are dropped; a single time when they meet),
+    # fixed once the boundary was edited by hand: moving a segment's offset
+    # then keeps the cues each side of it. None: from the two spans (see
+    # boundary_cut).
+    target_cut: tuple[float, float] | None = None
 
     @property
     def is_drift(self) -> bool:
@@ -60,31 +66,36 @@ def constant_segments(offset: float, duration_s: float) -> list[Segment]:
     return [Segment(0.0, duration_s, offset, offset)]
 
 
-def segment_for(t: float, segments: Sequence[Segment]) -> Segment | None:
-    """The segment a cue at target time ``t`` belongs to.
+def boundary_cut(prev: Segment, nxt: Segment) -> tuple[float, float]:
+    """The target-time stretch between ``prev``'s cues and ``nxt``'s.
 
-    - Inside one segment's target-time span: that one.
-    - Inside two consecutive spans (the target lacks content the
-      reference has, so both segments claim the same target stretch): cut
-      at the middle of the shared stretch.
-    - Between two spans (the target has content the reference doesn't, a
-      cut scene): ``None``, nothing on screen matches it.
-    - Before the first / after the last span: the first / last segment.
+    - Fixed by hand (``nxt.target_cut``): that one.
+    - The two target-time spans overlap (the target lacks content the
+      reference has, so both segments claim the same stretch): cut at its
+      middle.
+    - A gap between them (the target has content the reference doesn't, a
+      cut scene): the gap, nothing on screen matches what's in it.
     """
+    if nxt.target_cut is not None:
+        return nxt.target_cut
+    if nxt.target_start <= prev.target_end:
+        cut = (nxt.target_start + prev.target_end) / 2.0
+        return cut, cut
+    return prev.target_end, nxt.target_start
+
+
+def segment_for(t: float, segments: Sequence[Segment]) -> Segment | None:
+    """The segment a cue at target time ``t`` belongs to: the one between
+    the boundaries around it (see boundary_cut), ``None`` inside a gap;
+    before the first / after the last boundary: the first / last segment."""
     if not segments:
         return None
-    for i, seg in enumerate(segments):
-        if seg.target_start <= t <= seg.target_end:
-            nxt = segments[i + 1] if i + 1 < len(segments) else None
-            if nxt is not None and nxt.target_start <= t:
-                cut = (nxt.target_start + seg.target_end) / 2.0
-                return seg if t < cut else nxt
-            return seg
-    if t < segments[0].target_start:
-        return segments[0]
-    if t > segments[-1].target_end:
-        return segments[-1]
-    return None
+    for seg, nxt in zip(segments, segments[1:]):
+        lo, hi = boundary_cut(seg, nxt)
+        if t >= hi:
+            continue
+        return seg if t <= lo else None
+    return segments[-1]
 
 
 def remap_cue(cue: Cue, segments: Sequence[Segment]) -> tuple[float, float] | None:

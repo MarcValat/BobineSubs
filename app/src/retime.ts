@@ -14,24 +14,31 @@ function toReference(s: Segment, t: number): number {
   return s.start_s + (t - targetStart(s)) / factor;
 }
 
+/** The target-time stretch between segment `k - 1`'s cues and segment
+ * `k`'s (see retime.boundary_cut): fixed by hand (`target_cut`); else the
+ * middle of the two spans' overlap, or the gap between them (a scene only
+ * the target has: its cues are dropped). */
+export function boundaryCut(segments: Segment[], k: number): [number, number] {
+  const prev = segments[k - 1];
+  const next = segments[k];
+  if (next.target_cut) return next.target_cut;
+  if (targetStart(next) <= targetEnd(prev)) {
+    const cut = (targetStart(next) + targetEnd(prev)) / 2;
+    return [cut, cut];
+  }
+  return [targetEnd(prev), targetStart(next)];
+}
+
 /** The segment a cue at target time `t` belongs to (see retime.segment_for):
- * cut at the middle where two segments claim it, none in a gap. */
+ * the one between the boundaries around it, none inside a gap. */
 export function segmentFor(t: number, segments: Segment[]): number | null {
   if (!segments.length) return null;
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (targetStart(seg) <= t && t <= targetEnd(seg)) {
-      const next = segments[i + 1];
-      if (next && targetStart(next) <= t) {
-        const cut = (targetStart(next) + targetEnd(seg)) / 2;
-        return t < cut ? i : i + 1;
-      }
-      return i;
-    }
+  for (let i = 0; i + 1 < segments.length; i++) {
+    const [lo, hi] = boundaryCut(segments, i + 1);
+    if (t >= hi) continue;
+    return t <= lo ? i : null;
   }
-  if (t < targetStart(segments[0])) return 0;
-  if (t > targetEnd(segments[segments.length - 1])) return segments.length - 1;
-  return null;
+  return segments.length - 1;
 }
 
 /** A cue's (start, end) in reference time; null: dropped. */

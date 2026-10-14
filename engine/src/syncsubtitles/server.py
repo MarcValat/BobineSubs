@@ -314,13 +314,14 @@ class SegmentModel(BaseModel):
     offset_start: float
     offset_end: float
     confidence: float = 1.0
+    target_cut: tuple[float, float] | None = None
 
     @classmethod
     def of(cls, seg: Segment) -> SegmentModel:
         return cls(**{k: getattr(seg, k) for k in cls.model_fields})
 
     def to_segment(self) -> Segment:
-        return Segment(self.start_s, self.end_s, self.offset_start, self.offset_end, self.confidence)
+        return Segment(self.start_s, self.end_s, self.offset_start, self.offset_end, self.confidence, self.target_cut)
 
 
 class TargetCueModel(BaseModel):
