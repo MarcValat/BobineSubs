@@ -179,3 +179,44 @@
 .timeline-panning * {
   cursor: grabbing !important;
 }
+
+/* The whole episode under the loupe (CueNavigator.tsx), as Bobine Audio's
+   waveform navigator: the lines' density, the stretch in view framed. */
+.cue-navigator {
+  flex: 0 0 auto;
+  margin-left: 84px;
+}
+
+.cue-navigator-svg {
+  width: 100%;
+  height: 26px;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.cue-navigator-reference {
+  fill: var(--constant);
+  opacity: 0.55;
+}
+
+.cue-navigator-corrected {
+  fill: var(--accent-2);
+  opacity: 0.6;
+}
+
+/* The part in view. */
+.cue-navigator-window {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 60%, transparent);
+  stroke-width: 1;
+  cursor: grab;
+  user-select: none;
+}
+
+.cue-navigator-window:active {
+  cursor: grabbing;
+}

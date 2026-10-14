@@ -354,14 +354,17 @@ export function SegmentEditor({
                         className="segment-hit"
                         onPointerDown={(e) => startDrag(e, { kind: "segment", index: i, grabOffset: offsetFromClientY(e.clientY) })}
                       />
-                      <text
-                        x={labelX(seg)}
-                        y={yStart + (yEnd - yStart) * ((labelX(seg) - x(seg.start_s)) / (x(seg.end_s) - x(seg.start_s) || 1)) - 10}
-                        className={`segment-label${isDragged ? " dragged" : ""}${low ? " low-confidence" : ""}`}
-                        textAnchor="middle"
-                      >
-                        {segmentOffsetLabel(seg)}
-                      </text>
+                      {/* Its label only while some of it is in view. */}
+                      {x(seg.end_s) > 0 && x(seg.start_s) < PLOT_W && (
+                        <text
+                          x={labelX(seg)}
+                          y={yStart + (yEnd - yStart) * ((labelX(seg) - x(seg.start_s)) / (x(seg.end_s) - x(seg.start_s) || 1)) - 10}
+                          className={`segment-label${isDragged ? " dragged" : ""}${low ? " low-confidence" : ""}`}
+                          textAnchor="middle"
+                        >
+                          {segmentOffsetLabel(seg)}
+                        </text>
+                      )}
                     </g>
                   );
                 })}

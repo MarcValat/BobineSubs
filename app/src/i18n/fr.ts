@@ -365,12 +365,13 @@ export const fr = {
     nextJump: "Saut suivant →",
     zoom: "Zoom :",
     zoomHint:
-      "Molette sur les répliques : zoomer ou dézoomer sous le curseur. Glisser : se déplacer dans le temps. Clic ou glisser sur la courbe au-dessus : y amener la loupe.",
+      "Molette sur les répliques : zoomer ou dézoomer sous le curseur. Glisser : se déplacer dans le temps. Clic ou glisser sur la courbe au-dessus, ou dans l'éditeur sur la barre du dessous : y amener la loupe.",
     reference: "Référence",
     before: "Avant",
     after: "Après",
     ariaLabel: "Répliques de la référence, puis à corriger avant et après correction",
     noCounterpart: "(sans équivalent dans la référence)",
+    navigator: "Navigation dans l'épisode entier : glisse le cadre, ou clique pour y amener la loupe",
     lines: (n: number) => `${n} répliques : zoome pour les lire`,
   },
 

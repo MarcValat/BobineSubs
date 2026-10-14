@@ -359,11 +359,12 @@ export const en: Messages = {
     nextJump: "Next jump →",
     zoom: "Zoom:",
     zoomHint:
-      "Mouse wheel over the lines: zoom in or out under the pointer. Drag: move through time. Click or drag on the chart above: take the loupe there.",
+      "Wheel on the lines: zoom in or out under the pointer. Drag: move through time. A click or a drag on the chart above, or in the editor on the bar below: take the loupe there.",
     reference: "Reference",
     before: "Before",
     after: "After",
     ariaLabel: "The reference's lines, then those to correct before and after correction",
+    navigator: "Navigation through the whole episode: drag the frame, or click to take the loupe there",
     lines: (n) => `${n} lines: zoom in to read them`,
     noCounterpart: "(no counterpart in the reference)",
   },

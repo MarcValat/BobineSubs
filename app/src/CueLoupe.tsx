@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { Analysis } from "./api";
 import { clock } from "./format";
 import { useT } from "./i18n";
+import { CueNavigator } from "./CueNavigator";
 import { AlignIcon, ScissorsIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
 import { segmentFor } from "./retime";
@@ -200,6 +201,14 @@ export function CueLoupe({
       },
     ];
   }, [analysis, m]);
+  // The navigator's bars: the reference's lines, the corrected ones.
+  const spans = useMemo(
+    () => ({
+      reference: analysis.reference_cues.map(([a, b]) => [a, b] as const),
+      corrected: analysis.target_cues.flatMap((c) => (c.corrected ? [c.corrected] : [])),
+    }),
+    [analysis],
+  );
   // The lanes' width, for the lines too narrow to read (see laneBlocks).
   const [measure, { width: laneWidth }] = useElementSize<HTMLDivElement>();
   const laneRef = useCallback(
@@ -318,6 +327,18 @@ export function CueLoupe({
           </div>
         ))}
       </div>
+      {/* In the editor, whose chart zooms with the loupe: the whole episode
+          at a glance (the detail's chart frames the loupe itself). */}
+      {editing && (
+        <CueNavigator
+          duration={duration}
+          viewStart={view.start}
+          viewDuration={view.duration}
+          reference={spans.reference}
+          corrected={spans.corrected}
+          onNavigate={(next) => onView({ start: next, duration: view.duration })}
+        />
+      )}
     </div>
   );
 }
