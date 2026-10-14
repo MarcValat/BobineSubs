@@ -48,6 +48,14 @@ class Pair:
     # "episode": same number in both names; "order": paired by position
     # among the files left once numbers are matched; None: alone.
     by: str | None
+    # "S01E03" (or "E03" without a season), when paired by episode.
+    episode: str | None = None
+
+
+def episode_label(key: tuple[int | None, int]) -> str:
+    """(1, 3) -> "S01E03", (None, 3) -> "E03"."""
+    season, episode = key
+    return f"S{season:02d}E{episode:02d}" if season is not None else f"E{episode:02d}"
 
 
 def _same_episode(a: tuple[int | None, int], b: tuple[int | None, int]) -> bool:
@@ -78,7 +86,10 @@ def pair_files(videos: list[str], subtitles: list[str]) -> list[Pair]:
     leftovers = iter(free)
     for video in videos:
         if video in matched:
-            rows.append(Pair(video, matched[video], "episode"))
+            subtitle = matched[video]
+            # The season either name gives.
+            season = keys[video][0] if keys[video][0] is not None else keys[subtitle][0]
+            rows.append(Pair(video, subtitle, "episode", episode_label((season, keys[video][1]))))
         else:
             subtitle = next(leftovers, None)
             rows.append(Pair(video, subtitle, "order" if subtitle else None))

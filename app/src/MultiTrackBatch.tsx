@@ -55,6 +55,7 @@ import { useCueView } from "./CueLoupe";
 import { SegmentChart } from "./SegmentChart";
 import { devParam, errorMessage, toggled } from "./util";
 import { useT } from "./i18n";
+import { languageCode } from "./languages";
 import { WarningIcon } from "./icons";
 import { saveCleanSubtitles, useCleanSubtitles, useListCollapsed } from "./settings";
 
@@ -77,9 +78,6 @@ interface Target {
   /** A standalone file: the video's track it takes the place of (null: added). */
   replaces?: number | null;
 }
-
-/** "fra", "fr" -> "fre": two language codes compared. */
-const languageCode = (code: string | null | undefined) => (code === "fra" || code === "fr" ? "fre" : (code ?? null));
 
 /** The video's track a standalone file takes the place of on export: the
  * one picked, or by default the first full one in its language that isn't
@@ -361,14 +359,25 @@ export function MultiTrackBatch({
     setExternals((c) => ({ ...c, [path]: [...(c[path] ?? []), ...added] }));
     for (const ext of added) {
       probe(ext.path)
-        .then((res) =>
+        .then((res) => {
           setExternals((c) => ({
             ...c,
             [path]: (c[path] ?? []).map((e) => (e.path === ext.path ? { ...e, cues: res.cue_count, language: res.language ?? null } : e)),
-          })),
-        )
+          }));
+          untickSameLanguage(path, languageCode(res.language));
+        })
         .catch(() => {});
     }
+  }
+
+  /** A standalone file in `language` added to `path`: its own track in that
+   * language is no longer corrected itself -- the file takes its place on
+   * export (see replacedTrack); it can be ticked again. */
+  function untickSameLanguage(path: string, language: string | null) {
+    const same = (resolutions[path]?.targets ?? [])
+      .filter((tr) => language && languageCode(tr.language) === language && !tr.forced)
+      .map((tr) => tr.index);
+    if (same.length > 0) editChoice(path, (c) => ({ ...c, targets: c.targets.filter((i) => !same.includes(i)) }));
   }
 
   // Counted over the tracks to correct as picked now, analyzed or not.

@@ -69,7 +69,7 @@ export interface Analysis {
   cleanup?: Record<string, number>;
 }
 
-export interface RenderResult {
+interface RenderResult {
   path: string;
   kind: "subtitles" | "replaced" | "added";
   language: string | null;
@@ -92,17 +92,6 @@ export interface RenderTrack {
   output?: string | null;
   /** The reference file's subtitle track it takes the place of. */
   replaces?: number | null;
-}
-
-export interface RenderOptions {
-  output: string | null;
-  subs_only: boolean;
-  language: string | null;
-  title: string | null;
-  default: boolean | null;
-  /** Take the place of the reference file's track in the same language, if
-   * there's one. */
-  replace_same_language: boolean;
 }
 
 async function engineFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -151,6 +140,8 @@ export interface FilePair {
   subtitle: string | null;
   /** "episode": same number in both names; "order": by position; null: alone. */
   by: "episode" | "order" | null;
+  /** "S01E03" (or "E03"), when paired by episode. */
+  episode: string | null;
 }
 
 export async function pairFiles(videos: string[], subtitles: string[]): Promise<FilePair[]> {
@@ -165,10 +156,6 @@ export async function planOutputs(items: [TrackRef, TrackRef][], subsOnly: boole
 
 export async function startAnalyze(reference: TrackRef, target: TrackRef, constant = false): Promise<string> {
   return (await (await postJson("/jobs/analyze", { reference, target, constant })).json()).job_id;
-}
-
-export async function startRender(reference: TrackRef, target: TrackRef, segments: Segment[], options: RenderOptions): Promise<string> {
-  return (await (await postJson("/jobs/render", { reference, target, segments, ...options })).json()).job_id;
 }
 
 /** Several corrected tracks of one reference file: all in one new MKV

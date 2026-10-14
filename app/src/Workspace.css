@@ -1002,3 +1002,33 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* After a pair's file to correct: how the two were matched ("S01E02"),
+   flagged when by order. */
+.pair-row-note {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.pair-row-note-flagged {
+  color: var(--drift-text);
+}
+
+/* A pair's export choices under its tracks: language, title, what it does
+   to the video's track in its language. */
+.pair-export {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+
+.pair-export > span:nth-child(odd) {
+  color: var(--text-muted);
+}
+
+.pair-export input {
+  min-width: 0;
+}

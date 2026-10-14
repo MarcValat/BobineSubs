@@ -25,9 +25,9 @@ def test_pairs_by_episode_whatever_the_names_and_order():
     videos = ["D:/S/Chuck.S01E02.mkv", "D:/S/Chuck.S01E01.mkv", "D:/S/Chuck.S01E10.mkv"]
     subs = ["D:/dl/chuck 1x10.fr.srt", "D:/dl/chuck 1x01.fr.srt", "D:/dl/chuck 1x02.fr.srt"]
     assert pair_files(videos, subs) == [
-        Pair("D:/S/Chuck.S01E01.mkv", "D:/dl/chuck 1x01.fr.srt", "episode"),
-        Pair("D:/S/Chuck.S01E02.mkv", "D:/dl/chuck 1x02.fr.srt", "episode"),
-        Pair("D:/S/Chuck.S01E10.mkv", "D:/dl/chuck 1x10.fr.srt", "episode"),
+        Pair("D:/S/Chuck.S01E01.mkv", "D:/dl/chuck 1x01.fr.srt", "episode", "S01E01"),
+        Pair("D:/S/Chuck.S01E02.mkv", "D:/dl/chuck 1x02.fr.srt", "episode", "S01E02"),
+        Pair("D:/S/Chuck.S01E10.mkv", "D:/dl/chuck 1x10.fr.srt", "episode", "S01E10"),
     ]
 
 
@@ -35,9 +35,9 @@ def test_a_missing_subtitle_does_not_shift_the_others():
     videos = ["E01.mkv", "E02.mkv", "E03.mkv"]
     subs = ["ep1.srt", "ep3.srt"]
     assert pair_files(videos, subs) == [
-        Pair("E01.mkv", "ep1.srt", "episode"),
+        Pair("E01.mkv", "ep1.srt", "episode", "E01"),
         Pair("E02.mkv", None, None),
-        Pair("E03.mkv", "ep3.srt", "episode"),
+        Pair("E03.mkv", "ep3.srt", "episode", "E03"),
     ]
 
 
@@ -57,3 +57,8 @@ def test_season_is_respected_when_both_names_have_one():
         ("Show.S01E01.mkv", "Show.S01E01.srt"),
         ("Show.S02E01.mkv", "Show.S02E01.srt"),
     ]
+
+
+def test_the_episode_label_takes_the_season_either_name_gives():
+    rows = pair_files(["Show - 03.mkv"], ["show.s02e03.srt"])
+    assert rows == [Pair("Show - 03.mkv", "show.s02e03.srt", "episode", "S02E03")]

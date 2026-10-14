@@ -112,7 +112,7 @@ export default function AnalysisView({
 
 /** "Décalage constant de +1.060 s" / "6 segments · 5 sauts" (Bobine Audio's
  * wording: segments, then jumps). */
-export function summarize(analysis: Analysis): string {
+function summarize(analysis: Analysis): string {
   const segments = analysis.segments;
   return segments.length === 1 && !isDrift(segments[0])
     ? t().analysis.constant(offset(segments[0].offset_start))

@@ -139,8 +139,8 @@ def test_expand_a_folder_in_episode_order(tmp_path):
 def test_pairs_endpoint():
     body = client.post("/pairs", json={"videos": ["S01E02.mkv", "S01E01.mkv"], "subtitles": ["1x01.srt"]}).json()
     assert body["pairs"] == [
-        {"video": "S01E01.mkv", "subtitle": "1x01.srt", "by": "episode"},
-        {"video": "S01E02.mkv", "subtitle": None, "by": None},
+        {"video": "S01E01.mkv", "subtitle": "1x01.srt", "by": "episode", "episode": "S01E01"},
+        {"video": "S01E02.mkv", "subtitle": None, "by": None, "episode": None},
     ]
 
 

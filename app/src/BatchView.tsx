@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadOutputDir, saveOutputDir } from "./batchShared";
 import { MultiTrackBatch } from "./MultiTrackBatch";
-import PairsBatch from "./PairsBatch";
+import { PairsBatch } from "./PairsBatch";
 import type { BatchMode } from "./Workspace";
 import "./BatchView.css";
 
@@ -44,11 +44,12 @@ export function BatchView({
         blocked={busy.pairs}
         onBusyChange={(b) => setBusy((c) => (c.multi === b ? c : { ...c, multi: b }))}
       />
-      {/* Paires de fichiers as before the redesign, until it's redone. */}
       <PairsBatch
-        active={mode === "pairs"}
-        kind="pairs"
-        onKindChange={(kind) => onModeChange?.(kind)}
+        hidden={mode !== "pairs"}
+        onModeChange={onModeChange}
+        outputDir={outputDir}
+        onOutputDirChange={changeOutputDir}
+        blocked={busy.multi}
         onBusyChange={(b) => setBusy((c) => (c.pairs === b ? c : { ...c, pairs: b }))}
       />
     </>

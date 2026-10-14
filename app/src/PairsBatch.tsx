@@ -1,1103 +1,1017 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { pairFiles, startAnalyze, startRenderTracks, type Analysis, type FilePair, type TrackInfo, type TrackRef } from "./api";
+import { runJob } from "./jobs";
 import {
-  type Analysis,
-  cancelJob,
-  type FilePair,
-  pairFiles,
-  planOutputs,
-  probe,
-  type ProbeResponse,
-  type RenderResult,
-  startAnalyze,
-  startRender,
-  type TrackRef,
-} from "./api";
-import { JobCancelled, runJob } from "./jobs";
-import { analysisDuration, summarize } from "./AnalysisView";
-import { withSegments } from "./retime";
-import SegmentEditor from "./SegmentEditor";
-import { DropOverlay, type DropSide, useFileDrop } from "./FileDrop";
-import { DropZone } from "./DropZone";
-import { fileName, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
-import { Dialog, DialogHeader } from "./Dialog";
-import { FolderIcon, RedoIcon } from "./icons";
+  AnalyzeButton,
+  BatchFooter,
+  nextStep,
+  IDLE_EXPORT,
+  rowState,
+  useExportQueue,
+  dropBlockedReason,
+  type AnalysisRun,
+  type ExportFields,
+} from "./batchShared";
 import { InfoTip } from "./InfoTip";
+import { correctable, defaultPick, readable, resolveTracks, trackOptions, TrackFilterPicker, type TrackKey } from "./TrackFilter";
+import {
+  EmptyWorkspace,
+  PairKind,
+  trackName,
+  Issues,
+  FoldButton,
+  ModeCards,
+  RemoveAllButton,
+  useListKeys,
+  MoveButtons,
+  PairRow,
+  runBadge,
+  useProbes,
+  type BadgeKind,
+  type BatchMode,
+  type FileProbe,
+} from "./Workspace";
+import { DetailChart, DetailExport, DetailHeader, TracksHeading } from "./Detail";
+import AnalysisView, { AnalysisSummary, analysisDuration, chartCues } from "./AnalysisView";
+import { DropZone } from "./DropZone";
+import { DropOverlay, useFileDrop, type DropSide } from "./FileDrop";
+import { basename } from "./paths";
+import SegmentEditor from "./SegmentEditor";
+import { withSegments } from "./retime";
+import { isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
+import { LOW_CONFIDENCE, pickFiles } from "./shared";
 import { PillSwitch } from "./PillSwitch";
-import { IDLE, LANGUAGES, languageName, LOW_CONFIDENCE, pickFiles, pickFolder, type Run, textTracks, VIDEO_FILTER } from "./shared";
-import { errorMessage, FIELD_PROPS, loadSetting, saveSetting } from "./util";
-import "./PairsBatch.css";
+import { Select } from "./Dropdown";
+import { useCueView } from "./CueLoupe";
+import { SegmentChart } from "./SegmentChart";
+import { devParam, errorMessage, FIELD_PROPS } from "./util";
+import { useT } from "./i18n";
+import { languageCode, languageLabel, LanguageSelect } from "./languages";
+import { saveCleanSubtitles, useCleanSubtitles, useListCollapsed } from "./settings";
 
-/** Paires de fichiers, as it was before the redesign (its multitrack half
- * no longer used): redone in the new look next, as MultiTrackBatch was. */
-type Kind = "multi" | "pairs";
-
-/** One episode: what's analyzed and exported. */
-interface Row {
-  key: string;
+/** One row of the list: a reference video and what to correct (a subtitle
+ * file, or a video holding the track), as the engine paired them by
+ * episode number -- or by hand, once swapped with ↑ ↓. Either can be
+ * missing: a file without a pair yet. */
+interface Pair {
   video: string | null;
-  /** Pairs: the file to correct, a subtitle file or a video holding the
-   * track (picked by language); multi: none (the track is in the video). */
   target: string | null;
   by: FilePair["by"] | "manual";
+  episode: string | null;
 }
 
-interface RowRuns {
-  analysis: Run<Analysis>;
-  render: Run<RenderResult>;
-  /** The analysis' segments were changed by hand. */
-  edited?: boolean;
-  /** Waiting for its turn in the analysis running ("En attente"). */
-  queued?: boolean;
-}
-
-const NO_RUNS: RowRuns = { analysis: IDLE, render: IDLE };
-
-/** The folder batch exports go to (null: next to each original), kept for the next session. */
-const OUTPUT_DIR_KEY = "syncsubtitles.batchOutputDir";
-
-/** The track of `probe` in `language` to correct: a full one before a
- * forced one; never `exclude` (the reference). */
-function trackInLanguage(probe: ProbeResponse | undefined, language: string | null, exclude: number | null = null): number | null {
-  const candidates = textTracks(probe ?? null).filter((t) => t.language === language && t.index !== exclude);
-  candidates.sort((a, b) => Number(a.forced) - Number(b.forced));
-  return candidates[0]?.index ?? null;
-}
-
-/** The reference track of `probe` in `language`: a full one before a forced
- * one, text before image (both can be a reference). */
-function referenceInLanguage(probe: ProbeResponse, language: string): number | null {
-  const candidates = probe.tracks.filter((t) => t.format !== null && t.language === language);
-  candidates.sort((a, b) => Number(a.forced) - Number(b.forced) || Number(isImage(a.format)) - Number(isImage(b.format)));
-  return candidates[0]?.index ?? null;
-}
-
-const isImage = (format: string | null) => format === "pgs" || format === "vobsub";
-
-export default function PairsBatch({
-  active,
-  kind,
-  onKindChange,
-  onBusyChange,
-}: {
-  active: boolean;
-  kind: Kind;
-  onKindChange: (kind: Kind) => void;
-  /** Analyzing or exporting: the top bar keeps the sub-mode meanwhile. */
-  onBusyChange: (busy: boolean) => void;
-}) {
-  // Multi: videos holding both tracks.
-  const [multiVideos, setMultiVideos] = useState<string[]>([]);
-  const [probes, setProbes] = useState<Record<string, ProbeResponse | string>>({});
-  const [language, setLanguage] = useState<string | null>(null);
-  // Pairs: the language of the track to correct in the videos to correct.
-  const [targetLanguage, setTargetLanguage] = useState<string | null>(null);
-  // Both: the reference track's language; null: chosen by the engine (the most complete).
-  const [referenceLanguage, setReferenceLanguage] = useState<string | null>(null);
-  // Tracks picked by hand ("Choisir"), by row (choiceKey): over the
-  // languages' rule for that row only.
-  const [choices, setChoices] = useState<Record<string, TrackChoice>>({});
-  const [choosing, setChoosing] = useState<Row | null>(null);
-  // Pairs: videos and subtitle files, paired by episode number.
-  const [pairRows, setPairRows] = useState<Row[]>([]);
-  // Results by what was analyzed (video + target): kept across re-pairings.
-  const [runs, setRuns] = useState<Record<string, RowRuns>>({});
-  const [subsOnly, setSubsOnly] = useState(false);
-  const [folder, setFolder] = useState<string | null>(() => loadSetting(OUTPUT_DIR_KEY));
-  const changeFolder = (dir: string | null) => {
-    setFolder(dir);
-    saveSetting(OUTPUT_DIR_KEY, dir);
-  };
-  const [addedLanguage, setAddedLanguage] = useState("");
-  const [title, setTitle] = useState("");
-  // Pairs: the video's track in the added file's language replaced (the
-  // default), or kept beside it.
-  const [replaceSame, setReplaceSame] = useState(true);
-  const [busy, setBusy] = useState<null | "analysis" | "render">(null);
-  const [progress, setProgress] = useState<string | null>(null);
-  const [editingRow, setEditingRow] = useState<Row | null>(null);
-  const stop = useRef(false);
-  useEffect(() => onBusyChange(busy !== null), [busy, onBusyChange]);
-  const currentJob = useRef<string | null>(null);
-
-  // --- rows ---------------------------------------------------------------
-
-  // The tracks used are part of a row's key: other tracks, another analysis.
-  const withKey = (row: Row): Row => {
-    const tracks = resolve(row.video, row.target);
-    const used = typeof tracks === "string" ? "!" : `@${tracks.reference.index}>${tracks.target.path}#${tracks.target.index}`;
-    return { ...row, key: `${row.key}${used}` };
-  };
-  const multiRows: Row[] = multiVideos.map((video) => withKey({ key: video, video, target: null, by: null }));
-  const pairTargetVideos = pairRows.flatMap((r) => (r.target && !isSubtitleFile(r.target) ? [r.target] : []));
-  const pairReferences = pairRows.flatMap((r) => (r.video ? [r.video] : []));
-  const rows = kind === "multi" ? multiRows : pairRows.map(withKey);
-
-  /** The reference track of `video`: null when the engine picks it (no
-   * language chosen), or why there's none. */
-  function referenceOf(video: string): number | null | string {
-    if (referenceLanguage === null) return null;
-    const p = probes[video];
-    if (p === undefined) return "Lecture…";
-    if (typeof p === "string") return p;
-    return referenceInLanguage(p, referenceLanguage) ?? `Pas de référence ${languageName(referenceLanguage)}`;
-  }
-
-  const languages = useLanguages(multiVideos, probes);
-  const targetLanguages = useLanguages(pairTargetVideos, probes);
-  const referenceLanguages = useLanguages(kind === "multi" ? multiVideos : pairReferences, probes, true);
-
-  useEffect(() => {
-    if (language === null && languages.length) setLanguage(defaultLanguage(languages));
-  }, [languages, language]);
-  useEffect(() => {
-    if (targetLanguage === null && targetLanguages.length) setTargetLanguage(defaultLanguage(targetLanguages));
-  }, [targetLanguages, targetLanguage]);
-
-  /** Why a row can't be analyzed, or its tracks. */
-  const inputs = (row: Row) => resolve(row.video, row.target);
-
-  /** A row's tracks -- picked by hand ("Choisir"), else by the languages --
-   * or why there are none. Pairs: `target` is the file to correct; multi:
-   * null (the track is in `video`). */
-  function resolve(video: string | null, target: string | null): { reference: TrackRef; target: TrackRef } | string {
-    if (!video) return "Pas de vidéo";
-    const manual = choices[choiceKey(video, target)];
-    const index = manual ? manual.reference : referenceOf(video);
-    if (typeof index === "string") return index;
-    const reference = { path: video, index };
-    if (kind === "pairs") {
-      if (!target) return "Rien à corriger";
-      if (isSubtitleFile(target)) return { reference, target: { path: target, index: null } };
-      const track = manual?.target ?? trackIn(target, targetLanguage);
-      return typeof track === "string" ? track : { reference, target: { path: target, index: track } };
-    }
-    const track = manual?.target ?? trackIn(video, language, index);
-    return typeof track === "string" ? track : { reference, target: { path: video, index: track } };
-  }
-
-  /** The track to correct in a probed video (never `exclude`, the
-   * reference), or why there's none. */
-  function trackIn(path: string, lang: string | null, exclude: number | null = null): number | string {
-    const p = probes[path];
-    if (p === undefined) return "Lecture…";
-    if (typeof p === "string") return p;
-    return trackInLanguage(p, lang, exclude) ?? `Pas de piste ${languageName(lang)}`;
-  }
-
-  const runsOf = (row: Row) => runs[row.key] ?? NO_RUNS;
-  const updateRuns = (key: string, update: (current: RowRuns) => RowRuns) =>
-    setRuns((all) => ({ ...all, [key]: update(all[key] ?? NO_RUNS) }));
-
-  // --- adding files -------------------------------------------------------
-
-  /** Reads a video's tracks once (the track to correct is picked from them). */
-  function probeVideos(videos: string[]) {
-    for (const video of videos) {
-      if (probes[video] !== undefined) continue;
-      probe(video).then(
-        (p) => setProbes((all) => ({ ...all, [video]: p.tracks.length ? p : "Aucune piste de sous-titres" })),
-        (e) => setProbes((all) => ({ ...all, [video]: errorMessage(e) })),
-      );
-    }
-  }
-
-  /** Pairs: `side` is the column ("left": the references, "right": the
-   * files to correct); a subtitle file can only be corrected, wherever
-   * it's dropped. Multi: videos only. */
-  async function addFiles(files: string[], side: DropSide = "right") {
-    if (kind === "multi") {
-      const fresh = files.filter((f) => !isSubtitleFile(f) && !multiVideos.includes(f));
-      setMultiVideos((current) => [...current, ...fresh]);
-      probeVideos(fresh);
-      return;
-    }
-    const references = side === "left" ? files.filter((f) => !isSubtitleFile(f)) : [];
-    const targets = side === "left" ? files.filter(isSubtitleFile) : files;
-    probeVideos([...references, ...targets.filter((f) => !isSubtitleFile(f))]);
-    const allReferences = [...new Set([...pairRows.flatMap((r) => (r.video ? [r.video] : [])), ...references])];
-    const allTargets = [...new Set([...pairRows.flatMap((r) => (r.target ? [r.target] : [])), ...targets])];
-    const pairs = await pairFiles(allReferences, allTargets);
-    setPairRows(pairs.map((p) => ({ key: `${p.video}|${p.subtitle}`, video: p.video, target: p.subtitle, by: p.by })));
-  }
-
-  const addVideos = async () => addFiles(await pickFiles("Vidéos de référence", VIDEO_FILTER), "left");
-  const addTargets = async () => addFiles(await pickFiles("À corriger : sous-titres ou vidéos", TARGET_FILTER), "right");
-  const addMultiVideos = async () => addFiles(await pickFiles("Vidéos", VIDEO_FILTER));
-
-  function moveSubtitle(i: number, direction: -1 | 1) {
-    setPairRows((current) => {
-      const next = [...current];
-      const j = i + direction;
-      if (j < 0 || j >= next.length) return current;
-      const a = next[i];
-      const b = next[j];
-      next[i] = { ...a, target: b.target, by: "manual", key: `${a.video}|${b.target}` };
-      next[j] = { ...b, target: a.target, by: "manual", key: `${b.video}|${a.target}` };
-      return next;
-    });
-  }
-
-  /** Multi: the file. Pairs: one side's file only (`side`), the row going
-   * once neither is left. */
-  function removeRow(row: Row, side: "video" | "target" = "video") {
-    if (kind === "multi") {
-      setMultiVideos((v) => v.filter((x) => x !== row.video));
-      return;
-    }
-    setPairRows((rows) =>
-      rows.flatMap((x) => {
-        if (x.video !== row.video || x.target !== row.target) return [x];
-        const left = side === "video" ? { ...x, video: null } : { ...x, target: null };
-        return left.video || left.target ? [{ ...left, by: null, key: `${left.video}|${left.target}` }] : [];
-      }),
-    );
-  }
-
-  const clear = () => (kind === "multi" ? setMultiVideos([]) : setPairRows([]));
-
-  const drag = useFileDrop(active && editingRow === null, busy ? "Attends la fin de la tâche en cours." : null, (files, side) => {
-    addFiles(files, side);
-  });
-
-  // Dev only: automated UI checks add files without the native dialog.
-  useEffect(() => {
-    if (!import.meta.env.DEV || !active) return;
-    (window as unknown as { __test?: object }).__test = { addFiles, setKind: onKindChange };
-  });
-
-  // --- running ------------------------------------------------------------
-
-  async function analyzeRows(todo: Row[]) {
-    stop.current = false;
-    setBusy("analysis");
-    // Every row to analyze loses its result at once ("En attente"): the
-    // rows already done can be edited meanwhile, never one about to be
-    // analyzed again (its edits would be overwritten).
-    for (const row of todo) updateRuns(row.key, () => ({ analysis: IDLE, render: IDLE, queued: true }));
-    for (const [n, row] of todo.entries()) {
-      if (stop.current) break;
-      setProgress(`Analyse ${n + 1}/${todo.length} : ${fileName(row.video ?? "")}`);
-      const tracks = inputs(row) as { reference: TrackRef; target: TrackRef };
-      updateRuns(row.key, () => ({ analysis: { status: "running", log: [] }, render: IDLE }));
-      try {
-        const result = await runJob<Analysis>(
-          startAnalyze(tracks.reference, tracks.target),
-          () => {},
-          (id) => (currentJob.current = id),
-        );
-        updateRuns(row.key, (r) => ({ ...r, analysis: { status: "done", log: [], result } }));
-      } catch (e) {
-        const status = e instanceof JobCancelled ? "cancelled" : "error";
-        updateRuns(row.key, (r) => ({ ...r, analysis: { status, log: [], error: errorMessage(e) } }));
-      }
-    }
-    // Cancelled: the rows not reached are back to "À analyser".
-    for (const row of todo) updateRuns(row.key, (r) => (r.queued ? { ...r, queued: false } : r));
-    currentJob.current = null;
-    setBusy(null);
-    setProgress(null);
-  }
-
-  async function exportRows(todo: Row[]) {
-    stop.current = false;
-    setBusy("render");
-    let outputs: string[] = [];
-    try {
-      outputs = await planOutputs(
-        todo.map((row) => {
-          const a = runsOf(row).analysis.result!;
-          return [a.reference, a.target];
-        }),
-        subsOnly,
-        folder,
-      );
-    } catch (e) {
-      for (const row of todo) updateRuns(row.key, (r) => ({ ...r, render: { status: "error", log: [], error: errorMessage(e) } }));
-      todo = [];
-    }
-    for (const [n, row] of todo.entries()) {
-      if (stop.current) break;
-      setProgress(`Export ${n + 1}/${todo.length} : ${fileName(row.video ?? "")}`);
-      const analysis = runsOf(row).analysis.result!;
-      const output = outputs[n];
-      updateRuns(row.key, (r) => ({ ...r, render: { status: "running", log: [] } }));
-      try {
-        const result = await runJob<RenderResult>(
-          startRender(analysis.reference, analysis.target, analysis.segments, {
-            output,
-            subs_only: subsOnly,
-            language: kind === "pairs" ? addedLanguage || null : null,
-            title: kind === "pairs" ? title || null : null,
-            default: null,
-            replace_same_language: kind === "pairs" && replaceSame,
-          }),
-          () => {},
-          (id) => (currentJob.current = id),
-        );
-        updateRuns(row.key, (r) => ({ ...r, render: { status: "done", log: [], result } }));
-      } catch (e) {
-        const status = e instanceof JobCancelled ? "cancelled" : "error";
-        updateRuns(row.key, (r) => ({ ...r, render: { status, log: [], error: errorMessage(e) } }));
-      }
-    }
-    currentJob.current = null;
-    setBusy(null);
-    setProgress(null);
-  }
-
-  function cancel() {
-    stop.current = true;
-    if (currentJob.current) cancelJob(currentJob.current);
-  }
-
-  // What "Exporter tout" does: what's left to do, or once
-  // everything is, all of it again.
-  const analyzableRows = rows.filter((r) => typeof inputs(r) === "object");
-  const analyzedRows = rows.filter((r) => runsOf(r).analysis.status === "done");
-  const pendingAnalysis = analyzableRows.filter((r) => runsOf(r).analysis.status !== "done");
-  const pendingExport = analyzedRows.filter((r) => runsOf(r).render.status !== "done");
-  const exportTodo = pendingExport.length ? pendingExport : analyzedRows;
-  const analyzed = analyzedRows.length;
-  const exported = rows.filter((r) => runsOf(r).render.status === "done").length;
-
-  // --- view ---------------------------------------------------------------
-
-  const unit = kind === "pairs" ? "paire" : "piste";
-  const missing = pendingAnalysis.length;
-  const hint =
-    kind === "pairs"
-      ? "Une ligne = une paire : la vidéo, dont les sous-titres servent de référence, et ce qu'il faut corriger : un fichier de sous-titres (SRT/ASS), ou une vidéo qui contient la piste à corriger, choisie par langue pour toutes. Ils sont appariés par numéro d'épisode (S01E03, 1x03…), sinon dans l'ordre : ↑ ↓ pour corriger l'ordre de la colonne « À corriger ». Glissés sur la moitié gauche de la fenêtre, des fichiers vont en référence ; sur la droite, à corriger."
-      : "Chaque fichier contient déjà la référence et la piste à corriger, choisie par langue pour tous les fichiers. Un dossier glissé sur la fenêtre ajoute ses fichiers.";
-
-  return (
-    <main className="batch-main" hidden={!active}>
-      <div className="batch-config panel">
-        <label>
-          Référence :
-          <select
-            value={referenceLanguage ?? ""}
-            onChange={(e) => setReferenceLanguage(e.target.value || null)}
-            disabled={busy !== null}
-            title="La piste de sous-titres déjà bien calée de chaque vidéo : par défaut la plus complète, ou celle d'une langue (complète plutôt que forcée)."
-          >
-            <option value="">Automatique (la plus complète)</option>
-            {referenceLanguages.map(([lang, n]) => (
-              <option key={lang} value={lang}>
-                {languageName(lang)} ({lang}) · {n} fichier{n > 1 ? "s" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        {kind === "multi" && <LanguageSelect value={language} languages={languages} onChange={setLanguage} disabled={busy !== null} />}
-        {kind === "pairs" && pairTargetVideos.length > 0 && (
-          <LanguageSelect value={targetLanguage} languages={targetLanguages} onChange={setTargetLanguage} disabled={busy !== null} />
-        )}
-        <span className="batch-config-field">
-          Export :
-          <PillSwitch
-            label="Contenu de l'export"
-            options={[
-              ["mkv", "Nouveaux MKV"],
-              ["subs", "Sous-titres seuls"],
-            ]}
-            value={subsOnly ? "subs" : "mkv"}
-            onChange={(v) => setSubsOnly(v === "subs")}
-            disabled={busy !== null}
-          />
-        </span>
-        {kind === "pairs" && !subsOnly && (
-          <>
-            <label>
-              Langue :
-              <select value={addedLanguage} onChange={(e) => setAddedLanguage(e.target.value)} disabled={busy !== null}>
-                <option value="">Celle du fichier</option>
-                {LANGUAGES.map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name} ({code})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="config-field">
-              Piste de même langue :
-              <PillSwitch
-                label="Piste de même langue dans la vidéo"
-                options={[
-                  ["replace", "Remplacer"],
-                  ["keep", "Garder"],
-                ]}
-                value={replaceSame ? "replace" : "keep"}
-                onChange={(v) => setReplaceSame(v === "replace")}
-                disabled={busy !== null}
-              />
-            </span>
-            <label>
-              Titre :
-              <input
-                {...FIELD_PROPS}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="ex. Français"
-                disabled={busy !== null}
-              />
-            </label>
-          </>
-        )}
-        <InfoTip>{hint}</InfoTip>
-      </div>
-
-      <section className="panel batch-jobs">
-        <div className="batch-jobs-header">
-          <h2>{kind === "pairs" ? "Paires" : "Fichiers"}</h2>
-          <button className="small-button" onClick={clear} disabled={busy !== null || rows.length === 0}>
-            Tout retirer
-          </button>
-        </div>
-
-        {/* Always shown, even empty: its header holds the buttons that add files. */}
-        <div className="batch-table-wrap list-scroll">
-          <table>
-            <colgroup>
-              <col className="batch-col-index" />
-              <col />
-              <col />
-              <col className="batch-col-status" />
-              <col className="batch-col-status" />
-              <col className="batch-col-folder" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th className="batch-index">#</th>
-                <th>
-                  <div className="batch-th-add">
-                    <span>{kind === "pairs" ? "Vidéo (référence)" : "Fichier"}</span>
-                    <button
-                      className="small-button"
-                      disabled={busy !== null}
-                      onClick={kind === "pairs" ? addVideos : addMultiVideos}
-                      title="Ajouter des vidéos"
-                    >
-                      + Ajouter
-                    </button>
-                  </div>
-                </th>
-                <th>
-                  {kind === "pairs" ? (
-                    <div className="batch-th-add">
-                      <span>À corriger</span>
-                      <button
-                        className="small-button"
-                        disabled={busy !== null}
-                        onClick={addTargets}
-                        title="Ajouter ce qu'il faut corriger : des sous-titres (SRT/ASS), ou des vidéos qui contiennent la piste à corriger"
-                      >
-                        + Ajouter
-                      </button>
-                    </div>
-                  ) : (
-                    "Pistes"
-                  )}
-                </th>
-                <th>Analyse</th>
-                <th>Export</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="batch-empty">
-                    <DropZone
-                      title="Glisse des fichiers ou des dossiers ici"
-                      onClick={kind === "pairs" ? addVideos : addMultiVideos}
-                      disabled={busy !== null}
-                    >
-                      {kind === "pairs"
-                        ? "À gauche de la fenêtre, les vidéos de référence ; à droite, ce qu'il faut corriger (sous-titres ou vidéos), un par épisode : ils sont appariés d'après leur nom."
-                        : "Des vidéos qui contiennent chacune la référence et la piste à corriger."}
-                    </DropZone>
-                  </td>
-                </tr>
-              )}
-              {rows.map((row, i) => (
-                <BatchRow
-                  key={`${row.key}#${i}`}
-                  index={i}
-                  row={row}
-                  kind={kind}
-                  runs={runsOf(row)}
-                  problem={typeof inputs(row) === "string" ? (inputs(row) as string) : null}
-                  targetLabel={tracksLabel(row, inputs(row), probes, kind)}
-                  manual={choices[choiceKey(row.video, row.target)] !== undefined}
-                  onChoose={row.video && typeof probes[row.video] === "object" ? () => setChoosing(row) : null}
-                  onByLanguage={() =>
-                    setChoices((all) => {
-                      const next = { ...all };
-                      delete next[choiceKey(row.video, row.target)];
-                      return next;
-                    })
-                  }
-                  busy={busy !== null}
-                  exporting={busy === "render"}
-                  canMoveUp={i > 0}
-                  canMoveDown={i < rows.length - 1}
-                  onMove={(d) => moveSubtitle(i, d)}
-                  onRemove={(side) => removeRow(row, side)}
-                  onEdit={() => setEditingRow(row)}
-                  onReanalyze={typeof inputs(row) === "object" ? () => analyzeRows([row]) : null}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div className="batch-footer panel">
-        <div className="batch-output">
-          <span className="batch-output-label">Sortie :</span>
-          <span className={folder ? "batch-output-dir batch-output-path" : "batch-output-dir"} title={folder ?? undefined}>
-            {folder ?? "à côté des originaux"}
-          </span>
-          <button
-            className="small-button"
-            disabled={busy !== null}
-            title="Dans un autre dossier que l'original, un export garde le nom de l'original (sauf si ce nom y est déjà pris) ; à côté de l'original, il prend le suffixe « .synced »."
-            onClick={async () => {
-              const dir = await pickFolder("Dossier de sortie");
-              if (dir) changeFolder(dir);
-            }}
-          >
-            Choisir un dossier…
-          </button>
-          {folder && (
-            <button
-              className="small-button"
-              disabled={busy !== null}
-              onClick={() => changeFolder(null)}
-              title="Écrire chaque export à côté de son original"
-            >
-              À côté des originaux
-            </button>
-          )}
-        </div>
-        <span className="batch-progress">
-          {rows.length} {kind === "pairs" ? `paire${rows.length > 1 ? "s" : ""}` : `fichier${rows.length > 1 ? "s" : ""}`}
-          {kind === "pairs"
-            ? ` · ${analyzed}/${analyzableRows.length} analysée${analyzed > 1 ? "s" : ""}`
-            : ` · ${analyzed}/${analyzableRows.length} piste${analyzableRows.length > 1 ? "s" : ""} analysée${analyzed > 1 ? "s" : ""}`}
-          {exported > 0 && ` · ${exported} exporté${kind === "pairs" ? "e" : ""}${exported > 1 ? "s" : ""}`}
-          {progress && ` · ${progress}`}
-        </span>
-        {busy === "analysis" ? (
-          <>
-            <button className="primary-button" disabled>
-              Analyse en cours...
-            </button>
-            <button className="export-cancel" onClick={cancel}>
-              Annuler
-            </button>
-          </>
-        ) : missing === 0 && analyzed > 0 ? (
-          <button
-            className="primary-button"
-            disabled={busy !== null}
-            title="Réanalyse tout, y compris ce qui l'est déjà : les modifications faites avec « Modifier » sont perdues."
-            onClick={() => analyzeRows(analyzableRows)}
-          >
-            Tout réanalyser
-          </button>
-        ) : (
-          <>
-            {analyzed > 0 && (
-              <button
-                className="small-button"
-                disabled={busy !== null}
-                title="Réanalyse tout, y compris ce qui l'est déjà : les modifications faites avec « Modifier » sont perdues."
-                onClick={() => analyzeRows(analyzableRows)}
-              >
-                Tout réanalyser
-              </button>
-            )}
-            <button
-              className="primary-button"
-              disabled={busy !== null || missing === 0}
-              title={
-                analyzed > 0
-                  ? `Analyse seulement les ${unit}s qui ne le sont pas encore ; les autres et leurs modifications sont gardées.`
-                  : undefined
-              }
-              onClick={() => analyzeRows(pendingAnalysis)}
-            >
-              {analyzed > 0
-                ? missing > 1
-                  ? `Analyser les ${missing} ${unit}s restantes`
-                  : `Analyser la ${unit} restante`
-                : "Analyser tout"}
-            </button>
-          </>
-        )}
-        {busy === "render" ? (
-          <button className="export-cancel" onClick={cancel}>
-            Annuler l'export
-          </button>
-        ) : (
-          <button className="primary-button" onClick={() => exportRows(exportTodo)} disabled={busy !== null || !exportTodo.length}>
-            Exporter tout
-          </button>
-        )}
-      </div>
-
-      {choosing && choosing.video && typeof probes[choosing.video] === "object" && (
-        <ChooseTracksDialog
-          reference={probes[choosing.video] as ProbeResponse}
-          target={
-            kind === "multi"
-              ? (probes[choosing.video] as ProbeResponse)
-              : choosing.target && !isSubtitleFile(choosing.target) && typeof probes[choosing.target] === "object"
-                ? (probes[choosing.target] as ProbeResponse)
-                : null
-          }
-          current={(() => {
-            const tracks = inputs(choosing);
-            return typeof tracks === "string" ? null : { reference: tracks.reference.index, target: tracks.target.index };
-          })()}
-          onClose={() => setChoosing(null)}
-          onSave={(choice) => {
-            setChoices((all) => ({ ...all, [choiceKey(choosing.video, choosing.target)]: choice }));
-            setChoosing(null);
-          }}
-        />
-      )}
-      {editingRow && runsOf(editingRow).analysis.result && (
-        <SegmentEditor
-          analysis={runsOf(editingRow).analysis.result!}
-          duration={analysisDuration(runsOf(editingRow).analysis.result!)}
-          onClose={() => setEditingRow(null)}
-          onSave={(segments) => {
-            const row = editingRow;
-            // The export no longer matches: it's to do again.
-            updateRuns(row.key, (r) => ({
-              analysis: { ...r.analysis, result: withSegments(r.analysis.result!, segments) },
-              render: IDLE,
-              edited: true,
-            }));
-            setEditingRow(null);
-          }}
-        />
-      )}
-      <DropOverlay
-        drag={drag}
-        blocked={busy ? "Import impossible pendant une analyse ou un export : attends sa fin." : null}
-        label="Déposer pour ajouter au lot"
-        split={kind === "pairs" ? ["Vidéos de référence", "À corriger : sous-titres ou vidéos"] : undefined}
-        hint="Un dossier ajoute ses fichiers, par ordre de nom"
-      />
-    </main>
-  );
-}
-
-/** Pairs: what the "À corriger" column takes. */
-const TARGET_FILTER = { name: "Sous-titres ou vidéos", extensions: [...SUBTITLE_EXTENSIONS, ...VIDEO_EXTENSIONS] };
-
-/** The languages of the text tracks in `videos` (with `images`, of every
- * usable track: a reference may be PGS/VobSub), most common first. */
-function useLanguages(videos: string[], probes: Record<string, ProbeResponse | string>, images = false): [string, number][] {
-  return useMemo(() => {
-    const count = new Map<string, number>();
-    for (const video of new Set(videos)) {
-      const p = probes[video];
-      if (typeof p !== "object") continue;
-      const tracks = images ? p.tracks.filter((t) => t.format !== null) : textTracks(p);
-      for (const lang of new Set(tracks.map((t) => t.language ?? "?"))) count.set(lang, (count.get(lang) ?? 0) + 1);
-    }
-    return [...count.entries()].sort((a, b) => b[1] - a[1]);
-  }, [videos, probes, images]);
-}
-
-/** French when there is, else the second most common (the first being the
- * reference's, likely). */
-function defaultLanguage(languages: [string, number][]): string {
-  return languages.find(([l]) => l === "fre")?.[0] ?? languages[1]?.[0] ?? languages[0][0];
-}
-
-/** "À corriger : <language>", the track to correct in every video. */
-function LanguageSelect({
-  value,
-  languages,
-  onChange,
-  disabled,
-}: {
-  value: string | null;
-  languages: [string, number][];
-  onChange: (language: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <label>
-      À corriger :
-      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} disabled={disabled || !languages.length}>
-        {!languages.length && <option value="">—</option>}
-        {languages.map(([lang, n]) => (
-          <option key={lang} value={lang}>
-            {languageName(lang)} ({lang}) · {n} fichier{n > 1 ? "s" : ""}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-/** Tracks picked by hand for a row: the reference's index, and the track
- * to correct's (null: the file to correct is a subtitle file). */
-interface TrackChoice {
+/** A pair's tracks picked by hand in its detail, instead of the top bar's:
+ * the reference video's track, and the track to correct of a video to
+ * correct (null: a subtitle file, its only one). */
+interface PairChoice {
   reference: number;
   target: number | null;
 }
 
-/** Where a row's hand-picked tracks are kept: its files. */
-const choiceKey = (video: string | null, target: string | null) => `${video}|${target ?? ""}`;
-
-/** "@0 eng → @2 fre (subrip) « Titre »", the reference "Réf. auto" when the
- * engine picks it (as Bobine Audio's "Pistes" column); pairs: the target
- * track only for a video to correct, nothing for a subtitle file. */
-function tracksLabel(
-  row: Row,
-  tracks: { reference: TrackRef; target: TrackRef } | string,
-  probes: Record<string, ProbeResponse | string>,
-  kind: Kind,
-): string | null {
-  if (typeof tracks === "string" || !row.video) return null;
-  const describe = (path: string, index: number | null, full: boolean) => {
-    const p = probes[path];
-    const t = typeof p === "object" ? p.tracks.find((x) => x.index === index) : undefined;
-    if (!t) return index === null ? "Réf. auto" : `@${index}`;
-    return full
-      ? `@${t.index} ${t.language ?? "?"} (${t.codec})${t.title ? ` « ${t.title} »` : ""}${t.forced ? " forcés" : ""}`
-      : `@${t.index} ${t.language ?? "?"}`;
-  };
-  const reference = describe(row.video, tracks.reference.index, false);
-  if (kind === "multi") return `${reference} → ${describe(row.video, tracks.target.index, true)}`;
-  const target = tracks.target.index === null ? fileName(tracks.target.path) : describe(tracks.target.path, tracks.target.index, true);
-  return `${reference} → ${target}`;
+/** What a pair's export does, changed in its detail (absent: the top bar's). */
+interface PairExport {
+  language?: string;
+  title?: string;
+  /** The reference video's track it takes the place of; null: added. */
+  replaces?: number | null;
 }
 
-/** "Choisir": a row's tracks picked by hand, from Bobine Audio's track
- * table -- the reference among the reference video's tracks, the track to
- * correct among `target`'s (the same video in multi; none when the file to
- * correct is a subtitle file). */
-function ChooseTracksDialog({
-  reference,
-  target,
-  current,
-  onClose,
-  onSave,
-}: {
-  reference: ProbeResponse;
-  target: ProbeResponse | null;
-  current: { reference: number | null; target: number | null } | null;
-  onClose: () => void;
-  onSave: (choice: TrackChoice) => void;
-}) {
-  const usable = reference.tracks.filter((t) => t.format !== null);
-  const sameFile = target?.path === reference.path;
-  const [ref, setRef] = useState<number | null>(current?.reference ?? usable.find((t) => !t.forced)?.index ?? usable[0]?.index ?? null);
-  const [tgt, setTgt] = useState<number | null>(current?.target ?? null);
-  const targets = textTracks(target);
-  const valid = ref !== null && (target === null || (tgt !== null && !(sameFile && tgt === ref)));
-
-  const table = (probe: ProbeResponse, pickReference: boolean, pickTarget: boolean, name: string) => (
-    <div className="tracks-table-wrap">
-      <table className="batch-tracks-table">
-        <thead>
-          <tr>
-            <th>Piste</th>
-            <th>Langue</th>
-            <th>Format</th>
-            <th>Titre</th>
-            {pickReference && <th className="track-pick">Réf.</th>}
-            {pickTarget && <th className="track-pick">À corriger</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {probe.tracks.map((t) => (
-            <tr key={t.index}>
-              <td>@{t.index}</td>
-              <td>
-                {t.language ?? "?"}
-                {t.forced && <span className="track-forced"> (F)</span>}
-              </td>
-              <td>{t.codec}</td>
-              <td className="batch-choice-title">{t.title ?? ""}</td>
-              {pickReference && (
-                <td className="track-pick">
-                  <input
-                    type="radio"
-                    name={`${name}-ref`}
-                    checked={ref === t.index}
-                    disabled={t.format === null}
-                    onChange={() => setRef(t.index)}
-                  />
-                </td>
-              )}
-              {pickTarget && (
-                <td className="track-pick">
-                  <input
-                    type="radio"
-                    name={`${name}-target`}
-                    checked={tgt === t.index}
-                    disabled={!targets.some((x) => x.index === t.index) || (sameFile && ref === t.index)}
-                    onChange={() => setTgt(t.index)}
-                  />
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  return (
-    <Dialog onClose={onClose} className="batch-choice-panel" labelledBy="choice-title">
-      <DialogHeader id="choice-title" title={`Pistes de ${fileName(reference.path)}`} titleTooltip={reference.path} onClose={onClose} />
-      {sameFile ? (
-        table(reference, true, true, "multi")
-      ) : (
-        <>
-          <h3 className="batch-choice-heading">Référence · {fileName(reference.path)}</h3>
-          {table(reference, true, false, "ref")}
-          {target && (
-            <>
-              <h3 className="batch-choice-heading">À corriger · {fileName(target.path)}</h3>
-              {table(target, false, true, "target")}
-            </>
-          )}
-        </>
-      )}
-      <div className="batch-choice-actions">
-        <button
-          className="primary-button"
-          disabled={!valid}
-          onClick={() => valid && onSave({ reference: ref!, target: target ? tgt : null })}
-        >
-          Valider
-        </button>
-      </div>
-    </Dialog>
-  );
-}
-
-/** Where a row stands, for the colored bar at its left (as Bobine Audio's
- * analyzed tracks): running, waiting, analyzed, exported, failed, or
- * nothing done yet. */
-function rowState(runs: RowRuns, problem: string | null): string {
-  const { analysis, render } = runs;
-  if (analysis.status === "running" || render.status === "running") return "running";
-  if (runs.queued) return "queued";
-  if (analysis.status === "error" || render.status === "error" || (problem && problem !== "Lecture…")) return "error";
-  if (render.status === "done") return "exported";
-  if (analysis.status === "done") return "analyzed";
-  return "idle";
-}
-
-/** One row, as Bobine Audio's batch tables: the files (with the buttons
- * that move or drop them), then the analysis with "Modifier", the export,
- * and the written file's folder. */
-function BatchRow({
-  index,
-  row,
-  kind,
-  runs,
-  problem,
-  targetLabel,
-  busy,
-  canMoveUp,
-  canMoveDown,
-  onMove,
-  onRemove,
-  onEdit,
-  onReanalyze,
-  manual,
-  onChoose,
-  onByLanguage,
-  exporting,
-}: {
-  index: number;
-  row: Row;
-  kind: Kind;
-  runs: RowRuns;
-  problem: string | null;
-  targetLabel: string | null;
-  busy: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  onMove: (direction: -1 | 1) => void;
-  /** Pairs: which side's file; multi: the file. */
-  onRemove: (side: "video" | "target") => void;
-  onEdit: () => void;
-  /** Analyzes this row alone again (its hand edits are lost). */
-  onReanalyze: (() => void) | null;
-  /** Its tracks were picked by hand. */
+/** A pair's tracks as used now: its reference, its track to correct, and
+ * what was off when picking them. */
+interface Resolved {
+  reference: TrackInfo | null;
+  target: TrackRef | null;
+  /** The track to correct, when it's a video's. */
+  targetTrack: TrackInfo | null;
+  issues: string[];
   manual: boolean;
-  /** Picks its tracks by hand (null until its video's tracks are read). */
-  onChoose: (() => void) | null;
-  onByLanguage: () => void;
-  /** An export is running: no edit meanwhile (it would change what's written). */
-  exporting: boolean;
-}) {
-  const chooseButtons = (
-    <span className="batch-tracks-actions">
-      <button
-        className="small-button"
-        disabled={busy || !onChoose}
-        onClick={() => onChoose?.()}
-        title="Choisir à la main la référence et la piste à corriger de cette ligne"
-      >
-        Choisir
-      </button>
-      {manual && (
-        <button className="small-button" disabled={busy} onClick={onByLanguage} title="Revenir au choix par langue">
-          Par langue
-        </button>
-      )}
-    </span>
-  );
-  const { analysis, render } = runs;
-  const result = analysis.result;
-  const weak = result
-    ? result.segments.some((s) => s.confidence < LOW_CONFIDENCE) ||
-      result.warnings.length > 0 ||
-      result.target_cues.some((c) => c.corrected === null)
-    : false;
-  const analysisClass =
-    analysis.status === "idle"
-      ? "pending"
-      : analysis.status === "done"
-        ? "done"
-        : analysis.status === "running"
-          ? "running"
-          : analysis.status;
-  const renderClass = render.status === "idle" ? "pending" : render.status;
+  auto: boolean;
+}
 
-  return (
-    <tr className={`batch-row-state-${rowState(runs, problem)}${problem ? " batch-row-flagged" : ""}`}>
-      <td className="batch-index">{index + 1}</td>
-      <td className="batch-file">
-        <div className="batch-file-inner">
-          <span className="batch-filename" title={row.video ?? ""}>
-            {row.video ? fileName(row.video) : "—"}
-          </span>
-          <span className="batch-file-actions">
-            <button className="small-button" onClick={() => onRemove("video")} disabled={busy || !row.video} title="Retirer">
-              ✕
-            </button>
-          </span>
-        </div>
+/** Whether an analysis found something worth a look: an unreliable
+ * segment, a warning, lines that fall off. */
+const weak = (a: Analysis) =>
+  a.segments.some((s) => s.confidence < LOW_CONFIDENCE) || a.warnings.length > 0 || a.target_cues.some((c) => c.corrected === null);
+
+/** A pair's tracks table, both files' in one (from Bobine Audio): which
+ * file each comes from, then the reference picked among the reference
+ * video's tracks and the track to correct among the other's -- a subtitle
+ * file being one row of its own, its only track. */
+function PairTrackTable({
+  referenceProbe,
+  target,
+  targetProbe,
+  reference,
+  targetTrack,
+  disabled,
+  onReference,
+  onTarget,
+}: {
+  referenceProbe: FileProbe | undefined;
+  target: string;
+  targetProbe: FileProbe | undefined;
+  reference: number | null;
+  targetTrack: number | null;
+  disabled: boolean;
+  onReference: (index: number) => void;
+  onTarget: (index: number) => void;
+}) {
+  const m = useT();
+  const standalone = isSubtitleFile(target);
+  const row = (side: "ref" | "cand", tr: TrackInfo, cues: Record<number, number> | null | undefined) => (
+    <tr
+      key={`${side}-${tr.index}`}
+      title={
+        [tr.title && m.tracks.titled(tr.title), side === "ref" && readable(tr) && !correctable(tr) && m.tracks.imageOnly]
+          .filter(Boolean)
+          .join(" · ") || undefined
+      }
+    >
+      <td>
+        <PairKind kind={side} />
       </td>
-      {kind === "pairs" ? (
-        <td className="batch-file">
-          <div className="batch-file-inner">
-            <span className="batch-filename" title={row.target ?? ""}>
-              {row.target ? fileName(row.target) : "—"}
-            </span>
-            {row.by === "order" && (
-              <span className="batch-track-status" title="Aucun numéro d'épisode commun : apparié dans l'ordre">
-                ordre
-              </span>
-            )}
-            {row.by === "manual" && <span className="batch-track-status">manuel</span>}
-            <span className="batch-file-actions">
-              <button className="small-button" onClick={() => onMove(-1)} disabled={busy || !canMoveUp} title="Monter">
-                {"↑︎"}
-              </button>
-              <button className="small-button" onClick={() => onMove(1)} disabled={busy || !canMoveDown} title="Descendre">
-                {"↓︎"}
-              </button>
-              <button className="small-button" onClick={() => onRemove("target")} disabled={busy || !row.target} title="Retirer">
-                ✕
-              </button>
-            </span>
-          </div>
-          <div className="batch-tracks-line batch-target-track">
-            <span className={targetLabel || !problem ? "batch-tracks-summary" : "batch-tracks-summary batch-track-status-error"}>
-              {targetLabel ?? problem ?? "Lecture des pistes..."}
-              {manual && <span className="batch-track-status"> (manuel)</span>}
-            </span>
-            {chooseButtons}
-          </div>
-        </td>
-      ) : (
-        <td className="batch-tracks-cell">
-          <div className="batch-tracks-line">
-            <span className="batch-tracks-summary">
-              {targetLabel ?? <span className="batch-track-status">{problem ?? "Lecture des pistes..."}</span>}
-              {manual && <span className="batch-track-status"> (manuel)</span>}
-            </span>
-            {chooseButtons}
-          </div>
-        </td>
-      )}
-      <td className={`batch-status batch-status-${problem && analysis.status === "idle" ? "error" : analysisClass}`}>
-        <div className="batch-analysis-cell">
-          <div className="batch-analysis-text">
-            {problem && analysis.status === "idle" && problem}
-            {!problem && analysis.status === "idle" && (runs.queued ? "En attente" : "À analyser")}
-            {analysis.status === "running" && "Analyse en cours..."}
-            {analysis.status === "error" && (analysis.error ?? "Erreur")}
-            {analysis.status === "cancelled" && "Annulé"}
-            {analysis.status === "done" && result && (
-              <>
-                {summarize(result)}
-                {result.ratio_name && <span className="drift-text"> · dérive</span>}
-                {runs.edited && " · modifié"}
-                {weak && <span className="batch-issues">⚠ à vérifier</span>}
-              </>
-            )}
-          </div>
-          <div className="batch-row-buttons">
-            {analysis.status === "done" && result && (
-              <button className="small-button" disabled={exporting} onClick={onEdit}>
-                Modifier
-              </button>
-            )}
-            {onReanalyze && (analysis.status === "done" || analysis.status === "error" || analysis.status === "cancelled") && (
-              <button
-                className="small-button icon-small-button"
-                disabled={busy}
-                onClick={onReanalyze}
-                aria-label="Réanalyser"
-                title={
-                  runs.edited
-                    ? "Réanalyser cette ligne seule : ses modifications faites avec « Modifier » sont perdues."
-                    : "Réanalyser cette ligne seule"
-                }
-              >
-                <RedoIcon />
-              </button>
-            )}
-          </div>
-        </div>
+      <td>@{tr.index}</td>
+      <td>{tr.language ?? "?"}</td>
+      <td>
+        {tr.codec}
+        {tr.forced && ` · ${m.tracks.forced}`}
       </td>
-      <td className={`batch-status batch-status-${renderClass}`}>
-        {render.status === "idle" && "—"}
-        {render.status === "running" && "Export en cours..."}
-        {render.status === "done" && render.result && <span title={render.result.path}>{fileName(render.result.path)}</span>}
-        {render.status === "error" && (render.error ?? "Erreur")}
-        {render.status === "cancelled" && "Annulé"}
+      <td className="track-cues">{cues?.[tr.index] ?? "—"}</td>
+      <td className="track-pick">
+        {side === "ref" && (
+          <input
+            type="radio"
+            aria-label={m.tracks.asReference(trackName(tr.index, tr))}
+            name="pair-reference"
+            checked={reference === tr.index}
+            disabled={disabled || !readable(tr)}
+            onChange={() => onReference(tr.index)}
+          />
+        )}
       </td>
-      <td className="batch-row-actions">
-        {render.status === "done" && render.result && (
-          <button
-            className="small-button icon-small-button"
-            title="Ouvrir le dossier du fichier écrit"
-            aria-label="Ouvrir le dossier du fichier écrit"
-            onClick={() => revealItemInDir(render.result!.path)}
-          >
-            <FolderIcon />
-          </button>
+      <td className="track-pick">
+        {side === "cand" && (
+          <input
+            type="radio"
+            aria-label={m.tracks.toCorrect(trackName(tr.index, tr))}
+            name="pair-target"
+            checked={targetTrack === tr.index}
+            disabled={disabled || !correctable(tr)}
+            onChange={() => onTarget(tr.index)}
+          />
         )}
       </td>
     </tr>
+  );
+  return (
+    <table className="batch-tracks-table">
+      <thead>
+        <tr>
+          <th>{m.pairs.fileColumn}</th>
+          <th>{m.tracks.track}</th>
+          <th>{m.tracks.language}</th>
+          <th>{m.tracks.format}</th>
+          <th title={m.tracks.cuesHint}>{m.tracks.cues}</th>
+          <th className="track-pick">{m.tracks.referenceShort}</th>
+          <th className="track-pick">{m.tracks.toCorrectShort}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {referenceProbe?.tracks?.map((tr) => row("ref", tr, referenceProbe.cues))}
+        {standalone ? (
+          <tr title={target}>
+            <td>
+              <PairKind kind="cand" />
+            </td>
+            <td className="track-external" colSpan={2}>
+              {basename(target)}
+            </td>
+            <td>{target.split(".").pop()?.toLowerCase()}</td>
+            <td className="track-cues">{targetProbe?.cueCount ?? "—"}</td>
+            <td className="track-pick" />
+            <td className="track-pick">
+              <input type="radio" aria-label={m.tracks.toCorrect(basename(target))} checked readOnly disabled />
+            </td>
+          </tr>
+        ) : (
+          targetProbe?.tracks?.map((tr) => row("cand", tr, targetProbe.cues))
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+/** "Paires de fichiers": a series' reference videos on one side, what to
+ * correct on the other -- subtitle files (SRT, ASS), or videos holding the
+ * track to correct -- paired by episode number (see the engine's
+ * episodes.py; by order when the names have none in common, flagged).
+ * Laid out as Bobine Audio's: the list of pairs (each file movable within
+ * its own column: ↑ ↓ swap it with the next pair's) beside the selected
+ * pair's detail -- its tracks, its export, its chart, the loupe and its
+ * segments; the corrected track is added to the reference video, or takes
+ * the place of its track in the same language (Remplacer / Garder). With
+ * no file yet, two drop zones, one per column. Always kept mounted
+ * (BatchView.tsx) even while the other mode is shown. */
+export function PairsBatch({
+  hidden,
+  onModeChange,
+  outputDir,
+  onOutputDirChange,
+  blocked,
+  onBusyChange,
+}: {
+  hidden: boolean;
+  /** Switches to multitrack mode, from the empty workspace's cards. */
+  onModeChange?: (mode: BatchMode) => void;
+  outputDir: string | null;
+  onOutputDirChange: (dir: string | null) => void;
+  /** The other batch mode is working: nothing starts here meanwhile. */
+  blocked: boolean;
+  onBusyChange: (busy: boolean) => void;
+}) {
+  const m = useT();
+  const [pairs, setPairs] = useState<Pair[]>([]);
+  // The list as it really is, for files added while an earlier pairing is
+  // still on its way.
+  const latestPairs = useRef(pairs);
+  latestPairs.current = pairs;
+  // What the top bar picks for every pair (see TrackFilter): the reference
+  // in each video, and the track to correct in a video to correct (the
+  // first one these name); null: not picked yet.
+  const [referenceKey, setReferenceKey] = useState<TrackKey>("");
+  const [targetKeys, setTargetKeys] = useState<TrackKey[] | null>(null);
+  // Pairs whose tracks or export were changed in their detail (by both files).
+  const [choices, setChoices] = useState<Record<string, PairChoice>>({});
+  const [pairExports, setPairExports] = useState<Record<string, PairExport>>({});
+  // The added track, for every pair: "" its own language, else this one.
+  const [addedLanguage, setAddedLanguage] = useState("");
+  const [addedTitle, setAddedTitle] = useState("");
+  const [addedDefault, setAddedDefault] = useState(false);
+  // The video's track in the corrected track's language replaced (the
+  // default: it's often a poor one), or kept beside it.
+  const [replaceSame, setReplaceSame] = useState(true);
+  const [subsOnly, setSubsOnly] = useState(false);
+  // Keyed by what each was made of (trackKey: both files and both tracks),
+  // not by row: swapping files or adding more never shows a pair another
+  // one's, and one that comes back finds its own again.
+  const [analyses, setAnalyses] = useState<Record<string, AnalysisRun>>({});
+  const [exports, setExports] = useState<Record<string, ExportFields>>({});
+  const [analyzing, setAnalyzing] = useState(false);
+  const queue = useExportQueue(outputDir, subsOnly);
+  const [editing, setEditing] = useState<string | null>(null);
+  // The row shown in the detail.
+  const [selected, setSelected] = useState(0);
+  const collapsed = useListCollapsed();
+  const cleanSubtitles = useCleanSubtitles();
+  const busy = analyzing || queue.exporting;
+  useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
+
+  // Every listed file, read once as soon as it's listed: a video's tracks,
+  // a subtitle file's lines and language, or why it can't be read.
+  const listed = useMemo(() => pairs.flatMap((p) => [p.video, p.target].filter((f): f is string => !!f)), [pairs]);
+  const probes = useProbes(listed);
+
+  /** Adds files, each to its column -- a subtitle file can only be
+   * corrected, wherever it's dropped -- and pairs them all again by
+   * episode number. */
+  async function addFiles(files: string[], side: DropSide) {
+    const videos = side === "left" ? files.filter((f) => !isSubtitleFile(f)) : [];
+    await addPaths(videos, side === "left" ? files.filter(isSubtitleFile) : files);
+  }
+
+  async function addPaths(videos: string[], targets: string[]) {
+    const current = latestPairs.current;
+    const allVideos = [...new Set([...current.flatMap((p) => (p.video ? [p.video] : [])), ...videos])];
+    const allTargets = [...new Set([...current.flatMap((p) => (p.target ? [p.target] : [])), ...targets])];
+    try {
+      const paired = await pairFiles(allVideos, allTargets);
+      const next = paired.map((p) => ({ video: p.video, target: p.subtitle, by: p.by, episode: p.episode ?? null }));
+      latestPairs.current = next;
+      setPairs(next);
+    } catch {
+      // the engine is down: nothing could be done with them anyway
+    }
+  }
+
+  const pickVideos = async () =>
+    addFiles(await pickFiles(m.pairs.pickReferences, { name: m.files.videosFilter, extensions: VIDEO_EXTENSIONS }), "left");
+  const pickTargets = async () =>
+    addFiles(
+      await pickFiles(m.pairs.pickCandidates, {
+        name: m.pairs.candidatesFilter,
+        extensions: [...SUBTITLE_EXTENSIONS, ...VIDEO_EXTENSIONS],
+      }),
+      "right",
+    );
+
+  /** ↑ ↓ ✕ on one file of row `i` (`side`): moved within its column
+   * (swapped with the neighbouring pair's, both then paired by hand), or
+   * taken out of its row, which goes once it holds no file. */
+  function changeColumn(i: number, side: "video" | "target", update: <T>(items: T[]) => T[]) {
+    setPairs((current) => {
+      const order = update(current.map((_, k) => k));
+      if (order.length < current.length) {
+        const left = { ...current[i], [side]: null, by: null, episode: null };
+        return left.video || left.target ? current.map((p, k) => (k === i ? left : p)) : current.filter((_, k) => k !== i);
+      }
+      return current.map((p, k) => (order[k] === k ? p : { ...p, [side]: current[order[k]][side], by: "manual" as const, episode: null }));
+    });
+  }
+
+  const dropBlocked = dropBlockedReason(busy, blocked);
+  const fileDrag = useFileDrop(!hidden && editing === null, dropBlocked, addFiles);
+
+  const rowCount = pairs.length;
+  useListKeys(!hidden, rowCount, selected, setSelected);
+  // The detail always shows a row while there are some.
+  useEffect(() => {
+    if (selected >= rowCount) setSelected(Math.max(0, rowCount - 1));
+  }, [selected, rowCount]);
+
+  // Dev only (see devParam): `?pairRefs=a|b&pairTargets=c|d` fills the lists.
+  useEffect(() => {
+    const refs = devParam("pairRefs");
+    const targets = devParam("pairTargets");
+    if (refs || targets) addPaths(refs?.split("|") ?? [], targets?.split("|") ?? []);
+  }, []);
+
+  // Dev only: automated UI checks add files without the native dialog.
+  useEffect(() => {
+    if (!import.meta.env.DEV || hidden) return;
+    (window as unknown as { __test?: object }).__test = { addFiles };
+  });
+
+  // The picks start out from the first files read (see defaultPick). Only
+  // while none is set, so a pick of the user's is never overridden.
+  const firstReference = pairs.map((p) => p.video && probes[p.video]?.tracks).find((t) => t && t.length > 0);
+  const firstTargetVideo = pairs
+    .map((p) => p.target && !isSubtitleFile(p.target) && probes[p.target]?.tracks)
+    .find((t) => t && t.length > 0);
+  useEffect(() => {
+    if (!referenceKey && firstReference) setReferenceKey(defaultPick(firstReference).reference);
+  }, [firstReference, referenceKey]);
+  useEffect(() => {
+    if (targetKeys === null && firstTargetVideo) setTargetKeys(defaultPick(firstTargetVideo).targets);
+  }, [firstTargetVideo, targetKeys]);
+
+  /** Row `i`'s files, which its own picks are kept by. */
+  const filesKey = (i: number) => JSON.stringify([pairs[i]?.video, pairs[i]?.target]);
+  const paired = (i: number) => !!pairs[i]?.video && !!pairs[i]?.target;
+
+  /** Why row `i`'s files can't be read, if one can't. */
+  const unreadable = (i: number): string[] =>
+    [pairs[i]?.video, pairs[i]?.target].flatMap((path) => (path && probes[path]?.error ? [probes[path].error] : []));
+
+  /** Row `i`'s tracks as picked now -- by hand in its detail, else by the
+   * top bar -- or null until both its files are read. */
+  function resolved(i: number): Resolved | null {
+    const pair = pairs[i];
+    if (!pair?.video || !pair.target) return null;
+    const video = probes[pair.video];
+    const standalone = isSubtitleFile(pair.target);
+    const other = probes[pair.target];
+    if (!video?.tracks || (!standalone && !other?.tracks)) return null;
+    const choice = choices[filesKey(i)];
+    const ref = resolveTracks(
+      video.tracks,
+      video.cues,
+      referenceKey,
+      [],
+      choice ? { reference: choice.reference, targets: [] } : undefined,
+    );
+    if (standalone) {
+      return { ...ref, target: { path: pair.target, index: null }, targetTrack: null };
+    }
+    const tracks = other!.tracks!;
+    const picked =
+      choice?.target != null
+        ? (tracks.find((tr) => tr.index === choice.target) ?? null)
+        : (resolveTracks(tracks, other!.cues, "", targetKeys ?? []).targets[0] ?? null);
+    const issues = [...ref.issues, ...(picked ? [] : [m.pairs.noTargetTrack])];
+    return {
+      ...ref,
+      issues,
+      target: picked ? { path: pair.target, index: picked.index } : null,
+      targetTrack: picked,
+    };
+  }
+
+  /** Row `i`'s analysis as it stands: both files and both tracks. */
+  function trackKey(i: number): string | null {
+    const res = resolved(i);
+    if (!res?.reference || !res.target) return null;
+    return JSON.stringify([pairs[i].video, res.reference.index, res.target.path, res.target.index]);
+  }
+  const runOf = (i: number): AnalysisRun | undefined => {
+    const key = trackKey(i);
+    return key ? analyses[key] : undefined;
+  };
+  const exportOf = (i: number): ExportFields | undefined => {
+    const key = trackKey(i);
+    return key ? exports[key] : undefined;
+  };
+  const isDone = (a: AnalysisRun | undefined) => a?.status === "done" && !!a.result;
+
+  /** The corrected track's language: picked in its detail, else in the top
+   * bar, else its own -- its file's name's, or its track's. */
+  function languageOf(i: number): { code: string | null; from: "pair" | "bar" | "name" | "track" } {
+    const own = pairExports[filesKey(i)]?.language;
+    if (own) return { code: own, from: "pair" };
+    if (addedLanguage) return { code: addedLanguage, from: "bar" };
+    const target = pairs[i]?.target;
+    if (target && isSubtitleFile(target)) return { code: languageCode(probes[target]?.language), from: "name" };
+    return { code: languageCode(resolved(i)?.targetTrack?.language), from: "track" };
+  }
+
+  /** The reference video's track the corrected one takes the place of on an
+   * MKV export: the one picked in its detail, or by default (Remplacer) the
+   * first full one in its language; null: added. */
+  function replacesOf(i: number): number | null {
+    const own = pairExports[filesKey(i)]?.replaces;
+    if (own !== undefined) return own;
+    if (!replaceSame) return null;
+    const language = languageOf(i).code;
+    const tracks = (pairs[i]?.video && probes[pairs[i].video!]?.tracks) || [];
+    return tracks.find((tr) => language && languageCode(tr.language) === language && !tr.forced)?.index ?? null;
+  }
+
+  function editExport(i: number, patch: PairExport) {
+    const key = filesKey(i);
+    setPairExports((c) => ({ ...c, [key]: { ...c[key], ...patch } }));
+  }
+
+  /** A change to row `i`'s tracks in its detail: from then on they're its
+   * own ("(manuel)"), starting from what the top bar picked. */
+  function editChoice(i: number, patch: Partial<PairChoice>) {
+    const res = resolved(i);
+    if (!res) return;
+    const key = filesKey(i);
+    setChoices((c) => ({
+      ...c,
+      [key]: { ...(c[key] ?? { reference: res.reference?.index ?? 0, target: res.targetTrack?.index ?? null }), ...patch },
+    }));
+  }
+
+  function updateRun(key: string, patch: Partial<AnalysisRun> | ((entry: AnalysisRun) => Partial<AnalysisRun>)) {
+    setAnalyses((current) =>
+      current[key] ? { ...current, [key]: { ...current[key], ...(typeof patch === "function" ? patch(current[key]) : patch) } } : current,
+    );
+  }
+
+  function updateExport(key: string, patch: (entry: ExportFields) => Partial<ExportFields>) {
+    setExports((current) => {
+      const entry = current[key] ?? IDLE_EXPORT;
+      return { ...current, [key]: { ...entry, ...patch(entry) } };
+    });
+  }
+
+  const rows = Array.from({ length: rowCount }, (_, i) => i);
+  /** Row `i` can be analyzed: both its files read, both its tracks known. */
+  const analyzableRow = (i: number) => trackKey(i) !== null && unreadable(i).length === 0;
+
+  /** Analyzes the pairs that aren't yet (new ones, failed ones), keeping the
+   * rest and any edit made to them; or all of them again (`all`); of every
+   * pair, or of row `only` (its "Analyser"). */
+  async function handleAnalyze(all: boolean, only?: number) {
+    await runPlan(rows.filter((i) => (only === undefined || i === only) && analyzableRow(i) && (all || !isDone(runOf(i)))));
+  }
+
+  /** Analyzes these rows, each one's result and edits replaced; their last
+   * exports no longer match. */
+  async function runPlan(todo: number[]) {
+    const plan = todo.map((i) => {
+      const res = resolved(i)!;
+      return { key: trackKey(i)!, reference: { path: pairs[i].video!, index: res.reference!.index }, target: res.target! };
+    });
+    if (plan.length === 0) return;
+    setAnalyzing(true);
+    setAnalyses((current) => {
+      const next = { ...current };
+      for (const { key } of plan) next[key] = { status: "pending", result: null, error: null, log: [] };
+      return next;
+    });
+    setExports((current) => {
+      const next = { ...current };
+      for (const { key } of plan) next[key] = IDLE_EXPORT;
+      return next;
+    });
+    for (const { key, reference, target } of plan) {
+      updateRun(key, { status: "running" });
+      try {
+        const result = await runJob<Analysis>(startAnalyze(reference, target), (message) =>
+          updateRun(key, (a) => ({ log: [...a.log, message] })),
+        );
+        updateRun(key, { status: "done", result, edited: false });
+      } catch (err) {
+        updateRun(key, { status: "error", error: errorMessage(err) });
+      }
+    }
+    setAnalyzing(false);
+  }
+
+  /** Every analyzed pair's export, with its segments as edited ("Modifier"):
+   * a new MKV of its reference video holding the corrected track, or that
+   * track alone; of every pair, or of row `only` ("Exporter cette paire"). */
+  function handleExport(only?: number) {
+    queue.run(
+      rows
+        .filter((i) => (only === undefined || i === only) && isDone(runOf(i)))
+        .map((i) => {
+          const key = trackKey(i)!;
+          const res = resolved(i)!;
+          const reference: TrackRef = { path: pairs[i].video!, index: res.reference!.index };
+          const target = res.target!;
+          const own = pairExports[filesKey(i)];
+          return {
+            items: [[reference, target]] as [TrackRef, TrackRef][],
+            start: (outputs: string[]) =>
+              startRenderTracks(
+                reference,
+                [
+                  {
+                    target,
+                    segments: analyses[key].result!.segments,
+                    output: subsOnly ? outputs[0] : null,
+                    language: languageOf(i).code,
+                    title: own?.title || addedTitle || null,
+                    default: addedDefault ? true : null,
+                    replaces: replacesOf(i),
+                  },
+                ],
+                { output: subsOnly ? null : outputs[0], subsOnly, clean: cleanSubtitles },
+              ),
+            update: (patch: (entry: ExportFields) => Partial<ExportFields>) => updateExport(key, patch),
+          };
+        }),
+    );
+  }
+
+  const pairCount = rows.filter(paired).length;
+  const analyzedCount = rows.filter((i) => isDone(runOf(i))).length;
+  const exportedCount = rows.filter((i) => exportOf(i)?.exportStatus === "done").length;
+  const missingCount = rows.filter((i) => analyzableRow(i) && !isDone(runOf(i))).length;
+  // The window's next step: the footer's with several pairs, the detail's
+  // with one.
+  const listNext =
+    pairCount > 1 ? nextStep({ analyzing, missing: missingCount, exportable: analyzedCount, exported: exportedCount }) : null;
+
+  /** A row's badge: what's running first, then what's wrong, then how far it got. */
+  function pairBadge(i: number): [string, BadgeKind] {
+    const st = m.pairs.status;
+    if (!paired(i)) return [st.unpaired, "error"];
+    if (unreadable(i).length > 0) return [m.multi.status.unreadable, "error"];
+    const res = resolved(i);
+    if (!res) return [m.multi.status.reading, "idle"];
+    const run = runOf(i);
+    const badge = runBadge(run ? [run.status] : [], exportOf(i)?.exportStatus, st);
+    // Paired by order: maybe not the same episode, whatever the analysis says.
+    const byOrder = pairs[i].by === "order";
+    if (badge?.[1] === "analyzed" && ((run?.result && weak(run.result)) || byOrder)) return [m.multi.status.check, "warning"];
+    const flagged = res.issues.length > 0 || !res.target || byOrder;
+    return badge ?? (flagged ? [m.multi.status.check, "warning"] : [st.toAnalyze, "idle"]);
+  }
+
+  /** After a row's file to correct: how it was matched. */
+  function matchNote(pair: Pair) {
+    if (!pair.video || !pair.target) return null;
+    if (pair.by === "order")
+      return (
+        <span className="pair-row-note pair-row-note-flagged" title={m.pairs.byOrderHint}>
+          {m.pairs.byOrder}
+        </span>
+      );
+    if (pair.by === "manual") return <span className="pair-row-note">{m.pairs.byHand}</span>;
+    return pair.episode ? <span className="pair-row-note">{pair.episode}</span> : null;
+  }
+
+  // The detail: the selected row.
+  const detail = pairs[selected] as Pair | undefined;
+  const detailPaired = paired(selected);
+  const detailRes = resolved(selected);
+  const detailRun = runOf(selected);
+  const detailResult = isDone(detailRun) ? detailRun!.result : null;
+  const detailKey = trackKey(selected);
+  const detailExport = exportOf(selected);
+  const detailVideo = detail?.video ? probes[detail.video] : undefined;
+  const detailDuration = detailResult ? analysisDuration(detailResult, detailVideo?.duration ?? null) : 0;
+  const detailCues = useMemo(() => detailResult && chartCues(detailResult), [detailResult]);
+  // The loupe's stretch, framed on the chart.
+  const [loupeView, setLoupeView] = useCueView(detailKey ?? "", detailResult, detailDuration);
+  const detailLanguage = languageOf(selected);
+  const detailReplaces = replacesOf(selected);
+  const detailName = basename(detail?.video ?? detail?.target ?? "");
+
+  /** Where the corrected track's language comes from, for its list's
+   * first choice. */
+  function languageSource(): string {
+    const label = detailLanguage.code ? languageLabel(detailLanguage.code) : m.pairs.languageUnknown;
+    if (addedLanguage) return m.pairs.languageFromBar(label);
+    return detailLanguage.from === "name" ? m.pairs.languageFromName(label) : m.pairs.languageFromTrack(label);
+  }
+
+  // The top bar's choices: what the files of each column offer.
+  const referenceOptions = trackOptions(
+    pairs.flatMap((p) => (p.video && probes[p.video]?.tracks ? [probes[p.video].tracks!.filter(readable)] : [])),
+  );
+  const targetVideos = pairs.flatMap((p) =>
+    p.target && !isSubtitleFile(p.target) && probes[p.target]?.tracks ? [probes[p.target].tracks!] : [],
+  );
+  const targetOptions = trackOptions(targetVideos.map((tracks) => tracks.filter(correctable)));
+
+  const editingIndex = editing === null ? -1 : rows.find((i) => trackKey(i) === editing);
+  const editingRun = editing ? analyses[editing] : undefined;
+
+  return (
+    <main className="batch-main" style={hidden ? { display: "none" } : undefined}>
+      {rowCount === 0 ? (
+        <EmptyWorkspace title={m.pairs.emptyTitle} hint={m.pairs.emptyHint}>
+          <div className="pairs-empty-zones">
+            <DropZone title={m.pairs.dropReferences} disabled={dropBlocked !== null} onClick={pickVideos}>
+              {m.pairs.dropReferencesHint}
+            </DropZone>
+            <DropZone title={m.pairs.dropCandidates} disabled={dropBlocked !== null} onClick={pickTargets}>
+              {m.pairs.dropCandidatesHint}
+            </DropZone>
+          </div>
+          <ModeCards mode="pairs" onChange={onModeChange} />
+        </EmptyWorkspace>
+      ) : (
+        <>
+          <div className="batch-config panel">
+            <span className="config-field">
+              {m.common.labelled(m.pairs.reference)}
+              <TrackFilterPicker
+                label={m.common.reference}
+                options={referenceOptions}
+                value={referenceKey ? [referenceKey] : []}
+                onChange={([key]) => setReferenceKey(key)}
+                single
+                disabled={busy}
+              />
+            </span>
+            {targetVideos.length > 0 && (
+              <span className="config-field">
+                {m.common.labelled(m.pairs.toCorrect)}
+                <TrackFilterPicker
+                  label={m.common.toCorrect}
+                  options={targetOptions}
+                  value={targetKeys ?? []}
+                  onChange={setTargetKeys}
+                  disabled={busy}
+                />
+              </span>
+            )}
+            <span className="config-field">
+              {m.common.labelled(m.pairs.addedTrack)}
+              <LanguageSelect
+                label={m.pairs.language}
+                value={addedLanguage}
+                onChange={setAddedLanguage}
+                emptyLabel={m.pairs.languageAuto}
+                disabled={busy}
+              />
+              <InfoTip>{m.pairs.languageHint}</InfoTip>
+            </span>
+            {!subsOnly && (
+              <>
+                <label className="config-field" title={m.pairs.titleHint}>
+                  {m.common.labelled(m.pairs.title)}
+                  <input
+                    {...FIELD_PROPS}
+                    className="config-title"
+                    value={addedTitle}
+                    placeholder={m.pairs.titlePlaceholder}
+                    onChange={(e) => setAddedTitle(e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                <label className="config-field config-check" title={m.pairs.defaultTrackHint}>
+                  <input type="checkbox" checked={addedDefault} disabled={busy} onChange={(e) => setAddedDefault(e.target.checked)} />
+                  {m.pairs.defaultTrack}
+                </label>
+                <span className="config-field">
+                  {m.common.labelled(m.pairs.sameLanguage)}
+                  <PillSwitch
+                    label={m.pairs.sameLanguage}
+                    options={[
+                      ["replace", m.pairs.replace],
+                      ["keep", m.pairs.keep],
+                    ]}
+                    value={replaceSame ? "replace" : "keep"}
+                    onChange={(v) => setReplaceSame(v === "replace")}
+                    disabled={busy}
+                  />
+                  <InfoTip>{m.pairs.sameLanguageHint}</InfoTip>
+                </span>
+              </>
+            )}
+            <span className="config-field">
+              {m.common.labelled(m.batch.export)}
+              <PillSwitch
+                label={m.batch.export}
+                options={[
+                  ["mkv", m.batch.newMkv],
+                  ["subs", m.batch.subsOnly],
+                ]}
+                value={subsOnly ? "subs" : "mkv"}
+                onChange={(v) => setSubsOnly(v === "subs")}
+                disabled={busy}
+              />
+            </span>
+            <label className="config-field config-check" title={m.cleanup.hint}>
+              <input type="checkbox" checked={cleanSubtitles} disabled={busy} onChange={(e) => saveCleanSubtitles(e.target.checked)} />
+              {m.cleanup.toggle}
+            </label>
+            <InfoTip>{m.pairs.hint}</InfoTip>
+          </div>
+
+          <div className={`workspace workspace-pairs${collapsed ? " list-collapsed" : ""}`}>
+            <section className="panel file-list">
+              <div className="file-list-header">
+                <h2>
+                  {m.pairs.pairsCount(pairCount)} <InfoTip>{m.pairs.pairsHint}</InfoTip>
+                </h2>
+                <RemoveAllButton
+                  results={Object.values(analyses).some((a) => a.status === "done")}
+                  disabled={busy}
+                  onRemove={() => {
+                    setPairs([]);
+                    setChoices({});
+                    setPairExports({});
+                    setAnalyses({});
+                    setExports({});
+                    // Picked again from the next files added.
+                    setReferenceKey("");
+                    setTargetKeys(null);
+                  }}
+                />
+                <FoldButton collapsed={collapsed} />
+              </div>
+
+              <ul className="file-list-rows list-scroll">
+                {pairs.map((pair, i) => {
+                  const [badge, badgeKind] = pairBadge(i);
+                  const run = runOf(i);
+                  const res = resolved(i);
+                  return (
+                    <PairRow
+                      key={`${pair.video}|${pair.target}`}
+                      reference={{ name: basename(pair.video ?? ""), path: pair.video ?? undefined, missing: m.pairs.noReference }}
+                      candidate={{ name: basename(pair.target ?? ""), path: pair.target ?? undefined, missing: m.pairs.noCandidate }}
+                      note={matchNote(pair)}
+                      referenceActions={
+                        <MoveButtons count={rowCount} index={i} disabled={busy} onChange={(update) => changeColumn(i, "video", update)} />
+                      }
+                      candidateActions={
+                        <MoveButtons count={rowCount} index={i} disabled={busy} onChange={(update) => changeColumn(i, "target", update)} />
+                      }
+                      state={rowState(
+                        run ? [run] : [],
+                        exportOf(i)?.exportStatus,
+                        !paired(i) || unreadable(i).length > 0 || (res?.issues.length ?? 0) > 0,
+                      )}
+                      badge={badge}
+                      badgeKind={badgeKind}
+                      badgeAlert={!paired(i) || badgeKind === "warning"}
+                      selected={i === selected}
+                      onSelect={() => setSelected(i)}
+                    />
+                  );
+                })}
+              </ul>
+              <div className="pair-add">
+                <button disabled={busy} title={m.pairs.addReferenceHint} onClick={pickVideos}>
+                  {/* The short label in the folded list. */}
+                  <span data-short={`+ ${m.pairs.refShort}`}>{m.pairs.addReferences}</span>
+                  <span>{m.pairs.dropLeft}</span>
+                </button>
+                <button disabled={busy} title={m.pairs.addCandidateHint} onClick={pickTargets}>
+                  <span data-short={`+ ${m.pairs.candShort}`}>{m.pairs.addCandidates}</span>
+                  <span>{m.pairs.dropRight}</span>
+                </button>
+              </div>
+            </section>
+
+            {detail && (
+              <section className="panel file-detail">
+                <DetailHeader
+                  title={detail.episode && detail.by === "episode" ? `${detail.episode} · ${detailName}` : detailName}
+                  titleTooltip={[detail.video, detail.target].filter(Boolean).join("\n")}
+                  meta={
+                    detailPaired &&
+                    (detail.by === "order"
+                      ? m.pairs.matchedByOrder
+                      : detail.by === "manual"
+                        ? m.pairs.matchedByHand
+                        : m.pairs.matchedByEpisode(detail.episode))
+                  }
+                  onReanalyze={
+                    detailKey && (detailRun?.status === "done" || detailRun?.status === "error") ? () => runPlan([selected]) : undefined
+                  }
+                  onEdit={detailResult && detailKey ? () => setEditing(detailKey) : undefined}
+                  editDisabled={queue.exporting}
+                  missing={analyzableRow(selected) && !isDone(detailRun) ? 1 : 0}
+                  analyzing={detailRun?.status === "pending" || detailRun?.status === "running"}
+                  done={isDone(detailRun) ? 1 : 0}
+                  exported={detailExport?.exportStatus === "done"}
+                  primary={pairCount === 1}
+                  disabled={busy || blocked}
+                  analyzeDisabled={!analyzableRow(selected)}
+                  blockedTitle={blocked ? m.batch.otherModeBusy : undefined}
+                  analyzeTitle={m.pairs.analyzePairHint}
+                  exportLabel={m.pairs.exportPair}
+                  onAnalyze={() => handleAnalyze(false, selected)}
+                  onExport={() => handleExport(selected)}
+                />
+
+                {!detailPaired && <p className="placeholder">{m.pairs.unpairedDetail}</p>}
+                {unreadable(selected).map((error) => (
+                  <p key={error} className="error">
+                    {error}
+                  </p>
+                ))}
+                {detailPaired && unreadable(selected).length === 0 && (
+                  <div className="detail-body">
+                    <div className="detail-top">
+                      <div className="detail-tracks">
+                        <TracksHeading
+                          hint={m.pairs.tracksHint}
+                          reset={
+                            choices[filesKey(selected)]
+                              ? {
+                                  label: m.pairs.byDefault,
+                                  title: m.pairs.byDefaultHint,
+                                  disabled: busy,
+                                  onClick: () =>
+                                    setChoices((c) => {
+                                      const next = { ...c };
+                                      delete next[filesKey(selected)];
+                                      return next;
+                                    }),
+                                }
+                              : undefined
+                          }
+                        />
+                        <div className="tracks-table-wrap list-scroll detail-tracks-table">
+                          <PairTrackTable
+                            referenceProbe={detailVideo}
+                            target={detail!.target!}
+                            targetProbe={probes[detail!.target!]}
+                            reference={detailRes?.reference?.index ?? null}
+                            targetTrack={detailRes?.targetTrack?.index ?? null}
+                            disabled={busy}
+                            onReference={(index) => editChoice(selected, { reference: index })}
+                            onTarget={(index) => editChoice(selected, { target: index })}
+                          />
+                        </div>
+                        {detailRes && detailRes.issues.length > 0 && <Issues issues={detailRes.issues} />}
+                        {detailRes?.target && (
+                          <div className="pair-export">
+                            <span>{m.common.labelled(m.pairs.language)}</span>
+                            <LanguageSelect
+                              label={m.pairs.language}
+                              value={pairExports[filesKey(selected)]?.language ?? ""}
+                              onChange={(language) => editExport(selected, { language })}
+                              emptyLabel={languageSource()}
+                              disabled={busy}
+                            />
+                            {!subsOnly && (
+                              <>
+                                <span>{m.common.labelled(m.pairs.title)}</span>
+                                <input
+                                  {...FIELD_PROPS}
+                                  aria-label={m.pairs.title}
+                                  title={m.pairs.titleHint}
+                                  value={pairExports[filesKey(selected)]?.title ?? ""}
+                                  placeholder={
+                                    addedTitle ||
+                                    (detailReplaces !== null && detailVideo?.tracks?.find((tr) => tr.index === detailReplaces)?.title) ||
+                                    m.pairs.titlePlaceholder
+                                  }
+                                  onChange={(e) => editExport(selected, { title: e.target.value })}
+                                  disabled={busy}
+                                />
+                                <span>{m.common.labelled(m.batch.export)}</span>
+                                <Select
+                                  label={m.multi.exportOf(basename(detail!.target!))}
+                                  value={detailReplaces === null ? "add" : String(detailReplaces)}
+                                  options={[
+                                    ...(detailVideo?.tracks ?? []).map((tr) => ({
+                                      value: String(tr.index),
+                                      label: m.multi.exportReplacesTrack(trackName(tr.index, tr)),
+                                    })),
+                                    { value: "add", label: m.multi.exportAdded },
+                                  ]}
+                                  onChange={(v) => editExport(selected, { replaces: v === "add" ? null : Number(v) })}
+                                  disabled={busy}
+                                />
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <DetailChart
+                        summary={
+                          <>
+                            {detailRes?.reference &&
+                              detailRes.target &&
+                              m.multi.againstReference(trackName(detailRes.reference.index, detailRes.reference))}
+                            {detailRun?.edited && m.multi.edited}
+                          </>
+                        }
+                        run={detailRun}
+                        noTrack={detailRes && !detailRes.target ? m.pairs.noTarget : null}
+                      >
+                        {detailResult && (
+                          <div className="detail-summary">
+                            <AnalysisSummary analysis={detailResult} edited={detailRun?.edited} cleanup={cleanSubtitles} />
+                            <SegmentChart
+                              segments={detailResult.segments}
+                              duration={detailDuration}
+                              cues={detailCues ?? undefined}
+                              view={loupeView}
+                              onPick={(time) =>
+                                setLoupeView({
+                                  start: Math.max(0, Math.min(time - loupeView.duration / 2, detailDuration - loupeView.duration)),
+                                  duration: loupeView.duration,
+                                })
+                              }
+                            />
+                          </div>
+                        )}
+                      </DetailChart>
+                    </div>
+
+                    {detailResult && (
+                      <AnalysisView analysis={detailResult} duration={detailDuration} view={loupeView} onView={setLoupeView} />
+                    )}
+                  </div>
+                )}
+
+                <DetailExport entry={detailExport} />
+              </section>
+            )}
+          </div>
+
+          <BatchFooter
+            outputDir={outputDir}
+            onOutputDirChange={onOutputDirChange}
+            busy={busy}
+            blocked={blocked}
+            progress={
+              <>
+                {m.pairs.progressPairs(pairCount)}
+                {m.pairs.progressAnalyzed(analyzedCount, pairCount)}
+                {exportedCount > 0 && m.pairs.progressExported(exportedCount)}
+                {rowCount > pairCount && m.pairs.progressUnpaired(rowCount - pairCount)}
+              </>
+            }
+            analyzeButton={
+              <AnalyzeButton
+                analyzing={analyzing}
+                reading={rows.some((i) => paired(i) && unreadable(i).length === 0 && resolved(i) === null)}
+                missing={missingCount}
+                analyzed={analyzedCount}
+                unit="pair"
+                primary={listNext === "analyze"}
+                disabled={!rows.some(analyzableRow) || busy || blocked}
+                blocked={blocked}
+                onAnalyze={(all) => handleAnalyze(all)}
+              />
+            }
+            queue={queue}
+            canExport={analyzedCount > 0}
+            exportNext={listNext === "export"}
+            onExport={() => handleExport()}
+          />
+        </>
+      )}
+
+      {editing && editingRun?.result && (
+        <SegmentEditor
+          analysis={editingRun.result}
+          duration={analysisDuration(
+            editingRun.result,
+            editingIndex !== undefined && editingIndex >= 0 && pairs[editingIndex].video
+              ? (probes[pairs[editingIndex].video!]?.duration ?? null)
+              : null,
+          )}
+          onClose={() => setEditing(null)}
+          onSave={(segments) => {
+            updateRun(editing, (a) => ({ result: a.result ? withSegments(a.result, segments) : a.result, edited: true }));
+            // The export no longer matches: it's to do again.
+            setExports((c) => ({ ...c, [editing]: IDLE_EXPORT }));
+            setEditing(null);
+          }}
+        />
+      )}
+      <DropOverlay
+        drag={fileDrag}
+        blocked={dropBlocked}
+        split={[m.pairs.pickReferences, m.pairs.pickCandidates]}
+        hint={m.files.folderHint}
+      />
+    </main>
   );
 }

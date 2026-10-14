@@ -164,6 +164,9 @@ export interface FileProbe {
   tracks: TrackInfo[] | null;
   duration: number | null;
   cues: Record<number, number> | null;
+  /** A standalone subtitle file: how many lines, and its language from its name. */
+  cueCount: number | null;
+  language: string | null;
   error: string | null;
 }
 
@@ -182,7 +185,17 @@ export function useProbes(paths: string[]): Record<string, FileProbe> {
       requested.current.add(path);
       probe(path)
         .then((res) => {
-          setProbes((p) => ({ ...p, [path]: { tracks: res.tracks, duration: res.duration, cues: null, error: null } }));
+          setProbes((p) => ({
+            ...p,
+            [path]: {
+              tracks: res.tracks,
+              duration: res.duration,
+              cues: null,
+              cueCount: res.cue_count,
+              language: res.language ?? null,
+              error: null,
+            },
+          }));
           if (!res.tracks.some((t) => t.format !== null)) return;
           // One file read at a time, skipped once it's left the list.
           reading.current = reading.current.then(async () => {
@@ -191,7 +204,12 @@ export function useProbes(paths: string[]): Record<string, FileProbe> {
             setProbes((p) => (p[path] ? { ...p, [path]: { ...p[path], cues } } : p));
           });
         })
-        .catch((err) => setProbes((p) => ({ ...p, [path]: { tracks: null, duration: null, cues: null, error: errorMessage(err) } })));
+        .catch((err) =>
+          setProbes((p) => ({
+            ...p,
+            [path]: { tracks: null, duration: null, cues: null, cueCount: null, language: null, error: errorMessage(err) },
+          })),
+        );
     }
   }, [paths]);
   return probes;
@@ -366,5 +384,75 @@ export function MoveButtons({
         </button>
       </Tooltip>
     </>
+  );
+}
+
+/** "RÉF." or "CORR.": which file of a pair a line is (the list, the pair's
+ * tracks table). */
+export function PairKind({ kind }: { kind: "ref" | "cand" }) {
+  const t = useT();
+  return <span className={`pair-row-kind pair-row-kind-${kind}`}>{kind === "ref" ? t.pairs.refShort : t.pairs.candShort}</span>;
+}
+
+/** One pair of the pairs list: a file row (ListRow, the same as a
+ * multitrack file's) whose two lines are its reference file and its file to
+ * correct; on hover, each file's own ↑ ↓ ✕ (they move within their own
+ * column) take the badge's place, one set per line. Bobine Subs: after the
+ * file to correct, how the two were matched (`note`: "S01E02", "ordre"). */
+export function PairRow({
+  reference,
+  candidate,
+  referenceActions,
+  candidateActions,
+  state,
+  badge,
+  badgeKind,
+  badgeAlert,
+  note,
+  selected,
+  onSelect,
+}: {
+  reference: { name: string; path?: string; missing: string };
+  candidate: { name: string; path?: string; missing: string };
+  referenceActions?: ReactNode;
+  candidateActions?: ReactNode;
+  state: string;
+  badge: string;
+  badgeKind: BadgeKind;
+  badgeAlert?: boolean;
+  note?: ReactNode;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const line = (kind: "ref" | "cand", file: { name: string; path?: string; missing: string }) => (
+    <>
+      <PairKind kind={kind} />
+      <span className={`pair-row-name${file.path ? "" : " pair-row-missing"}`}>{file.path ? file.name : file.missing}</span>
+    </>
+  );
+  return (
+    <ListRow
+      className="pair-row"
+      name={line("ref", reference)}
+      detail={
+        <>
+          {line("cand", candidate)}
+          {note}
+        </>
+      }
+      path={[reference.path, candidate.path].filter(Boolean).join("\n")}
+      state={state}
+      badge={badge}
+      badgeKind={badgeKind}
+      badgeAlert={badgeAlert}
+      selected={selected}
+      onSelect={onSelect}
+      actions={
+        <span className="pair-row-actions">
+          <span>{reference.path && referenceActions}</span>
+          <span>{candidate.path && candidateActions}</span>
+        </span>
+      }
+    />
   );
 }
