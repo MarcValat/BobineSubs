@@ -117,24 +117,25 @@ export function align(segments: Segment[], i: number, from: number, to: number):
   return shiftOffset(segments, i, wanted - current);
 }
 
-/** Undo history: `present` plus what came before and after. */
-export interface History {
-  past: Segment[][];
-  present: Segment[];
-  future: Segment[][];
+/** Undo history: `present` plus what came before and after (a segment
+ * list, or the editor's segments and lines kept or taken out). */
+export interface History<T = Segment[]> {
+  past: T[];
+  present: T;
+  future: T[];
 }
 
 const HISTORY_LIMIT = 200;
 
-export const startHistory = (segments: Segment[]): History => ({ past: [], present: segments, future: [] });
+export const startHistory = <T>(present: T): History<T> => ({ past: [], present, future: [] });
 
-export function commit(h: History, next: Segment[]): History {
+export function commit<T>(h: History<T>, next: T): History<T> {
   if (next === h.present) return h;
   return { past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [] };
 }
 
-export const undo = (h: History): History =>
+export const undo = <T>(h: History<T>): History<T> =>
   h.past.length ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h;
 
-export const redo = (h: History): History =>
+export const redo = <T>(h: History<T>): History<T> =>
   h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h;

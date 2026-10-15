@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { pairFiles, startAnalyze, startRenderTracks, type Analysis, type FilePair, type TrackInfo, type TrackRef } from "./api";
+import {
+  pairFiles,
+  startAnalyze,
+  startRenderTracks,
+  type Analysis,
+  type CueEdits,
+  type FilePair,
+  type Segment,
+  type TrackInfo,
+  type TrackRef,
+} from "./api";
 import { runJob } from "./jobs";
 import {
   AnalyzeButton,
@@ -538,6 +548,8 @@ export function PairsBatch({
                   {
                     target,
                     segments: analyses[key].result!.segments,
+                    keep: analyses[key].result!.edits?.keep ?? [],
+                    drop: analyses[key].result!.edits?.drop ?? [],
                     output: subsOnly ? outputs[0] : null,
                     language: languageOf(i).code,
                     title: own?.title || addedTitle || null,
@@ -628,6 +640,13 @@ export function PairsBatch({
 
   const editingIndex = editing === null ? -1 : rows.find((i) => trackKey(i) === editing);
   const editingRun = editing ? analyses[editing] : undefined;
+
+  /** A pair's segments and lines kept or taken out, changed by hand: its
+   * export is to do again. */
+  function saveEdits(key: string, segments: Segment[], edits: CueEdits) {
+    updateRun(key, (a) => ({ result: a.result ? withSegments(a.result, segments, edits) : a.result, edited: true }));
+    setExports((c) => ({ ...c, [key]: IDLE_EXPORT }));
+  }
 
   /** "file · @1 fre contre @0 eng": what the editor corrects. */
   function editorSubtitle(i: number): string | undefined {
@@ -895,7 +914,12 @@ export function PairsBatch({
                       >
                         {detailResult && (
                           <div className="detail-summary">
-                            <AnalysisSummary analysis={detailResult} edited={detailRun?.edited} cleanup={cleanSubtitles} />
+                            <AnalysisSummary
+                              analysis={detailResult}
+                              edited={detailRun?.edited}
+                              cleanup={cleanSubtitles}
+                              onEdits={queue.exporting ? undefined : (edits) => saveEdits(detailKey!, detailResult.segments, edits)}
+                            />
                             <SegmentChart
                               segments={detailResult.segments}
                               duration={detailDuration}
@@ -973,10 +997,8 @@ export function PairsBatch({
           )}
           subtitle={editingIndex !== undefined && editingIndex >= 0 ? editorSubtitle(editingIndex) : undefined}
           onClose={() => setEditing(null)}
-          onSave={(segments) => {
-            updateRun(editing, (a) => ({ result: a.result ? withSegments(a.result, segments) : a.result, edited: true }));
-            // The export no longer matches: it's to do again.
-            setExports((c) => ({ ...c, [editing]: IDLE_EXPORT }));
+          onSave={(segments, edits) => {
+            saveEdits(editing, segments, edits);
             setEditing(null);
           }}
         />

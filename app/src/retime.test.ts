@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Analysis, Segment } from "./api";
-import { segmentFor, withSegments } from "./retime";
+import { editLine, lineFates, segmentFor, withSegments } from "./retime";
 
 const seg = (start_s: number, end_s: number, offset_start: number, offset_end: number): Segment => ({
   start_s,
@@ -84,5 +84,43 @@ describe("withSegments", () => {
         ],
       ),
     ).toEqual([null, [0, 2]]);
+  });
+});
+
+describe("lines kept or taken out by hand", () => {
+  const cues: [number, number][] = [
+    [10, 12],
+    [102, 104],
+    [150, 152],
+    [1, 1.5],
+  ];
+
+  it("keeps a line of a gap through the nearest segment, takes out any", () => {
+    // The gap's line (target 102-104) is nearer the first span (it ends at 101).
+    const kept = withSegments(analysis(cues), withGap, { keep: [1], drop: [2] });
+    expect(kept.target_cues.map((c) => c.corrected)).toEqual([[9, 11], [101, 103], null, [0, 0.5]]);
+    expect(kept.edits).toEqual({ keep: [1], drop: [2] });
+  });
+
+  it("says why each line is left out, or kept", () => {
+    const shifted = [seg(0, 100, 5, 5), seg(100, 200, 9, 9)];
+    // Line 4 lands before the start; line 2 in the gap (target 105..109).
+    expect(lineFates(withSegments(analysis([...cues.slice(0, 3), [3, 4], [106, 107]]), shifted))).toEqual([
+      { index: 3, fate: "start" },
+      { index: 4, fate: "gap" },
+    ]);
+    const edited = withSegments(analysis(cues), withGap, { keep: [1], drop: [0] });
+    expect(lineFates(edited)).toEqual([
+      { index: 0, fate: "dropped" },
+      { index: 1, fate: "kept" },
+    ]);
+  });
+
+  it("changes one line's fate at a time", () => {
+    let edits = editLine(undefined, 3, "keep");
+    expect(edits).toEqual({ keep: [3], drop: [] });
+    edits = editLine(edits, 3, "drop");
+    expect(edits).toEqual({ keep: [], drop: [3] });
+    expect(editLine(edits, 3, "reset")).toEqual({ keep: [], drop: [] });
   });
 });

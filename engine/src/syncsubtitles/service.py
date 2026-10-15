@@ -5,7 +5,7 @@ Messages (``log``, warnings, errors) are in French, the UI's language.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -24,7 +24,7 @@ from syncsubtitles.render import (
     mux_tracks,
     write_subtitle,
 )
-from syncsubtitles.retime import Segment, remap_cue, retime
+from syncsubtitles.retime import Segment, remap_cue, remap_cues, retime
 from syncsubtitles.segments import STANDARD_RATIOS, detect_segments
 from syncsubtitles.subformats import SubtitleDocument, read_file
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS, load_pair, same_file
@@ -191,13 +191,18 @@ def write_result(
     clean: bool = True,
     replaces: int | None = None,
     replace_same_language: bool = False,
+    keep: Collection[int] = (),
+    drop: Collection[int] = (),
 ) -> Written:
     """Retime the target by ``segments`` and write it: a standalone
     subtitle file, or a new MKV (the reference's) where it replaces the
     original track (same file) or is added (anything else). ``clean``:
-    its obvious faults fixed too (see cleanup)."""
+    its obvious faults fixed too (see cleanup); ``keep`` / ``drop``: lines
+    kept or taken out by hand (see retime.remap_cues)."""
     if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
-        corrected, dropped, cleaned = _retimed(target, segments, log, clean, language or _source_language(target))
+        corrected, dropped, cleaned = _retimed(
+            target, segments, log, clean, language or _source_language(target), keep, drop
+        )
         out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
         write_subtitle(corrected, out)
         return Written(out, "subtitles", None, dropped, cleaned)
@@ -209,6 +214,8 @@ def write_result(
         default=default,
         replaces=replaces,
         replace_same_language=replace_same_language,
+        keep=tuple(keep),
+        drop=tuple(drop),
     )
     return write_tracks(reference, [track], output, log, clean)[0]
 
@@ -238,23 +245,34 @@ class TrackToWrite:
     # Without ``replaces``: take the place of the reference file's track in
     # the same language, if there's one (not a forced one), else be added.
     replace_same_language: bool = False
+    # Lines kept though in a stretch the reference lacks, or taken out, by
+    # hand (indices into the target's lines, as the analysis lists them).
+    keep: tuple[int, ...] = ()
+    drop: tuple[int, ...] = ()
 
 
 def _retimed(
-    target: SubtitleTrackSpec, segments: Sequence[Segment], log: Log, clean: bool, language: str | None
+    target: SubtitleTrackSpec,
+    segments: Sequence[Segment],
+    log: Log,
+    clean: bool,
+    language: str | None,
+    keep: Collection[int] = (),
+    drop: Collection[int] = (),
 ) -> tuple[SubtitleDocument, list[tuple[float, str]], dict[str, int]]:
     """The target retimed by ``segments`` (and cleaned, in ``language``),
-    the lines that fell off, and what the cleanup fixed."""
+    the lines that fell off, and what the cleanup fixed. ``keep`` / ``drop``:
+    lines kept or taken out by hand (by index, see retime.remap_cues)."""
     if not target.is_external and target.stream_index is None:
         raise AnalysisError(tr("Piste cible non précisée."))
     log(tr("Lecture de la piste à corriger…"))
     document = load_target(target)
     dropped = [
         (c.start, plain_text(c.text).strip())
-        for c, m in zip(document.cues, corrected_cues(document, segments))
+        for c, m in zip(document.cues, remap_cues(document, segments, keep, drop))
         if m is None or m[1] <= 0
     ]
-    corrected = retime(document, segments)
+    corrected = retime(document, segments, keep, drop)
     if not clean:
         return corrected, dropped, {}
     corrected, fixed = clean_document(corrected, language)
@@ -341,7 +359,9 @@ def write_tracks(
                 else track.default,
                 forced=source.forced if track.forced is None else track.forced,
             )
-        corrected, dropped, cleaned = _retimed(target, track.segments, log, clean, metadata.language)
+        corrected, dropped, cleaned = _retimed(
+            target, track.segments, log, clean, metadata.language, track.keep, track.drop
+        )
         muxed.append(MuxTrack(corrected, metadata, replace_index))
         written.append(
             Written(out, "replaced" if replace_index is not None else "added", metadata.language, dropped, cleaned)

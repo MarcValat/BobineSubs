@@ -5,7 +5,7 @@ import { useT } from "./i18n";
 import { CueNavigator } from "./CueNavigator";
 import { AlignIcon, ScissorsIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
-import { segmentFor } from "./retime";
+import { lineFates, segmentFor } from "./retime";
 import { panView, useDragPan, useWheel, WHEEL_ZOOM_IN_FACTOR, WHEEL_ZOOM_OUT_FACTOR, zoomView, type TimeView } from "./timeView";
 import { useElementSize } from "./useElementSize";
 import "./CueLoupe.css";
@@ -35,6 +35,8 @@ export interface LoupeEditing {
   onSplit: (time: number) => void;
   /** Move segment `i` so that target time `from` lands on reference time `to`. */
   onAlign: (i: number, from: number, to: number) => void;
+  /** Line `index` of the target kept, taken out, or as the analysis has it. */
+  onLine: (index: number, change: "keep" | "drop" | "reset") => void;
 }
 
 export interface Cue {
@@ -44,6 +46,8 @@ export interface Cue {
   kind: string;
   /** Under the pointer, besides its times and text. */
   note?: string;
+  /** A line of the target left out of the export ("Avant" row: its index). */
+  out?: number;
   /** The target cue it is (the "Après" row), the reference cue it is. */
   target?: number;
   ref?: number;
@@ -114,8 +118,12 @@ export function CueLoupe({
   const m = t.loupe;
   const lanes = useRef<HTMLDivElement>(null);
   const lane = useRef<HTMLDivElement>(null);
-  // Align tool: the target cue picked first ("Après" row).
+  // Align tool: the target cue picked first ("Après" row); a line left out
+  // of the export picked ("Avant" row), to keep it or put it back.
   const [picked, setPicked] = useState<number | null>(null);
+  const [outPicked, setOutPicked] = useState<number | null>(null);
+  // Each line left out of the export, or kept by hand, and why.
+  const fates = useMemo(() => new Map(lineFates(analysis).map((f) => [f.index, f.fate])), [analysis]);
   const boundaries = useMemo(() => analysis.segments.slice(1).map((s) => s.start_s), [analysis]);
 
   const start = view.start;
@@ -182,7 +190,21 @@ export function CueLoupe({
       {
         label: m.before,
         kind: "before",
-        cues: analysis.target_cues.map((c) => ({ a: c.start, b: c.end, text: c.text, kind: "before" })).sort(byStart),
+        // Those left out of the export marked (see lineFates).
+        cues: analysis.target_cues
+          .map((c, i) => {
+            const fate = fates.get(i);
+            const out = fate !== undefined && fate !== "kept";
+            return {
+              a: c.start,
+              b: c.end,
+              text: c.text,
+              kind: out ? "before out" : "before",
+              out: out ? i : undefined,
+              note: out ? t.analysis.lines.fates[fate] : undefined,
+            };
+          })
+          .sort(byStart),
       },
       {
         label: m.after,
@@ -205,7 +227,7 @@ export function CueLoupe({
           .sort(byStart),
       },
     ];
-  }, [analysis, m]);
+  }, [analysis, m, fates, t]);
   // The navigator's bars: the reference's lines, the corrected ones.
   const spans = useMemo(
     () => ({
@@ -227,8 +249,12 @@ export function CueLoupe({
 
   const click = (cue: Cue) => {
     if (!editing || pan.dragged.current) return;
-    if (cue.target !== undefined) {
+    if (cue.out !== undefined) {
+      setOutPicked(outPicked === cue.out ? null : cue.out);
+      setPicked(null);
+    } else if (cue.target !== undefined) {
       setPicked(picked === cue.target ? null : cue.target);
+      setOutPicked(null);
     } else if (cue.ref !== undefined && picked !== null) {
       const tc = analysis.target_cues[picked];
       const i = segmentFor((tc.start + tc.end) / 2, analysis.segments);
@@ -282,10 +308,43 @@ export function CueLoupe({
             {picked === null ? t.editor.alignHint : t.editor.alignPicked(analysis.target_cues[picked]?.text.split("\n").join(" / ") ?? "")}
           </span>
           {picked !== null && (
-            <button className="small-button" onClick={() => setPicked(null)}>
-              {t.editor.alignCancel}
+            <>
+              <button
+                className="small-button"
+                onClick={() => {
+                  editing.onLine(picked, fates.get(picked) === "kept" ? "reset" : "drop");
+                  setPicked(null);
+                }}
+              >
+                {fates.get(picked) === "kept" ? t.editor.unkeepLine : t.editor.dropLine}
+              </button>
+              <button className="small-button" onClick={() => setPicked(null)}>
+                {t.editor.alignCancel}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {/* A line left out of the export, picked in "Avant": kept, or put back. */}
+      {editing && outPicked !== null && fates.has(outPicked) && (
+        <div className="align-banner picked">
+          <span>
+            {t.editor.lineOut(analysis.target_cues[outPicked].text.split("\n").join(" / "), t.analysis.lines.fates[fates.get(outPicked)!])}
+          </span>
+          {fates.get(outPicked) !== "start" && (
+            <button
+              className="small-button"
+              onClick={() => {
+                editing.onLine(outPicked, fates.get(outPicked) === "gap" ? "keep" : "reset");
+                setOutPicked(null);
+              }}
+            >
+              {fates.get(outPicked) === "gap" ? t.editor.keepLine : t.editor.restoreLine}
             </button>
           )}
+          <button className="small-button" onClick={() => setOutPicked(null)}>
+            {t.common.cancel}
+          </button>
         </div>
       )}
       <div

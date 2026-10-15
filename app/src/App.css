@@ -1120,3 +1120,38 @@ input {
 .timeline {
   background: var(--surface-sunken);
 }
+
+/* A count that opens its list ("3 seront retirées"): text, underlined. */
+.link-button {
+  padding: 0;
+  height: auto;
+  border: none;
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link-button:hover:not(:disabled) {
+  background: none;
+  text-decoration-thickness: 2px;
+}
+
+/* The lines left out of the export, and those kept by hand. */
+.lines-panel {
+  max-width: 820px;
+}
+
+.lines-table-wrap {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.lines-table td.line-text {
+  text-align: left;
+}
+
+.lines-table tr.line-kept td {
+  color: var(--text-muted);
+}

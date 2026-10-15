@@ -53,7 +53,17 @@ interface TargetCue {
   corrected: [number, number] | null;
 }
 
+/** Lines kept though in a stretch the reference lacks, or taken out, by
+ * hand: indices into an analysis' target_cues (the engine's RenderTrack
+ * keep / drop). */
+export interface CueEdits {
+  keep: number[];
+  drop: number[];
+}
+
 export interface Analysis {
+  /** Lines kept or taken out by hand (app side, sent with the export). */
+  edits?: CueEdits;
   reference: TrackRef;
   target: TrackRef;
   reference_choice: string | null;
@@ -90,6 +100,9 @@ export interface RenderTrack {
   default?: boolean | null;
   /** As `default`: null keeps the replaced track's (none when added). */
   forced?: boolean | null;
+  /** Lines kept or taken out by hand (see CueEdits). */
+  keep?: number[];
+  drop?: number[];
   /** Its own file, in a subtitles-only export. */
   output?: string | null;
   /** The reference file's subtitle track it takes the place of. */

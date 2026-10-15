@@ -7,7 +7,7 @@ which covers a constant shift, a drift, and (segment after segment) jumps.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 from syncsubtitles.subformats import Cue, SubtitleDocument
@@ -117,5 +117,42 @@ def remap_time(t: float, segments: Sequence[Segment]) -> float:
     return seg.to_reference(t)
 
 
-def retime(document: SubtitleDocument, segments: Sequence[Segment]) -> SubtitleDocument:
-    return document.retimed(lambda cue: remap_cue(cue, segments))
+def nearest_segment(t: float, segments: Sequence[Segment]) -> Segment:
+    """The segment a cue at target time ``t`` belongs to, or inside a gap
+    the one whose target-time span is the nearest."""
+    seg = segment_for(t, segments)
+    if seg is not None:
+        return seg
+    return min(segments, key=lambda s: max(s.target_start - t, t - s.target_end, 0.0))
+
+
+def remap_cues(
+    document: SubtitleDocument,
+    segments: Sequence[Segment],
+    keep: Collection[int] = (),
+    drop: Collection[int] = (),
+) -> list[tuple[float, float] | None]:
+    """Each cue's (start, end) in reference time, as remap_cue, or None:
+    those by index in ``drop`` too (taken out by hand), and those in
+    ``keep`` not, even in a gap (kept by hand: through the nearest segment)."""
+    out: list[tuple[float, float] | None] = []
+    for i, cue in enumerate(document.cues):
+        mapped = None if i in drop else remap_cue(cue, segments)
+        if mapped is None and i in keep and i not in drop and segments:
+            seg = nearest_segment((cue.start + cue.end) / 2.0, segments)
+            mapped = seg.to_reference(cue.start), seg.to_reference(cue.end)
+        out.append(mapped)
+    return out
+
+
+def retime(
+    document: SubtitleDocument,
+    segments: Sequence[Segment],
+    keep: Collection[int] = (),
+    drop: Collection[int] = (),
+) -> SubtitleDocument:
+    """``document`` in reference time (see remap_cues: ``keep`` and ``drop``
+    the lines kept or taken out by hand, by index)."""
+    mapped = remap_cues(document, segments, keep, drop)
+    index = {id(cue): i for i, cue in enumerate(document.cues)}
+    return document.retimed(lambda cue: mapped[index[id(cue)]])

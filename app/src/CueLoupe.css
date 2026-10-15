@@ -220,3 +220,14 @@
 .cue-navigator-window:active {
   cursor: grabbing;
 }
+
+/* A line left out of the export (a stretch the reference lacks, taken out
+   by hand): framed in red, struck through; in the editor, a click on it
+   offers to keep it or put it back. */
+.cue.before.out {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--danger) 70%, transparent);
+  outline-offset: -1px;
+  text-decoration: line-through;
+}

@@ -1,5 +1,6 @@
-from syncsubtitles.retime import Segment, segment_for
+from syncsubtitles.retime import Segment, remap_cues, retime, segment_for
 from syncsubtitles.server import SegmentModel
+from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 
 
 def test_overlapping_spans_cut_at_the_middle():
@@ -41,3 +42,17 @@ def test_the_api_carries_a_fixed_boundary():
     assert seg.target_cut == (10.0, 10.0)
     assert SegmentModel.of(seg).target_cut == (10.0, 10.0)
     assert SegmentModel(start_s=0.0, end_s=1.0, offset_start=0.0, offset_end=0.0).to_segment().target_cut is None
+
+
+def test_lines_kept_or_taken_out_by_hand():
+    """A line in a gap (only the target has that scene) is dropped, unless
+    kept: then through the nearest segment; any line taken out by hand goes."""
+    a, b = Segment(0.0, 10.0, 0.0, 0.0), Segment(10.0, 20.0, 2.0, 2.0)
+    doc = SubtitleDocument(SRT, [Cue(1.0, 2.0, "un"), Cue(10.6, 11.0, "trou"), Cue(15.0, 16.0, "deux")])
+    assert remap_cues(doc, [a, b]) == [(1.0, 2.0), None, (13.0, 14.0)]
+    # Kept: the gap's line nearer the first segment's span (it ends at 10).
+    assert remap_cues(doc, [a, b], keep={1}) == [(1.0, 2.0), (10.6, 11.0), (13.0, 14.0)]
+    assert remap_cues(doc, [a, b], drop={0}) == [None, None, (13.0, 14.0)]
+    # Taken out wins over kept.
+    assert remap_cues(doc, [a, b], keep={1}, drop={1})[1] is None
+    assert [c.text for c in retime(doc, [a, b], keep={1}, drop={2}).cues] == ["un", "trou"]

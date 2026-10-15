@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { Analysis, Segment } from "./api";
+import type { Analysis, CueEdits, Segment } from "./api";
 import {
   align,
   commit,
@@ -21,7 +21,7 @@ import { ConfidenceGauge } from "./ConfidenceGauge";
 import { InfoTip } from "./InfoTip";
 import { RedoEditIcon, UndoIcon } from "./icons";
 import { clock, offset as formatOffset } from "./format";
-import { segmentFor, withSegments } from "./retime";
+import { editLine, NO_EDITS, segmentFor, withSegments } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import { panView, type TimeView, useDragPan, useWheel, WHEEL_ZOOM_IN_FACTOR, WHEEL_ZOOM_OUT_FACTOR, zoomView } from "./timeView";
 import { useElementSize } from "./useElementSize";
@@ -75,6 +75,12 @@ function LazyInput({ value, label, onCommit }: { value: string; label: string; o
 
 const msText = (seconds: number) => String(Math.round(seconds * 1000));
 
+/** What the editor changes: the segments, and the lines kept or taken out. */
+interface EditorState {
+  segments: Segment[];
+  edits: CueEdits;
+}
+
 /** Hand-correct an analysis' segments, laid out as Bobine Audio's editor:
  * the offset chart (drag a segment up or down, a handle sideways,
  * double-click to cut), the cue loupe under it where Audio has its
@@ -93,19 +99,27 @@ export function SegmentEditor({
   duration: number;
   /** What's being corrected: "file · track against reference", beside the title. */
   subtitle?: string;
-  onSave: (segments: Segment[]) => void;
+  /** The segments, and the lines kept or taken out by hand. */
+  onSave: (segments: Segment[], edits: CueEdits) => void;
   onClose: () => void;
 }) {
   const t = useT();
-  const [history, setHistory] = useState<History>(() => startHistory(analysis.segments));
+  // The segments and the lines kept or taken out by hand, undone together.
+  const [history, setHistory] = useState<History<EditorState>>(() =>
+    startHistory({ segments: analysis.segments, edits: analysis.edits ?? NO_EDITS }),
+  );
+  // What the editor opened with, for "Réinitialiser".
+  const [initial] = useState(history.present);
   // What a drag in progress shows, before it's committed (one undo step).
   const [live, setLive] = useState<Segment[] | null>(null);
   const liveRef = useRef(live);
   liveRef.current = live;
-  const segments = live ?? history.present;
-  const shown = useMemo(() => withSegments(analysis, segments), [analysis, segments]);
-  const dirty = history.present !== analysis.segments;
-  const apply = (next: Segment[]) => setHistory((h) => commit(h, next));
+  const segments = live ?? history.present.segments;
+  const edits = history.present.edits;
+  const shown = useMemo(() => withSegments(analysis, segments, edits), [analysis, segments, edits]);
+  const dirty = history.present !== initial;
+  const apply = (next: Segment[]) => setHistory((h) => (next === h.present.segments ? h : commit(h, { ...h.present, segments: next })));
+  const applyEdits = (next: CueEdits) => setHistory((h) => commit(h, { ...h.present, edits: next }));
 
   const [dragging, setDragging] = useState<Drag | null>(null);
   const [frozenRange, setFrozenRange] = useState<[number, number] | null>(null);
@@ -199,7 +213,7 @@ export function SegmentEditor({
   useEffect(() => {
     if (dragging === null) return;
     const drag = dragging;
-    const base = history.present;
+    const base = history.present.segments;
     function onMove(ev: PointerEvent) {
       if (drag.kind === "boundary") {
         setLive(moveBoundary(base, drag.index, timeFromClientX(ev.clientX)));
@@ -236,7 +250,7 @@ export function SegmentEditor({
   /** Double-click: cut the segment under the pointer at that time. */
   function handleChartDoubleClick(e: React.MouseEvent<SVGSVGElement>) {
     if ((e.target as Element).closest(".boundary-handle")) return;
-    apply(split(history.present, Math.round(timeFromClientX(e.clientX) * 1000) / 1000));
+    apply(split(history.present.segments, Math.round(timeFromClientX(e.clientX) * 1000) / 1000));
   }
 
   // The segment "Retirer" would leave in place of the hovered one and its neighbour.
@@ -418,8 +432,9 @@ export function SegmentEditor({
             view={view}
             onView={setView}
             editing={{
-              onSplit: (time) => apply(split(history.present, time)),
-              onAlign: (i, from, to) => apply(align(history.present, i, from, to)),
+              onSplit: (time) => apply(split(history.present.segments, time)),
+              onAlign: (i, from, to) => apply(align(history.present.segments, i, from, to)),
+              onLine: (i, change) => applyEdits(editLine(edits, i, change)),
             }}
           />
         </div>
@@ -522,7 +537,7 @@ export function SegmentEditor({
             <RedoEditIcon />
             {t.editor.redo}
           </button>
-          <button onClick={() => apply(analysis.segments)} disabled={!dirty} title={t.editor.resetHint}>
+          <button onClick={() => setHistory((h) => commit(h, initial))} disabled={!dirty} title={t.editor.resetHint}>
             {t.editor.reset}
           </button>
         </div>
@@ -536,7 +551,7 @@ export function SegmentEditor({
         <button
           className="primary-button"
           onClick={() => {
-            onSave(history.present);
+            onSave(history.present.segments, history.present.edits);
             onClose();
           }}
         >

@@ -400,6 +400,10 @@ class RenderTrack(BaseModel):
     # its language if there's one (see TrackToWrite).
     replaces: int | None = None
     replace_same_language: bool = False
+    # Lines kept though in a stretch the reference lacks, or taken out, by
+    # hand: indices into the analysis' target_cues.
+    keep: list[int] = []
+    drop: list[int] = []
 
 
 class RenderRequest(BaseModel):
@@ -468,6 +472,8 @@ def start_render(req: RenderRequest) -> JobStarted:
                     True,
                     log=log,
                     clean=req.clean,
+                    keep=track.keep,
+                    drop=track.drop,
                 )
                 for track in tracks
             ]
@@ -484,6 +490,8 @@ def start_render(req: RenderRequest) -> JobStarted:
                         forced=t.forced,
                         replaces=t.replaces,
                         replace_same_language=t.replace_same_language,
+                        keep=tuple(t.keep),
+                        drop=tuple(t.drop),
                     )
                     for t in tracks
                 ],

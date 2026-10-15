@@ -97,6 +97,13 @@ def translated(seed: int, offset) -> list[tuple[float, float, str]]:
         if a >= 0.05:
             out.append((round(a, 3), round(b, 3), line(rng, FRENCH, len(out) + 1)))
         i += 1
+    # A jump forward: the stretch it adds (a scene the reference lacks) has a
+    # line of its own, which the export leaves out unless kept by hand.
+    if isinstance(offset, list):
+        for (_, before), (at, after) in zip(offset, offset[1:]):
+            if after > before + 1.0:
+                out.append((round(at + before + 0.3, 3), round(at + after - 0.4, 3), "Une réplique que la référence n'a pas."))
+        out.sort()
     return out
 
 

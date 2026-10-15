@@ -119,3 +119,28 @@ test("what's saved is what's exported", async ({ app }) => {
   const original = subtitleStarts(E02, 1).filter((t) => t >= 3.05);
   expect(shiftedBy(subtitleStarts(written, 1), original, -3.0)).toBeNull();
 });
+
+test("lines taken out or kept by hand are the export's", async ({ app }) => {
+  // One line taken out by hand in the editor.
+  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await app.page.locator(".editor-panel .loupe-row-after .cue.labelled").nth(1).click();
+  await app.page.getByRole("button", { name: "Retirer cette réplique" }).click();
+  await expect(editor(app)).toContainText("Modifié · 1 changement");
+  await editor(app).getByRole("button", { name: "Enregistrer" }).click();
+  await expect(editor(app)).toBeHidden();
+
+  // The list of lines left out: the one taken out, and any in the jump's
+  // 2.5 s the reference lacks (one of them then kept).
+  await app.page.locator(".analysis-counts .link-button").click();
+  const list = app.page.getByRole("dialog", { name: "Répliques retirées à l'export" });
+  await expect(list.getByText("retirée à la main")).toHaveCount(1);
+  const gapLines = await list.getByText("passage absent de la référence").count();
+  if (gapLines > 0) await list.getByRole("button", { name: "Garder" }).first().click();
+  await expect(list.getByText("gardée à la main")).toHaveCount(gapLines > 0 ? 1 : 0);
+  await app.page.keyboard.press("Escape");
+
+  await app.page.getByRole("button", { name: "Exporter ce fichier" }).click();
+  await expect(app.rows().first().locator(".list-badge")).toHaveText("Exporté", { timeout: 120_000 });
+  const lines = subtitleStarts(app.jobs.written[0], 1).length;
+  expect(lines).toBe(subtitleStarts(E02, 1).length - gapLines - 1 + (gapLines > 0 ? 1 : 0));
+});

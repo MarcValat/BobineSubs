@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { probe, startAnalyze, startRenderTracks, type Analysis, type TrackInfo, type TrackRef } from "./api";
+import { probe, startAnalyze, startRenderTracks, type Analysis, type CueEdits, type Segment, type TrackInfo, type TrackRef } from "./api";
 import { runJob } from "./jobs";
 import {
   defaultPick,
@@ -334,6 +334,8 @@ export function MultiTrackBatch({
                 done.map(([target, r], k) => ({
                   target: target.ref,
                   segments: r.result!.segments,
+                  keep: r.result!.edits?.keep ?? [],
+                  drop: r.result!.edits?.drop ?? [],
                   output: subsOnly ? outputs[k] : null,
                   replaces: target.replaces ?? null,
                   title: batchTrack.title || null,
@@ -412,6 +414,13 @@ export function MultiTrackBatch({
       : null;
 
   const editingRun = editing ? runOf(editing.path)?.targets[editing.target] : null;
+
+  /** A corrected track's segments and lines kept or taken out, changed by
+   * hand: its export is to do again. */
+  function saveEdits(path: string, target: string, segments: Segment[], edits: CueEdits) {
+    updateTarget(path, target, (t) => ({ result: t.result ? withSegments(t.result, segments, edits) : t.result, edited: true }));
+    updateRun(path, (r) => ({ ...r, ...IDLE_EXPORT }));
+  }
 
   /** "file · @1 fre contre @0 eng": what the editor corrects. */
   function editorSubtitle(path: string, target: string): string {
@@ -719,7 +728,14 @@ export function MultiTrackBatch({
                       >
                         {shownResult && (
                           <div className="detail-summary">
-                            <AnalysisSummary analysis={shownResult} edited={shownRun?.edited} cleanup={cleanSubtitles} />
+                            <AnalysisSummary
+                              analysis={shownResult}
+                              edited={shownRun?.edited}
+                              cleanup={cleanSubtitles}
+                              onEdits={
+                                queue.exporting ? undefined : (edits) => saveEdits(detailPath, shownTarget!.id, shownResult.segments, edits)
+                              }
+                            />
                             <SegmentChart
                               segments={shownResult.segments}
                               duration={shownDuration}
@@ -796,11 +812,8 @@ export function MultiTrackBatch({
           duration={analysisDuration(editingRun.result, probes[editing.path]?.duration ?? null)}
           subtitle={editorSubtitle(editing.path, editing.target)}
           onClose={() => setEditing(null)}
-          onSave={(segments) => {
-            const { path, target } = editing;
-            updateTarget(path, target, (t) => ({ result: t.result ? withSegments(t.result, segments) : t.result, edited: true }));
-            // The export no longer matches: it's to do again.
-            updateRun(path, (r) => ({ ...r, ...IDLE_EXPORT }));
+          onSave={(segments, edits) => {
+            saveEdits(editing.path, editing.target, segments, edits);
             setEditing(null);
           }}
         />

@@ -1,33 +1,43 @@
-import type { Analysis } from "./api";
+import { useState } from "react";
+import { createPortal } from "react-dom";
+import type { Analysis, CueEdits } from "./api";
+import { Dialog, DialogHeader } from "./Dialog";
 import { ConfidenceGauge } from "./ConfidenceGauge";
 import { CueLoupe } from "./CueLoupe";
 import { isDrift } from "./editing";
 import { clock, offset } from "./format";
 import { t, useT } from "./i18n";
 import { WarningIcon } from "./icons";
-import { segmentFor } from "./retime";
+import { editLine, lineFates, segmentFor, type LineFate } from "./retime";
 import { describeSegments } from "./SegmentChart";
 import { LOW_CONFIDENCE } from "./shared";
 import type { TimeView } from "./timeView";
 
 /** What an analysis found, in a few words: the drift, a hand edit, how
- * many lines on each side, those without a counterpart or dropped, what
- * the export's cleanup will fix (`cleanup`: it's on), and its warnings. */
+ * many lines on each side, those without a counterpart or left out of the
+ * export (a button: their list, to keep them or put them back, `onEdits`),
+ * what the export's cleanup will fix (`cleanup`: it's on), and its warnings. */
 export function AnalysisSummary({
   analysis,
   edited = false,
   cleanup = false,
+  onEdits,
 }: {
   analysis: Analysis;
   /** The segments were changed by hand since the analysis. */
   edited?: boolean;
   cleanup?: boolean;
+  /** Lines kept or taken out by hand, from the list of those left out. */
+  onEdits?: (edits: CueEdits) => void;
 }) {
   const t = useT();
   const m = t.analysis;
+  const [listing, setListing] = useState(false);
   const fixes = Object.entries(analysis.cleanup ?? {}).filter(([kind, n]) => n > 0 && kind in t.cleanup.kinds);
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
-  const dropped = analysis.target_cues.filter((c) => c.corrected === null || c.corrected[1] <= 0).length;
+  const fates = lineFates(analysis);
+  const dropped = fates.filter((f) => f.fate !== "kept").length;
+  const kept = fates.length - dropped;
   return (
     <>
       <div className="analysis-summary">
@@ -37,9 +47,24 @@ export function AnalysisSummary({
         <span className="analysis-counts">
           {m.counts(analysis.reference_cues.length, analysis.target_cues.length)}
           {orphans > 0 && m.orphans(orphans)}
-          {dropped > 0 && <span className="warn-text">{m.dropped(dropped)}</span>}
+          {fates.length > 0 &&
+            (onEdits ? (
+              <button className="link-button warn-text" title={m.lines.hint} onClick={() => setListing(true)}>
+                {m.dropped(dropped)}
+                {kept > 0 && m.keptCount(kept)}
+              </button>
+            ) : (
+              <span className="warn-text">
+                {m.dropped(dropped)}
+                {kept > 0 && m.keptCount(kept)}
+              </span>
+            ))}
         </span>
       </div>
+      {/* At the page's root: inside the detail (a .panel), it took its look. */}
+      {listing &&
+        onEdits &&
+        createPortal(<LinesDialog analysis={analysis} onEdits={onEdits} onClose={() => setListing(false)} />, document.body)}
       {cleanup && fixes.length > 0 && (
         <p className="analysis-cleanup" title={t.cleanup.hint}>
           {t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))}
@@ -51,6 +76,69 @@ export function AnalysisSummary({
         </p>
       ))}
     </>
+  );
+}
+
+/** The lines an export leaves out, and those kept by hand: when each
+ * starts (in the file to correct), what it says, why; kept ("Garder"),
+ * put back or no longer kept, one by one or all of a stretch's at once. */
+function LinesDialog({ analysis, onEdits, onClose }: { analysis: Analysis; onEdits: (edits: CueEdits) => void; onClose: () => void }) {
+  const t = useT();
+  const m = t.analysis.lines;
+  const fates = lineFates(analysis);
+  const gaps = fates.filter((f) => f.fate === "gap").map((f) => f.index);
+  const action = (index: number, fate: LineFate) => {
+    if (fate === "start") return null;
+    const [label, change] = fate === "gap" ? [m.keep, "keep" as const] : [fate === "kept" ? m.unkeep : m.restore, "reset" as const];
+    return (
+      <button className="small-button" onClick={() => onEdits(editLine(analysis.edits, index, change))}>
+        {label}
+      </button>
+    );
+  };
+  return (
+    <Dialog onClose={onClose} closeOnBackdrop className="lines-panel" labelledBy="lines-title">
+      <DialogHeader id="lines-title" title={m.title} onClose={onClose}>
+        {gaps.length > 1 && (
+          <button
+            className="small-button"
+            onClick={() => onEdits({ keep: [...new Set([...(analysis.edits?.keep ?? []), ...gaps])], drop: analysis.edits?.drop ?? [] })}
+          >
+            {m.keepAll}
+          </button>
+        )}
+      </DialogHeader>
+      <p className="hint">{m.hint}</p>
+      {fates.length === 0 ? (
+        <p className="placeholder">{m.none}</p>
+      ) : (
+        <div className="tracks-table-wrap list-scroll lines-table-wrap">
+          <table className="data-table segments-table lines-table">
+            <thead>
+              <tr>
+                <th>{m.time}</th>
+                <th>{m.text}</th>
+                <th>{m.why}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {fates.map(({ index, fate }) => {
+                const cue = analysis.target_cues[index];
+                return (
+                  <tr key={index} className={`line-${fate}`}>
+                    <td>{clock(cue.start, 2)}</td>
+                    <td className="line-text">{cue.text.split("\n").join(" / ")}</td>
+                    <td title={fate === "start" ? m.startHint : undefined}>{m.fates[fate]}</td>
+                    <td>{action(index, fate)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Dialog>
   );
 }
 
