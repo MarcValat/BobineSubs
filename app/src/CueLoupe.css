@@ -131,7 +131,9 @@
   cursor: pointer;
 }
 
+/* Above the lines it overlaps: its edges and itself dragged first. */
 .cue.picked {
+  z-index: 2;
   outline: 2px solid var(--warn);
   outline-offset: 1px;
 }

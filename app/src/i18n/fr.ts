@@ -480,7 +480,7 @@ export const fr = {
     align: "Aligner",
     alignHint: "clique une réplique de la ligne « Après », puis la réplique de référence où elle doit tomber : tout son segment se décale.",
     alignPicked: (text: string) =>
-      `« ${text} » choisie. Clique la réplique de référence où elle doit tomber : tout son segment se décale. Ou glisse ses bords pour changer son début ou sa fin, ou la réplique elle-même pour la déplacer seule.`,
+      `« ${text} » choisie. Clique la réplique de référence où elle doit tomber : tout son segment se décale. Ou glisse ses bords pour changer son début ou sa fin, ou la réplique elle-même pour la déplacer seule. Suppr : la retirer.`,
     timingDrag: (range: string, length: string) => `Nouvel horaire : ${range} (${length}).`,
     timingStart: "Glisser : changer son début (calé sur une réplique de référence proche ; Alt : sans caler)",
     timingEnd: "Glisser : changer sa fin (calée sur une réplique de référence proche ; Alt : sans caler)",

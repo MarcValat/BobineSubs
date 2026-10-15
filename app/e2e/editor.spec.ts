@@ -208,3 +208,13 @@ test("a line picked is resized and moved by hand, as exported", async ({ app }) 
   const times = subtitleTimes(app.jobs.written[0], 1);
   expect(times.some(([s, e]) => Math.abs(s - a2) < 0.006 && Math.abs(e - b2) < 0.006)).toBe(true);
 });
+
+test("Delete takes the line picked out", async ({ app }) => {
+  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await app.page.locator(".editor-panel .loupe-row-after .cue.labelled").nth(1).click();
+  await expect(app.page.locator(".editor-panel .cue.picked")).toHaveCount(1);
+  await app.page.keyboard.press("Delete");
+  await expect(app.page.locator(".editor-panel .cue.picked")).toHaveCount(0);
+  await expect(app.page.locator(".editor-panel .loupe-row-before .cue.out")).not.toHaveCount(0);
+  await expect(editor(app)).toContainText("Modifié · 1 changement");
+});

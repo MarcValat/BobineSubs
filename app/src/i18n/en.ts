@@ -472,7 +472,7 @@ export const en: Messages = {
     align: "Align",
     alignHint: "click a line of the “After” row, then the reference line it should land on: its whole segment shifts.",
     alignPicked: (text) =>
-      `“${text}” picked. Click the reference line it should land on: its whole segment shifts. Or drag its edges to change its start or end, or the line itself to move it alone.`,
+      `“${text}” picked. Click the reference line it should land on: its whole segment shifts. Or drag its edges to change its start or end, or the line itself to move it alone. Delete: take it out.`,
     timingDrag: (range, length) => `New times: ${range} (${length}).`,
     timingStart: "Drag: change its start (snapped to a nearby reference line; Alt: no snapping)",
     timingEnd: "Drag: change its end (snapped to a nearby reference line; Alt: no snapping)",

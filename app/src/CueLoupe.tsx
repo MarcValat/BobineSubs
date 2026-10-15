@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Analysis } from "./api";
 import { clock } from "./format";
 import { useT } from "./i18n";
@@ -180,6 +180,22 @@ export function CueLoupe({
   const [drag, setDrag] = useState<{ index: number; a: number; b: number } | null>(null);
   // A drag of the line picked ended: not a click on it too.
   const timingDragged = useRef(false);
+
+  // Delete (outside a field): the line picked taken out of the export.
+  const onLine = editing?.onLine;
+  useEffect(() => {
+    if (picked === null || !onLine) return;
+    const onKey = (e: KeyboardEvent) => {
+      const field =
+        e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+      if (e.key !== "Delete" || field || e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault();
+      onLine(picked, "drop");
+      setPicked(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picked, onLine]);
   // The lines the export's cleanup changes (those not refused).
   const cleaned = useMemo(() => {
     const skip = new Set(analysis.edits?.skip ?? []);
