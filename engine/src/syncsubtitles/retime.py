@@ -7,7 +7,7 @@ which covers a constant shift, a drift, and (segment after segment) jumps.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 
 from syncsubtitles.subformats import Cue, SubtitleDocument
@@ -131,12 +131,19 @@ def remap_cues(
     segments: Sequence[Segment],
     keep: Collection[int] = (),
     drop: Collection[int] = (),
+    timing: Mapping[int, tuple[float, float]] | None = None,
 ) -> list[tuple[float, float] | None]:
     """Each cue's (start, end) in reference time, as remap_cue, or None:
     those by index in ``drop`` too (taken out by hand), and those in
-    ``keep`` not, even in a gap (kept by hand: through the nearest segment)."""
+    ``keep`` not, even in a gap (kept by hand: through the nearest segment).
+    ``timing``: lines given their (start, end) by hand, in reference time
+    (kept wherever they are, unless taken out)."""
     out: list[tuple[float, float] | None] = []
     for i, cue in enumerate(document.cues):
+        if timing and i in timing and i not in drop:
+            start, end = timing[i]
+            out.append((float(start), float(end)))
+            continue
         mapped = None if i in drop else remap_cue(cue, segments)
         if mapped is None and i in keep and i not in drop and segments:
             seg = nearest_segment((cue.start + cue.end) / 2.0, segments)
@@ -150,9 +157,10 @@ def retime(
     segments: Sequence[Segment],
     keep: Collection[int] = (),
     drop: Collection[int] = (),
+    timing: Mapping[int, tuple[float, float]] | None = None,
 ) -> SubtitleDocument:
-    """``document`` in reference time (see remap_cues: ``keep`` and ``drop``
-    the lines kept or taken out by hand, by index)."""
-    mapped = remap_cues(document, segments, keep, drop)
+    """``document`` in reference time (see remap_cues: ``keep``, ``drop``
+    and ``timing`` the lines kept, taken out or timed by hand, by index)."""
+    mapped = remap_cues(document, segments, keep, drop, timing)
     index = {id(cue): i for i, cue in enumerate(document.cues)}
     return document.retimed(lambda cue: mapped[index[id(cue)]])

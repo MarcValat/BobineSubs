@@ -1,12 +1,21 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Analysis } from "./api";
 import { clock } from "./format";
 import { useT } from "./i18n";
 import { CueNavigator } from "./CueNavigator";
 import { AlignIcon, ScissorsIcon } from "./icons";
 import { InfoTip } from "./InfoTip";
-import { lineFates, segmentFor } from "./retime";
-import { panView, useDragPan, useWheel, WHEEL_ZOOM_IN_FACTOR, WHEEL_ZOOM_OUT_FACTOR, zoomView, type TimeView } from "./timeView";
+import { isOut, lineFates, MIN_LINE_S, segmentFor } from "./retime";
+import {
+  DRAG_THRESHOLD_PX,
+  panView,
+  useDragPan,
+  useWheel,
+  WHEEL_ZOOM_IN_FACTOR,
+  WHEEL_ZOOM_OUT_FACTOR,
+  zoomView,
+  type TimeView,
+} from "./timeView";
 import { useElementSize } from "./useElementSize";
 import "./CueLoupe.css";
 
@@ -37,6 +46,9 @@ export interface LoupeEditing {
   onAlign: (i: number, from: number, to: number) => void;
   /** Line `index` of the target kept, taken out, or as the analysis has it. */
   onLine: (index: number, change: "keep" | "drop" | "reset") => void;
+  /** Line `index` of the target given `times` by hand (reference time), or
+   * back to its segment's (null). */
+  onTiming: (index: number, times: [number, number] | null) => void;
 }
 
 export interface Cue {
@@ -52,6 +64,46 @@ export interface Cue {
   target?: number;
   ref?: number;
 }
+
+/** What a drag of a picked line changes: its start, its end, or both. */
+export type TimingDrag = "start" | "end" | "move";
+
+/** Closer than this (px), a line's edge dragged lands on a reference line's. */
+const SNAP_PX = 6;
+
+/** A line [a, b] once its `mode` is dragged by `delta` seconds: an edge
+ * dragged lands on the nearest of `snaps` within `tolerance` (seconds), as
+ * the nearer of its two edges for a line moved; the line no shorter than
+ * MIN_LINE_S, within 0..`duration`. */
+export function dragTimes(
+  mode: TimingDrag,
+  a: number,
+  b: number,
+  delta: number,
+  snaps: readonly number[],
+  tolerance: number,
+  duration: number,
+): [number, number] {
+  // How far `t` is from the snap it lands on (Infinity: none near enough).
+  const pull = (t: number) => {
+    let best = Infinity;
+    for (const s of snaps) if (Math.abs(s - t) <= tolerance && Math.abs(s - t) < Math.abs(best)) best = s - t;
+    return best;
+  };
+  const snapped = (t: number) => {
+    const d = pull(t);
+    return Number.isFinite(d) ? t + d : t;
+  };
+  if (mode === "start") return [Math.max(0, Math.min(snapped(a + delta), b - MIN_LINE_S)), b];
+  if (mode === "end") return [a, Math.min(Math.max(duration, b), Math.max(snapped(b + delta), a + MIN_LINE_S))];
+  const length = b - a;
+  const [ps, pe] = [pull(a + delta), pull(b + delta)];
+  const shift = Math.abs(ps) <= Math.abs(pe) ? ps : pe;
+  const start = Math.max(0, Math.min(a + delta + (Number.isFinite(shift) ? shift : 0), Math.max(0, duration - length)));
+  return [start, start + length];
+}
+
+const byStart = (a: Cue, b: Cue) => a.a - b.a;
 
 /** Closer than this (px), two lines too narrow to read are one block. */
 const MERGE_GAP_PX = 2;
@@ -99,7 +151,9 @@ export function laneBlocks(
  * through time (timeView.ts, as Audio's waveforms), the buttons jump from
  * one segment's boundary to the next or set the zoom. In the segment
  * editor (`editing`), "Couper ici", and a cue of "Après" then a reference
- * one aligns the first onto the second.
+ * one aligns the first onto the second; the cue picked has its edges
+ * dragged to change its start or end, itself to move it (by hand: see
+ * dragTimes).
  */
 export function CueLoupe({
   analysis,
@@ -122,6 +176,10 @@ export function CueLoupe({
   // of the export picked ("Avant" row), to keep it or put it back.
   const [picked, setPicked] = useState<number | null>(null);
   const [outPicked, setOutPicked] = useState<number | null>(null);
+  // The line picked, while its edge or itself is dragged: where it is.
+  const [drag, setDrag] = useState<{ index: number; a: number; b: number } | null>(null);
+  // A drag of the line picked ended: not a click on it too.
+  const timingDragged = useRef(false);
   // The lines the export's cleanup changes (those not refused).
   const cleaned = useMemo(() => {
     const skip = new Set(analysis.edits?.skip ?? []);
@@ -130,6 +188,8 @@ export function CueLoupe({
   // Each line left out of the export, or kept by hand, and why.
   const fates = useMemo(() => new Map(lineFates(analysis).map((f) => [f.index, f.fate])), [analysis]);
   const boundaries = useMemo(() => analysis.segments.slice(1).map((s) => s.start_s), [analysis]);
+  // Where a line's edge dragged lands: the reference lines' edges.
+  const snaps = useMemo(() => analysis.reference_cues.flatMap(([a, b]) => [a, b]), [analysis]);
 
   const start = view.start;
   const end = view.start + view.duration;
@@ -185,7 +245,6 @@ export function CueLoupe({
   // Every line of each row, by start time: made once per analysis, the
   // view only picks among them.
   const rows: { label: string; kind: string; cues: Cue[] }[] = useMemo(() => {
-    const byStart = (a: Cue, b: Cue) => a.a - b.a;
     return [
       {
         label: m.reference,
@@ -199,14 +258,14 @@ export function CueLoupe({
         cues: analysis.target_cues
           .map((c, i) => {
             const fate = fates.get(i);
-            const out = fate !== undefined && fate !== "kept";
+            const out = isOut(fate);
             return {
               a: c.start,
               b: c.end,
               text: c.text,
               kind: out ? "before out" : "before",
               out: out ? i : undefined,
-              note: out ? t.analysis.lines.fates[fate] : undefined,
+              note: out ? t.analysis.lines.fates[fate!] : undefined,
             };
           })
           .sort(byStart),
@@ -223,10 +282,17 @@ export function CueLoupe({
                     b: c.corrected[1],
                     text: c.text,
                     target,
-                    kind: `${c.group < 0 ? "after orphan" : "after"}${cleaned.has(target) ? " cleaned" : ""}`,
+                    kind: `${c.group < 0 ? "after orphan" : "after"}${cleaned.has(target) ? " cleaned" : ""}${
+                      fates.get(target) === "timed" ? " timed" : ""
+                    }`,
                     note:
-                      [c.group < 0 ? m.noCounterpart : null, cleaned.has(target) ? m.cleaned : null].filter(Boolean).join("\n") ||
-                      undefined,
+                      [
+                        c.group < 0 ? m.noCounterpart : null,
+                        cleaned.has(target) ? m.cleaned : null,
+                        fates.get(target) === "timed" ? m.timed : null,
+                      ]
+                        .filter(Boolean)
+                        .join("\n") || undefined,
                   },
                 ]
               : [],
@@ -254,7 +320,57 @@ export function CueLoupe({
   );
   const tip = (c: Cue) => [range(c.a, c.b), c.text, c.note].filter(Boolean).join("\n");
 
+  // While the line picked is dragged: there, in the "Après" row.
+  const shown = drag
+    ? rows.map((row) =>
+        row.kind === "after"
+          ? { ...row, cues: row.cues.map((c) => (c.target === drag.index ? { ...c, a: drag.a, b: drag.b } : c)).sort(byStart) }
+          : row,
+      )
+    : rows;
+
+  /** A press on the line picked: its edge (`mode` "start", "end") or
+   * itself dragged, its new times given once it's let go (one step to
+   * undo); a press that doesn't move is a click. */
+  function startTiming(e: ReactPointerEvent, cue: Cue, mode: TimingDrag) {
+    if (!editing || cue.target === undefined || e.button !== 0) return;
+    // Not a drag of the view too.
+    e.stopPropagation();
+    const width = lane.current?.getBoundingClientRect().width ?? 0;
+    if (width <= 0) return;
+    const onTiming = editing.onTiming;
+    const index = cue.target;
+    const perPx = span / width;
+    const x0 = e.clientX;
+    let times: [number, number] | null = null;
+    timingDragged.current = false;
+    const move = (ev: PointerEvent) => {
+      if (!times && Math.abs(ev.clientX - x0) < DRAG_THRESHOLD_PX) return;
+      if (!times) document.documentElement.classList.add(mode === "move" ? "line-moving" : "line-resizing");
+      times = dragTimes(mode, cue.a, cue.b, (ev.clientX - x0) * perPx, ev.altKey ? [] : snaps, SNAP_PX * perPx, duration);
+      setDrag({ index, a: times[0], b: times[1] });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      document.documentElement.classList.remove("line-moving", "line-resizing");
+      setDrag(null);
+      if (times) {
+        timingDragged.current = true;
+        onTiming(index, times);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }
+
   const click = (cue: Cue) => {
+    if (timingDragged.current) {
+      timingDragged.current = false;
+      return;
+    }
     if (!editing || pan.dragged.current) return;
     if (cue.out !== undefined) {
       setOutPicked(outPicked === cue.out ? null : cue.out);
@@ -312,10 +428,19 @@ export function CueLoupe({
           <AlignIcon />
           <span>
             <b>{t.common.labelled(t.editor.align)}</b>{" "}
-            {picked === null ? t.editor.alignHint : t.editor.alignPicked(analysis.target_cues[picked]?.text.split("\n").join(" / ") ?? "")}
+            {picked === null
+              ? t.editor.alignHint
+              : drag
+                ? t.editor.timingDrag(range(drag.a, drag.b), `${(drag.b - drag.a).toFixed(2)} s`)
+                : t.editor.alignPicked(analysis.target_cues[picked]?.text.split("\n").join(" / ") ?? "")}
           </span>
           {picked !== null && (
             <>
+              {fates.get(picked) === "timed" && (
+                <button className="small-button" onClick={() => editing.onTiming(picked, null)}>
+                  {t.editor.untimeLine}
+                </button>
+              )}
               <button
                 className="small-button"
                 onClick={() => {
@@ -362,7 +487,7 @@ export function CueLoupe({
         onPointerDown={pan.onPointerDown}
         onMouseDown={pan.onMouseDown}
       >
-        {rows.map((row, r) => (
+        {shown.map((row, r) => (
           <div key={row.kind} className={`loupe-row loupe-row-${row.kind}`}>
             <span className="loupe-label">{row.label}</span>
             <div className="loupe-lane" ref={r === 0 ? laneRef : undefined}>
@@ -372,28 +497,44 @@ export function CueLoupe({
                   <div key={b} className="loupe-boundary" style={{ left: left(b) }} />
                 ))}
               {laneWidth > 0 &&
-                laneBlocks(row.cues, start, span, laneWidth).map(({ x, w, cue, count }, i) =>
-                  cue ? (
+                laneBlocks(row.cues, start, span, laneWidth).map(({ x, w, cue, count }, i) => {
+                  if (!cue)
+                    return (
+                      <div
+                        key={i}
+                        className={`cue ${row.kind === "reference" ? "ref" : row.kind} merged`}
+                        style={{ left: x, width: w }}
+                        title={m.lines(count)}
+                      />
+                    );
+                  // The line picked, in the editor: its edges and itself dragged.
+                  const timing = !!editing && cue.target !== undefined && picked === cue.target;
+                  const handle = (mode: "start" | "end") => (
+                    <span
+                      className={`cue-handle ${mode}`}
+                      title={mode === "start" ? t.editor.timingStart : t.editor.timingEnd}
+                      onPointerDown={(e) => startTiming(e, cue, mode)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  );
+                  return (
                     <div
                       key={i}
-                      className={`cue ${cue.kind}${w >= MIN_TEXT_PX ? " labelled" : ""}${cue.target !== undefined && picked === cue.target ? " picked" : ""}${
+                      className={`cue ${cue.kind}${w >= MIN_TEXT_PX ? " labelled" : ""}${timing ? " picked" : ""}${
                         editing && picked !== null && cue.ref !== undefined ? " aim" : ""
                       }`}
                       style={{ left: x, width: w }}
                       title={tip(cue)}
+                      onPointerDown={timing ? (e) => startTiming(e, cue, "move") : undefined}
                       onClick={() => click(cue)}
                     >
                       {w >= MIN_TEXT_PX && cue.text.split("\n").join(" / ")}
+                      {/* Not at an edge the lane cuts. */}
+                      {timing && cue.a >= start && handle("start")}
+                      {timing && cue.b <= end && handle("end")}
                     </div>
-                  ) : (
-                    <div
-                      key={i}
-                      className={`cue ${row.kind === "reference" ? "ref" : row.kind} merged`}
-                      style={{ left: x, width: w }}
-                      title={m.lines(count)}
-                    />
-                  ),
-                )}
+                  );
+                })}
             </div>
           </div>
         ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { laneBlocks, type Cue } from "./CueLoupe";
+import { dragTimes, laneBlocks, type Cue } from "./CueLoupe";
 
 const cue = (a: number, b: number): Cue => ({ a, b, text: `${a}`, kind: "ref" });
 
@@ -33,5 +33,28 @@ describe("laneBlocks", () => {
       [0, 200],
       [900, 100],
     ]);
+  });
+});
+
+describe("dragTimes (a line picked in the editor, dragged)", () => {
+  it("moves an edge, or the whole line", () => {
+    expect(dragTimes("start", 10, 12, -1, [], 0.1, 100)).toEqual([9, 12]);
+    expect(dragTimes("end", 10, 12, 0.5, [], 0.1, 100)).toEqual([10, 12.5]);
+    expect(dragTimes("move", 10, 12, 3, [], 0.1, 100)).toEqual([13, 15]);
+  });
+
+  it("lands an edge on a reference line's nearby", () => {
+    expect(dragTimes("start", 10, 12, -1.05, [8.9, 9.5], 0.1, 100)).toEqual([8.9, 12]);
+    // Moved: the edge nearer a snap lands on it, the line keeps its length.
+    expect(dragTimes("move", 10, 12, 3, [12.98, 15.05], 0.1, 100)).toEqual([12.98, 14.98]);
+    expect(dragTimes("move", 10, 12, 3, [20], 0.1, 100)).toEqual([13, 15]);
+  });
+
+  it("keeps the line readable and within the file", () => {
+    expect(dragTimes("start", 10, 12, 5, [], 0.1, 100)).toEqual([11.8, 12]);
+    expect(dragTimes("end", 10, 12, -5, [], 0.1, 100)).toEqual([10, 10.2]);
+    expect(dragTimes("start", 1, 2, -5, [], 0.1, 100)).toEqual([0, 2]);
+    expect(dragTimes("move", 90, 95, 10, [], 0.1, 100)).toEqual([95, 100]);
+    expect(dragTimes("end", 90, 95, 10, [], 0.1, 100)).toEqual([90, 100]);
   });
 });

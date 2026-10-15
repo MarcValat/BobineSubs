@@ -61,6 +61,9 @@ export interface CueEdits {
   drop: number[];
   /** The cleanup's fixes refused, by line (RenderTrack clean_skip). */
   skip?: number[];
+  /** Lines given their [start, end] by hand, in reference time, by index
+   * (RenderTrack timing). */
+  timing?: Record<number, [number, number]>;
 }
 
 /** What the export's cleanup does to one line (the engine's cleanup.Change). */
@@ -119,6 +122,7 @@ export interface RenderTrack {
   keep?: number[];
   drop?: number[];
   clean_skip?: number[];
+  timing?: Record<number, [number, number]>;
   /** Its own file, in a subtitles-only export. */
   output?: string | null;
   /** The reference file's subtitle track it takes the place of. */

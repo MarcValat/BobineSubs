@@ -56,3 +56,19 @@ def test_lines_kept_or_taken_out_by_hand():
     # Taken out wins over kept.
     assert remap_cues(doc, [a, b], keep={1}, drop={1})[1] is None
     assert [c.text for c in retime(doc, [a, b], keep={1}, drop={2}).cues] == ["un", "trou"]
+
+
+def test_lines_timed_by_hand():
+    """A line given its times by hand keeps them (in reference time), even
+    in a gap; taken out by hand, it goes all the same."""
+    a, b = Segment(0.0, 10.0, 0.0, 0.0), Segment(10.0, 20.0, 2.0, 2.0)
+    doc = SubtitleDocument(SRT, [Cue(1.0, 2.0, "un"), Cue(10.6, 11.0, "trou"), Cue(15.0, 16.0, "deux")])
+    timing = {0: (1.5, 3.0), 1: (9.0, 9.8)}
+    assert remap_cues(doc, [a, b], timing=timing) == [(1.5, 3.0), (9.0, 9.8), (13.0, 14.0)]
+    assert remap_cues(doc, [a, b], drop={1}, timing=timing)[1] is None
+    # Moved past the next line: retime keeps the lines' order, the export
+    # sorts them (see service._retimed).
+    assert [(c.start, c.end) for c in retime(doc, [a, b], timing={0: (14.0, 15.0)}).cues] == [
+        (14.0, 15.0),
+        (13.0, 14.0),
+    ]

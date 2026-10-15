@@ -419,6 +419,9 @@ class RenderTrack(BaseModel):
     drop: list[int] = []
     # The cleanup's fixes refused by hand, by line (indices as keep / drop).
     clean_skip: list[int] = []
+    # Lines given their (start, end) by hand, in reference time (indices
+    # as keep / drop).
+    timing: dict[int, tuple[float, float]] = {}
 
 
 class RenderRequest(BaseModel):
@@ -490,6 +493,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                     keep=track.keep,
                     drop=track.drop,
                     skip=track.clean_skip,
+                    timing=track.timing,
                 )
                 for track in tracks
             ]
@@ -509,6 +513,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                         keep=tuple(t.keep),
                         drop=tuple(t.drop),
                         skip=tuple(t.clean_skip),
+                        timing=t.timing,
                     )
                     for t in tracks
                 ],

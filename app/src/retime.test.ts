@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Analysis, Segment } from "./api";
-import { editLine, lineFates, segmentFor, withSegments } from "./retime";
+import { editLine, lineFates, renderEdits, segmentFor, skipCleanup, timeLine, withSegments } from "./retime";
 
 const seg = (start_s: number, end_s: number, offset_start: number, offset_end: number): Segment => ({
   start_s,
@@ -122,5 +122,35 @@ describe("lines kept or taken out by hand", () => {
     edits = editLine(edits, 3, "drop");
     expect(edits).toEqual({ keep: [], drop: [3] });
     expect(editLine(edits, 3, "reset")).toEqual({ keep: [], drop: [] });
+  });
+});
+
+describe("lines timed by hand", () => {
+  const cues: [number, number][] = [
+    [10, 12],
+    [102, 104],
+  ];
+
+  it("keeps a line's own times wherever it is, unless taken out", () => {
+    const timed = withSegments(analysis(cues), withGap, { keep: [], drop: [], timing: { 0: [20, 21.5], 1: [100, 101] } });
+    expect(timed.target_cues.map((c) => c.corrected)).toEqual([
+      [20, 21.5],
+      [100, 101],
+    ]);
+    expect(lineFates(timed)).toEqual([
+      { index: 0, fate: "timed" },
+      { index: 1, fate: "timed" },
+    ]);
+    const out = withSegments(analysis(cues), withGap, { keep: [], drop: [0], timing: { 0: [20, 21.5] } });
+    expect(out.target_cues[0].corrected).toBeNull();
+  });
+
+  it("sets or forgets a line's times, the other edits as they are", () => {
+    let edits = timeLine({ keep: [1], drop: [], skip: [0] }, 0, [1.23456, 2.5]);
+    expect(edits).toEqual({ keep: [1], drop: [], skip: [0], timing: { 0: [1.235, 2.5] } });
+    edits = skipCleanup(editLine(edits, 1, "reset"), [1], true);
+    expect(edits.timing).toEqual({ 0: [1.235, 2.5] });
+    expect(renderEdits(edits)).toEqual({ keep: [], drop: [], clean_skip: [0, 1], timing: { 0: [1.235, 2.5] } });
+    expect(timeLine(edits, 0, null).timing).toEqual({});
   });
 });

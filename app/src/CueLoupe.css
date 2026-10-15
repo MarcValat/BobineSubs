@@ -164,6 +164,12 @@
   flex: 1 1 auto;
 }
 
+/* Its buttons each on one line: the text beside them wraps instead. */
+.align-banner > button {
+  flex: none;
+  white-space: nowrap;
+}
+
 .align-banner svg {
   flex: 0 0 auto;
   width: 16px;
@@ -242,4 +248,43 @@
   height: 5px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+/* A line whose times were set by hand in the editor: framed in the accent. */
+.cue.after.timed {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* The line picked in the editor: dragged to move it, its edges (the
+   handles) to change its start or end. */
+.loupe-lanes.clickable .cue.after.picked {
+  cursor: grab;
+  touch-action: none;
+}
+
+.cue-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  background: color-mix(in srgb, var(--warn) 75%, transparent);
+}
+
+.cue-handle.start {
+  left: 0;
+}
+
+.cue-handle.end {
+  right: 0;
+}
+
+.line-moving,
+.line-moving * {
+  cursor: grabbing !important;
+}
+
+.line-resizing,
+.line-resizing * {
+  cursor: ew-resize !important;
 }

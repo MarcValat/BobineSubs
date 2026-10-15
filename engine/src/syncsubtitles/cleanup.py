@@ -73,11 +73,13 @@ def review(
     language: str | None,
     skip: Collection[int] = (),
     indices: Sequence[int] | None = None,
+    timed: Collection[int] = (),
 ) -> tuple[SubtitleDocument, Counter[str], list[Change]]:
     """As clean, line by line: each line's own fixes (see Change), the
-    lines in ``skip`` left as they are (fixes refused by hand). Lines are
-    known by ``indices`` (the target's line each of ``document``'s is: it
-    may be a retimed copy, some lines dropped), else by their place."""
+    lines in ``skip`` left as they are (fixes refused by hand), those in
+    ``timed`` keeping their times (timed by hand). Lines are known by
+    ``indices`` (the target's line each of ``document``'s is: it may be a
+    retimed copy, some lines dropped), else by their place."""
     fixed: Counter[str] = Counter()
     if document.fmt != SRT:
         return document, fixed, []
@@ -100,7 +102,7 @@ def review(
         else:
             entries.append((index, replace(cue, text=text)))
         kinds[index] = own
-    entries = _clean_timing(sorted(entries, key=lambda e: e[1].start), kinds, skip)
+    entries = _clean_timing(sorted(entries, key=lambda e: e[1].start), kinds, {*skip, *timed})
     kept = dict(entries)
     changes = []
     for index, own in kinds.items():

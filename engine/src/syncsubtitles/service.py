@@ -6,7 +6,7 @@ Messages (``log``, warnings, errors) are in French, the UI's language.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -27,7 +27,7 @@ from syncsubtitles.render import (
 )
 from syncsubtitles.retime import Segment, remap_cue, remap_cues, retime
 from syncsubtitles.segments import STANDARD_RATIOS, detect_segments
-from syncsubtitles.subformats import SubtitleDocument, read_file
+from syncsubtitles.subformats import SRT, SubtitleDocument, read_file
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS, load_pair, same_file
 
 Log = Callable[[str], None]
@@ -168,12 +168,14 @@ def _reviewed(
     keep: Collection[int] = (),
     drop: Collection[int] = (),
     skip: Collection[int] = (),
+    timing: Mapping[int, tuple[float, float]] | None = None,
 ) -> tuple[SubtitleDocument, Counter[str], list[Change]]:
     """``document`` retimed and cleaned (see cleanup.review): its lines known
-    by their index in ``document``, those in ``skip`` left as they are."""
-    mapped = remap_cues(document, segments, keep, drop)
+    by their index in ``document``, those in ``skip`` left as they are, and
+    those in ``timing`` (timed by hand) keeping their times."""
+    mapped = remap_cues(document, segments, keep, drop, timing)
     indices = [i for i, m in enumerate(mapped) if m is not None and m[1] > 0]
-    return review(retime(document, segments, keep, drop), language, skip, indices)
+    return review(retime(document, segments, keep, drop, timing), language, skip, indices, timing or ())
 
 
 def corrected_cues(document: SubtitleDocument, segments: Sequence[Segment]) -> list[tuple[float, float] | None]:
@@ -213,15 +215,17 @@ def write_result(
     keep: Collection[int] = (),
     drop: Collection[int] = (),
     skip: Collection[int] = (),
+    timing: Mapping[int, tuple[float, float]] | None = None,
 ) -> Written:
     """Retime the target by ``segments`` and write it: a standalone
     subtitle file, or a new MKV (the reference's) where it replaces the
     original track (same file) or is added (anything else). ``clean``:
-    its obvious faults fixed too (see cleanup); ``keep`` / ``drop``: lines
-    kept or taken out by hand (see retime.remap_cues)."""
+    its obvious faults fixed too (see cleanup); ``keep`` / ``drop`` /
+    ``timing``: lines kept, taken out or timed by hand (see
+    retime.remap_cues)."""
     if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
         corrected, dropped, cleaned = _retimed(
-            target, segments, log, clean, language or _source_language(target), keep, drop, skip
+            target, segments, log, clean, language or _source_language(target), keep, drop, skip, timing
         )
         out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
         write_subtitle(corrected, out)
@@ -237,6 +241,7 @@ def write_result(
         keep=tuple(keep),
         drop=tuple(drop),
         skip=tuple(skip),
+        timing=dict(timing or {}),
     )
     return write_tracks(reference, [track], output, log, clean)[0]
 
@@ -272,6 +277,9 @@ class TrackToWrite:
     drop: tuple[int, ...] = ()
     # The cleanup's fixes refused by hand, by line (see cleanup.review).
     skip: tuple[int, ...] = ()
+    # Lines given their (start, end) by hand, in reference time (by index
+    # as ``keep``, see retime.remap_cues).
+    timing: Mapping[int, tuple[float, float]] = field(default_factory=dict)
 
 
 def _retimed(
@@ -283,22 +291,28 @@ def _retimed(
     keep: Collection[int] = (),
     drop: Collection[int] = (),
     skip: Collection[int] = (),
+    timing: Mapping[int, tuple[float, float]] | None = None,
 ) -> tuple[SubtitleDocument, list[tuple[float, str]], dict[str, int]]:
     """The target retimed by ``segments`` (and cleaned, in ``language``),
-    the lines that fell off, and what the cleanup fixed. ``keep`` / ``drop``:
-    lines kept or taken out by hand (by index, see retime.remap_cues)."""
+    the lines that fell off, and what the cleanup fixed. ``keep`` / ``drop``
+    / ``timing``: lines kept, taken out or timed by hand (by index, see
+    retime.remap_cues)."""
     if not target.is_external and target.stream_index is None:
         raise AnalysisError(tr("Piste cible non précisée."))
     log(tr("Lecture de la piste à corriger…"))
     document = load_target(target)
     dropped = [
         (c.start, plain_text(c.text).strip())
-        for c, m in zip(document.cues, remap_cues(document, segments, keep, drop))
+        for c, m in zip(document.cues, remap_cues(document, segments, keep, drop, timing))
         if m is None or m[1] <= 0
     ]
     if not clean:
-        return retime(document, segments, keep, drop), dropped, {}
-    corrected, fixed, _ = _reviewed(document, segments, language, keep, drop, skip)
+        corrected = retime(document, segments, keep, drop, timing)
+        if timing and corrected.fmt == SRT:
+            # A line moved by hand past others: back in order of time.
+            corrected = replace(corrected, cues=sorted(corrected.cues, key=lambda c: c.start))
+        return corrected, dropped, {}
+    corrected, fixed, _ = _reviewed(document, segments, language, keep, drop, skip, timing)
     return corrected, dropped, dict(fixed)
 
 
@@ -383,7 +397,15 @@ def write_tracks(
                 forced=source.forced if track.forced is None else track.forced,
             )
         corrected, dropped, cleaned = _retimed(
-            target, track.segments, log, clean, metadata.language, track.keep, track.drop, track.skip
+            target,
+            track.segments,
+            log,
+            clean,
+            metadata.language,
+            track.keep,
+            track.drop,
+            track.skip,
+            track.timing,
         )
         muxed.append(MuxTrack(corrected, metadata, replace_index))
         written.append(

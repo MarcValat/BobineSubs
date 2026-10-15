@@ -48,7 +48,7 @@ export function panView(view: TimeView, delta: number, total: number): TimeView 
 }
 
 // A press that moves less than this is a click, not a drag.
-const DRAG_THRESHOLD_PX = 4;
+export const DRAG_THRESHOLD_PX = 4;
 
 /** A drag on a timeline (the cue loupe) moves the view with the pointer,
  * as a map: `onPan` by a share of the element's width (the caller turns it

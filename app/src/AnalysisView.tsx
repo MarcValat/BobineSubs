@@ -8,7 +8,7 @@ import { isDrift } from "./editing";
 import { clock, offset } from "./format";
 import { t, useT } from "./i18n";
 import { WarningIcon } from "./icons";
-import { editLine, lineFates, segmentFor, skipCleanup, type LineFate } from "./retime";
+import { editLine, isOut, lineFates, segmentFor, skipCleanup, timeLine, type LineFate } from "./retime";
 import { Select } from "./Dropdown";
 import { textDiff, type DiffPart } from "./textDiff";
 import { describeSegments } from "./SegmentChart";
@@ -41,8 +41,9 @@ export function AnalysisSummary({
   const reviewable = !!onEdits && (analysis.cleanup_changes?.length ?? 0) > 0;
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
   const fates = lineFates(analysis);
-  const dropped = fates.filter((f) => f.fate !== "kept").length;
-  const kept = fates.length - dropped;
+  const dropped = fates.filter((f) => isOut(f.fate)).length;
+  const kept = fates.filter((f) => f.fate === "kept").length;
+  const timed = fates.filter((f) => f.fate === "timed").length;
   return (
     <>
       <div className="analysis-summary">
@@ -57,11 +58,13 @@ export function AnalysisSummary({
               <button className="link-button warn-text" title={m.lines.hint} onClick={() => setListing(true)}>
                 {m.dropped(dropped)}
                 {kept > 0 && m.keptCount(kept)}
+                {timed > 0 && m.timedCount(timed)}
               </button>
             ) : (
               <span className="warn-text">
                 {m.dropped(dropped)}
                 {kept > 0 && m.keptCount(kept)}
+                {timed > 0 && m.timedCount(timed)}
               </span>
             ))}
         </span>
@@ -95,9 +98,10 @@ export function AnalysisSummary({
   );
 }
 
-/** The lines an export leaves out, and those kept by hand: when each
- * starts (in the file to correct), what it says, why; kept ("Garder"),
- * put back or no longer kept, one by one or all of a stretch's at once. */
+/** The lines an export leaves out, and those kept or timed by hand: when
+ * each starts (in the file to correct), what it says, why; kept
+ * ("Garder"), put back, no longer kept or given back its own times, one by
+ * one or all of a stretch's at once. */
 function LinesDialog({ analysis, onEdits, onClose }: { analysis: Analysis; onEdits: (edits: CueEdits) => void; onClose: () => void }) {
   const t = useT();
   const m = t.analysis.lines;
@@ -105,6 +109,12 @@ function LinesDialog({ analysis, onEdits, onClose }: { analysis: Analysis; onEdi
   const gaps = fates.filter((f) => f.fate === "gap").map((f) => f.index);
   const action = (index: number, fate: LineFate) => {
     if (fate === "start") return null;
+    if (fate === "timed")
+      return (
+        <button className="small-button" onClick={() => onEdits(timeLine(analysis.edits, index, null))}>
+          {m.untime}
+        </button>
+      );
     const [label, change] = fate === "gap" ? [m.keep, "keep" as const] : [fate === "kept" ? m.unkeep : m.restore, "reset" as const];
     return (
       <button className="small-button" onClick={() => onEdits(editLine(analysis.edits, index, change))}>
@@ -118,7 +128,13 @@ function LinesDialog({ analysis, onEdits, onClose }: { analysis: Analysis; onEdi
         {gaps.length > 1 && (
           <button
             className="small-button"
-            onClick={() => onEdits({ keep: [...new Set([...(analysis.edits?.keep ?? []), ...gaps])], drop: analysis.edits?.drop ?? [] })}
+            onClick={() =>
+              onEdits({
+                ...analysis.edits,
+                keep: [...new Set([...(analysis.edits?.keep ?? []), ...gaps])],
+                drop: analysis.edits?.drop ?? [],
+              })
+            }
           >
             {m.keepAll}
           </button>

@@ -21,7 +21,7 @@ import { ConfidenceGauge } from "./ConfidenceGauge";
 import { InfoTip } from "./InfoTip";
 import { RedoEditIcon, UndoIcon } from "./icons";
 import { clock, offset as formatOffset } from "./format";
-import { editLine, NO_EDITS, segmentFor, withSegments } from "./retime";
+import { editLine, NO_EDITS, segmentFor, timeLine, withSegments } from "./retime";
 import { LOW_CONFIDENCE } from "./shared";
 import { panView, type TimeView, useDragPan, useWheel, WHEEL_ZOOM_IN_FACTOR, WHEEL_ZOOM_OUT_FACTOR, zoomView } from "./timeView";
 import { useElementSize } from "./useElementSize";
@@ -435,6 +435,7 @@ export function SegmentEditor({
               onSplit: (time) => apply(split(history.present.segments, time)),
               onAlign: (i, from, to) => apply(align(history.present.segments, i, from, to)),
               onLine: (i, change) => applyEdits(editLine(edits, i, change)),
+              onTiming: (i, times) => applyEdits(timeLine(edits, i, times)),
             }}
           />
         </div>

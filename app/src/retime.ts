@@ -62,8 +62,9 @@ function remapCue(start: number, end: number, segments: Segment[], kept = false)
 
 export const NO_EDITS: CueEdits = { keep: [], drop: [] };
 
-/** `analysis` with other segments and lines kept or taken out by hand
- * (`edits`, its own by default): every corrected cue recomputed. */
+/** `analysis` with other segments and lines kept, taken out or timed by
+ * hand (`edits`, its own by default): every corrected cue recomputed. A
+ * line timed by hand keeps its times, wherever it is (unless taken out). */
 export function withSegments(analysis: Analysis, segments: Segment[], edits: CueEdits = analysis.edits ?? NO_EDITS): Analysis {
   const keep = new Set(edits.keep);
   const drop = new Set(edits.drop);
@@ -73,27 +74,52 @@ export function withSegments(analysis: Analysis, segments: Segment[], edits: Cue
     edits,
     target_cues: analysis.target_cues.map((c, i) => ({
       ...c,
-      corrected: drop.has(i) ? null : remapCue(c.start, c.end, segments, keep.has(i)),
+      corrected: drop.has(i) ? null : (edits.timing?.[i] ?? remapCue(c.start, c.end, segments, keep.has(i))),
     })),
   };
 }
 
-/** Why a line is left out of the export, or kept by hand: taken out by
- * hand, in a stretch the reference lacks, before the start. */
-export type LineFate = "dropped" | "gap" | "start" | "kept";
+/** Why a line is left out of the export, or changed by hand: taken out by
+ * hand, in a stretch the reference lacks, before the start; kept by hand,
+ * its times set by hand. */
+export type LineFate = "dropped" | "gap" | "start" | "kept" | "timed";
 
-/** The lines an export leaves out, and those kept by hand, each with why. */
+/** Left out of the export (not kept or timed by hand). */
+export const isOut = (fate: LineFate | undefined) => fate === "dropped" || fate === "gap" || fate === "start";
+
+/** The lines an export leaves out, and those kept or timed by hand, each
+ * with why. */
 export function lineFates(analysis: Analysis): { index: number; fate: LineFate }[] {
   const keep = new Set(analysis.edits?.keep ?? []);
   const drop = new Set(analysis.edits?.drop ?? []);
+  const timing = analysis.edits?.timing ?? {};
   return analysis.target_cues.flatMap((c, index): { index: number; fate: LineFate }[] => {
     if (drop.has(index)) return [{ index, fate: "dropped" }];
+    if (timing[index]) return [{ index, fate: "timed" }];
     if (c.corrected === null || c.corrected[1] <= 0) {
       const fate: LineFate = segmentFor((c.start + c.end) / 2, analysis.segments) === null ? "gap" : "start";
       return [{ index, fate }];
     }
     return keep.has(index) ? [{ index, fate: "kept" }] : [];
   });
+}
+
+/** The shortest a line timed by hand can be (s). */
+export const MIN_LINE_S = 0.2;
+
+/** `edits` with line `index` given `times` by hand (in reference time,
+ * to the millisecond), or back to its segment's (null). */
+export function timeLine(edits: CueEdits | undefined, index: number, times: [number, number] | null): CueEdits {
+  const timing = { ...edits?.timing };
+  delete timing[index];
+  if (times) timing[index] = [Math.round(times[0] * 1000) / 1000, Math.round(times[1] * 1000) / 1000];
+  return { keep: [], drop: [], ...edits, timing };
+}
+
+/** What an export sends of `edits` (RenderTrack keep, drop, clean_skip,
+ * timing). */
+export function renderEdits(edits: CueEdits | undefined) {
+  return { keep: edits?.keep ?? [], drop: edits?.drop ?? [], clean_skip: edits?.skip ?? [], timing: edits?.timing ?? {} };
 }
 
 /** `edits` with line `index` kept (or no longer), or taken out (or put back). */
@@ -112,5 +138,5 @@ export function skipCleanup(edits: CueEdits | undefined, lines: number[], refuse
     if (refuse) skip.add(i);
     else skip.delete(i);
   }
-  return { keep: edits?.keep ?? [], drop: edits?.drop ?? [], skip: [...skip].sort((a, b) => a - b) };
+  return { keep: [], drop: [], ...edits, skip: [...skip].sort((a, b) => a - b) };
 }

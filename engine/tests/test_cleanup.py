@@ -161,3 +161,29 @@ def test_lines_are_known_by_their_index_in_the_target():
     assert [c.index for c in changes] == [7]
     _, _, changes = review(document, "fre", skip={7}, indices=[3, 7])
     assert changes == []
+
+
+def test_lines_timed_by_hand_keep_their_times():
+    """The cleanup's timing fixes leave a line timed by hand as it is (its
+    text is still cleaned); the line before it still ends where it starts."""
+    cues = [Cue(0.0, 2.5, "Avant"), Cue(2.0, 2.2, "Courte  exprès")]
+    out, fixed, _ = review(SubtitleDocument(SRT, cues), "fre", timed={1})
+    assert [(c.start, c.end, c.text) for c in out.cues] == [(0.0, 2.0, "Avant"), (2.0, 2.2, "Courte exprès")]
+    assert fixed == {"overlaps": 1, "spaces": 1}
+
+
+def test_an_export_sorts_lines_moved_past_others(tmp_path):
+    from syncsubtitles.retime import Segment
+    from syncsubtitles.service import write_result
+    from syncsubtitles.tracks import parse_track_spec
+
+    src = tmp_path / "Film.fr.srt"
+    src.write_text("1\n00:00:01,000 --> 00:00:02,000\nUn\n\n2\n00:00:05,000 --> 00:00:06,000\nDeux\n", "utf-8")
+    target = parse_track_spec(str(src))
+    segments = [Segment(0.0, 100.0, 0.0, 0.0)]
+    for clean_ in (True, False):
+        out = tmp_path / f"{clean_}.srt"
+        write_result(target, target, segments, str(out), True, clean=clean_, timing={0: (8.0, 9.5)})
+        assert out.read_text("utf-8") == (
+            "1\n00:00:05,000 --> 00:00:06,000\nDeux\n\n2\n00:00:08,000 --> 00:00:09,500\nUn\n"
+        )

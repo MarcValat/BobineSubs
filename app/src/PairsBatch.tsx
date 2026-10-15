@@ -47,7 +47,7 @@ import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop, type DropSide } from "./FileDrop";
 import { basename } from "./paths";
 import { SegmentEditor } from "./SegmentEditor";
-import { withSegments } from "./retime";
+import { renderEdits, withSegments } from "./retime";
 import { isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
 import { Select } from "./Dropdown";
@@ -548,9 +548,7 @@ export function PairsBatch({
                   {
                     target,
                     segments: analyses[key].result!.segments,
-                    keep: analyses[key].result!.edits?.keep ?? [],
-                    drop: analyses[key].result!.edits?.drop ?? [],
-                    clean_skip: analyses[key].result!.edits?.skip ?? [],
+                    ...renderEdits(analyses[key].result!.edits),
                     output: subsOnly ? outputs[0] : null,
                     language: languageOf(i).code,
                     title: own?.title || addedTitle || null,

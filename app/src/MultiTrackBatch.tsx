@@ -45,7 +45,7 @@ import { DropZone } from "./DropZone";
 import { DropOverlay, useFileDrop } from "./FileDrop";
 import { basename } from "./paths";
 import { SegmentEditor } from "./SegmentEditor";
-import { withSegments } from "./retime";
+import { renderEdits, withSegments } from "./retime";
 import { clock, isSubtitleFile, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS } from "./format";
 import { LOW_CONFIDENCE, pickFiles } from "./shared";
 import { Select } from "./Dropdown";
@@ -334,9 +334,7 @@ export function MultiTrackBatch({
                 done.map(([target, r], k) => ({
                   target: target.ref,
                   segments: r.result!.segments,
-                  keep: r.result!.edits?.keep ?? [],
-                  drop: r.result!.edits?.drop ?? [],
-                  clean_skip: r.result!.edits?.skip ?? [],
+                  ...renderEdits(r.result!.edits),
                   output: subsOnly ? outputs[k] : null,
                   replaces: target.replaces ?? null,
                   title: batchTrack.title || null,
