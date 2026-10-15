@@ -7,7 +7,7 @@ from pathlib import Path
 
 from syncsubtitles.ffmpeg_backend import FFmpegError, probe_streams, remux_shift, resolve_ffmpeg, run_checked
 from syncsubtitles.i18n import tr
-from syncsubtitles.matroska import MatroskaError, cluster_timestamps, out_of_order
+from syncsubtitles.matroska import MatroskaError, backward_clusters
 from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.subformats import SubtitleDocument
 
@@ -159,7 +159,7 @@ def _backwards_in(container: str | Path) -> int:
     """How many clusters of the source go back in time already (0: not
     Matroska): a remux copies them as they are."""
     try:
-        return out_of_order(cluster_timestamps(container))
+        return backward_clusters(container)
     except MatroskaError, OSError:
         return 0
 
@@ -171,7 +171,7 @@ def check_cluster_order(path: str | Path, allowed: int = 0) -> None:
     already (seen: a video one cluster 35 ms back near its end; every
     export of it was refused, for nothing the export did)."""
     try:
-        backwards = out_of_order(cluster_timestamps(path))
+        backwards = backward_clusters(path)
     except (MatroskaError, OSError) as exc:
         raise FFmpegError(tr("Fichier écrit illisible : {error}", error=exc)) from exc
     if backwards > allowed:

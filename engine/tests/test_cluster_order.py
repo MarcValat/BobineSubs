@@ -19,7 +19,15 @@ from test_mux import mkv  # noqa: F401 - fixture
 
 import syncsubtitles.render as render_module
 from syncsubtitles.ffmpeg_backend import FFmpegError
-from syncsubtitles.matroska import CLUSTER, SEGMENT, TIMESTAMP, MatroskaError, cluster_timestamps, out_of_order
+from syncsubtitles.matroska import (
+    CLUSTER,
+    SEGMENT,
+    SIMPLE_BLOCK,
+    TIMESTAMP,
+    MatroskaError,
+    backward_clusters,
+    cluster_timestamps,
+)
 from syncsubtitles.render import TrackMetadata, check_cluster_order, mux
 from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 
@@ -29,9 +37,8 @@ DOC = SubtitleDocument(SRT, [Cue(1.0, 2.0, "Un"), Cue(15.0, 16.0, "Deux")])
 def test_mux_clusters_in_time_order(mkv: Path, tmp_path: Path):  # noqa: F811
     out = tmp_path / "out.mkv"
     mux(str(mkv), DOC, out, TrackMetadata(language="fre"))
-    stamps = cluster_timestamps(out)
-    assert len(stamps) > 1
-    assert out_of_order(stamps) == 0
+    assert len(cluster_timestamps(out)) > 1
+    assert backward_clusters(out) == 0
 
 
 def test_mux_waits_for_every_stream(mkv: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # noqa: F811
@@ -88,7 +95,7 @@ def test_a_file_with_clusters_out_of_order_is_refused(mkv: Path, tmp_path: Path)
     data = bytearray(out.read_bytes())
     data[pos : pos + size] = bytes(size)
     out.write_bytes(bytes(data))
-    assert out_of_order(cluster_timestamps(out)) == 1
+    assert backward_clusters(out) == 1
     with pytest.raises(FFmpegError, match="ordre du temps"):
         check_cluster_order(out)
     # Unless its source was so already: the remux only copied that.
@@ -113,8 +120,11 @@ def _element(element_id: int, payload: bytes, width: int) -> bytes:
     return element_id.to_bytes(width, "big") + bytes([0x80 | len(payload)]) + payload
 
 
-def _cluster(ts: int, crc: bool = False) -> bytes:
+def _cluster(ts: int, crc: bool = False, blocks: tuple[int, ...] = ()) -> bytes:
+    """A cluster at `ts`, its blocks (track 1) at these relative times."""
     body = (_element(0xBF, b"\0\0\0\0", 1) if crc else b"") + _element(TIMESTAMP, bytes([ts]), 1)
+    for relative in blocks:
+        body += _element(SIMPLE_BLOCK, b"\x81" + relative.to_bytes(2, "big", signed=True) + b"\x80x", 1)
     return _element(CLUSTER, body, 4)
 
 
@@ -122,7 +132,7 @@ def test_reader_skips_a_crc_and_reads_in_file_order(tmp_path: Path):
     path = tmp_path / "x.mkv"
     path.write_bytes(_element(0x1A45DFA3, b"", 4) + _element(SEGMENT, _cluster(5, crc=True) + _cluster(3), 4))
     assert cluster_timestamps(path) == [5, 3]
-    assert out_of_order([5, 3]) == 1
+    assert backward_clusters(path) == 1
 
 
 def test_reader_unknown_size_segment(tmp_path: Path):
@@ -138,3 +148,18 @@ def test_reader_rejects_what_it_cant_walk(tmp_path: Path):
     path.write_bytes(b"not a matroska file")
     with pytest.raises(MatroskaError):
         cluster_timestamps(path)
+
+
+def test_a_cluster_stamped_later_than_its_first_blocks_is_not_backwards(tmp_path: Path):
+    """ffmpeg may give a cluster a later timestamp than its first blocks
+    (negative relative times): the next one's then looks earlier, its
+    blocks still coming after (seen: 4 episodes of 22 refused for it)."""
+    path = tmp_path / "x.mkv"
+    clusters = _cluster(10, blocks=(0, 20)) + _cluster(60, blocks=(-25, 0)) + _cluster(50, blocks=(0, 10))
+    path.write_bytes(_element(0x1A45DFA3, b"", 4) + _element(SEGMENT, clusters, 4))
+    assert cluster_timestamps(path) == [10, 60, 50]
+    assert backward_clusters(path) == 0
+    # Its blocks before the previous cluster's: really backwards.
+    clusters = _cluster(10, blocks=(0, 20)) + _cluster(60, blocks=(-25, 0)) + _cluster(30, blocks=(0, 10))
+    path.write_bytes(_element(0x1A45DFA3, b"", 4) + _element(SEGMENT, clusters, 4))
+    assert backward_clusters(path) == 1
