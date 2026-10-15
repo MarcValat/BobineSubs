@@ -4,7 +4,7 @@ import { cancelJob, planOutputs, type Analysis, type RenderResponse, type TrackR
 import { JobCancelled, runJob, type RunStatus } from "./jobs";
 import { FolderIcon } from "./icons";
 import { Tooltip } from "./InfoTip";
-import { ExportChooser, type AddedTrackOptions } from "./exportOptions";
+import { ExportChooser, type AddedTrackOptions, type TrackOptions } from "./exportOptions";
 import { errorMessage, loadSetting, saveSetting } from "./util";
 import { t, useT } from "./i18n";
 
@@ -260,11 +260,14 @@ export function BatchFooter({
   exportNext,
   onExport,
   added,
+  track,
 }: {
   outputDir: string | null;
   onOutputDirChange: (dir: string | null) => void;
   /** Paires de fichiers: the added track's options (see ExportChooser). */
   added?: AddedTrackOptions;
+  /** The corrected tracks' name and flags (see ExportChooser). */
+  track: TrackOptions;
   busy: boolean;
   blocked: boolean;
   progress: ReactNode;
@@ -277,7 +280,7 @@ export function BatchFooter({
   const t = useT();
   return (
     <div className="batch-footer panel">
-      <ExportChooser outputDir={outputDir} onOutputDirChange={onOutputDirChange} added={added} disabled={busy} />
+      <ExportChooser outputDir={outputDir} onOutputDirChange={onOutputDirChange} track={track} added={added} disabled={busy} />
       <span className="batch-progress">{progress}</span>
       {analyzeButton}
       {queue.exporting ? (

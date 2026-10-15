@@ -255,6 +255,38 @@ def test_a_standalone_file_takes_the_place_of_a_poor_track(mkv: Path, tmp_path: 
     assert _subtitle_offset_from_video(out, 1) == pytest.approx(6000 - video_start, abs=10)
 
 
+def test_the_batch_names_and_flags_the_corrected_tracks(mkv: Path, tmp_path: Path):
+    """A name and flags set for the whole batch: over the replaced track's
+    (Oui / Non); left None (Inchangé), the replaced track's are kept."""
+    new = tmp_path / "Film.fr.srt"
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    out = tmp_path / "out.mkv"
+    write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [
+            TrackToWrite(
+                SubtitleTrackSpec(str(new), str(new), None, is_external=True),
+                segments,
+                title="Français (corrigé)",
+                default=True,
+                forced=True,
+                replaces=1,
+            )
+        ],
+        str(out),
+    )
+    fre = probe_subtitle_streams(str(out))[1]
+    assert (fre.title, fre.default, fre.forced) == ("Français (corrigé)", True, True)
+    write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [TrackToWrite(SubtitleTrackSpec(str(new), str(new), None, is_external=True), segments, replaces=1)],
+        str(out),
+    )
+    fre = probe_subtitle_streams(str(out))[1]
+    assert (fre.title, fre.forced) == ("VF", False)
+
+
 def test_two_tracks_cannot_take_the_same_place(mkv: Path, tmp_path: Path):
     new = tmp_path / "Film.fr.srt"
     new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")

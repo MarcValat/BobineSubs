@@ -57,6 +57,7 @@ import { useT } from "./i18n";
 import { languageCode } from "./languages";
 import { WarningIcon } from "./icons";
 import { useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
+import { DEFAULT_TRACK_OPTIONS, flagValue } from "./exportOptions";
 
 /** One file's analyses (one per corrected track) and its single export. Kept
  * with the reference they were made against: a different one since makes
@@ -125,8 +126,10 @@ export function MultiTrackBatch({
   const [choices, setChoices] = useState<Record<string, TrackChoice>>({});
   // Standalone subtitle files added to a file's tracks to correct.
   const [externals, setExternals] = useState<Record<string, ExternalTrack[]>>({});
-  // What an export writes, as the export options say (both modes alike).
+  // What an export writes, as the export options say (both modes alike);
+  // the corrected tracks' name and flags.
   const subsOnly = useSubsOnly();
+  const [batchTrack, setBatchTrack] = useState(DEFAULT_TRACK_OPTIONS);
   const [runs, setRuns] = useState<Record<string, FileRun>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const queue = useExportQueue(outputDir, subsOnly);
@@ -333,6 +336,9 @@ export function MultiTrackBatch({
                   segments: r.result!.segments,
                   output: subsOnly ? outputs[k] : null,
                   replaces: target.replaces ?? null,
+                  title: batchTrack.title || null,
+                  default: flagValue(batchTrack.isDefault),
+                  forced: flagValue(batchTrack.forced),
                 })),
                 { output: subsOnly ? null : outputs[0], subsOnly, clean: cleanSubtitles },
               ),
@@ -745,6 +751,7 @@ export function MultiTrackBatch({
           </div>
 
           <BatchFooter
+            track={{ ...batchTrack, onChange: (patch) => setBatchTrack((c) => ({ ...c, ...patch })) }}
             outputDir={outputDir}
             onOutputDirChange={onOutputDirChange}
             busy={busy}

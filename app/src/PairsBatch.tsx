@@ -47,6 +47,7 @@ import { devParam, errorMessage, FIELD_PROPS } from "./util";
 import { useT } from "./i18n";
 import { languageCode, languageLabel, LanguageSelect } from "./languages";
 import { useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
+import { DEFAULT_TRACK_OPTIONS, flagValue } from "./exportOptions";
 
 /** One row of the list: a reference video and what to correct (a subtitle
  * file, or a video holding the track), as the engine paired them by
@@ -242,12 +243,13 @@ export function PairsBatch({
   // Pairs whose tracks or export were changed in their detail (by both files).
   const [choices, setChoices] = useState<Record<string, PairChoice>>({});
   const [pairExports, setPairExports] = useState<Record<string, PairExport>>({});
-  // The added track, for every pair: "" its own language, else this one.
   // The added track, for every pair (the export options): "" its own
-  // language, else this one; its title, its default flag; the video's track
-  // in its language replaced (the default: it's often a poor one), or kept.
-  const [added, setAdded] = useState({ language: "", title: "", isDefault: false, replaceSame: true });
-  const { language: addedLanguage, title: addedTitle, isDefault: addedDefault, replaceSame } = added;
+  // language, else this one; the video's track in its language replaced
+  // (the default: it's often a poor one), or kept. Its name and flags.
+  const [added, setAdded] = useState({ language: "", replaceSame: true });
+  const { language: addedLanguage, replaceSame } = added;
+  const [batchTrack, setBatchTrack] = useState(DEFAULT_TRACK_OPTIONS);
+  const addedTitle = batchTrack.title;
   // What an export writes, as the export options say (both modes alike).
   const subsOnly = useSubsOnly();
   // Keyed by what each was made of (trackKey: both files and both tracks),
@@ -539,7 +541,8 @@ export function PairsBatch({
                     output: subsOnly ? outputs[0] : null,
                     language: languageOf(i).code,
                     title: own?.title || addedTitle || null,
-                    default: addedDefault ? true : null,
+                    default: flagValue(batchTrack.isDefault),
+                    forced: flagValue(batchTrack.forced),
                     replaces: replacesOf(i),
                   },
                 ],
@@ -925,6 +928,7 @@ export function PairsBatch({
 
           <BatchFooter
             added={{ ...added, onChange: (patch) => setAdded((c) => ({ ...c, ...patch })) }}
+            track={{ ...batchTrack, onChange: (patch) => setBatchTrack((c) => ({ ...c, ...patch })) }}
             outputDir={outputDir}
             onOutputDirChange={onOutputDirChange}
             busy={busy}

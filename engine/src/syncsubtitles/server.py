@@ -391,7 +391,9 @@ class RenderTrack(BaseModel):
     segments: list[SegmentModel]
     language: str | None = None
     title: str | None = None
+    # The default and forced flags; None: the replaced track's (none when added).
     default: bool | None = None
+    forced: bool | None = None
     # Its own file, for a standalone subtitle export (``subs_only``).
     output: str | None = None
     # The reference's subtitle track it takes the place of, or the one in
@@ -412,6 +414,7 @@ class RenderRequest(BaseModel):
     language: str | None = None
     title: str | None = None
     default: bool | None = None
+    forced: bool | None = None
     replaces: int | None = None
     replace_same_language: bool = False
     # ...or several: all in one new MKV, or (``subs_only``) each in its own
@@ -441,6 +444,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                 language=req.language,
                 title=req.title,
                 default=req.default,
+                forced=req.forced,
                 replaces=req.replaces,
                 replace_same_language=req.replace_same_language,
             )
@@ -474,11 +478,12 @@ def start_render(req: RenderRequest) -> JobStarted:
                     TrackToWrite(
                         t.target.to_spec(),
                         [s.to_segment() for s in t.segments],
-                        t.language,
-                        t.title,
-                        t.default,
-                        t.replaces,
-                        t.replace_same_language,
+                        language=t.language,
+                        title=t.title,
+                        default=t.default,
+                        forced=t.forced,
+                        replaces=t.replaces,
+                        replace_same_language=t.replace_same_language,
                     )
                     for t in tracks
                 ],

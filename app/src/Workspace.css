@@ -966,6 +966,9 @@
    scrolls as a whole. */
 .file-detail .detail-body {
   overflow-y: auto;
+  /* The scrollbar's room kept: appearing, it narrowed the content, which
+     wrapped otherwise and could make it go again, the layout flickering. */
+  scrollbar-gutter: stable;
 }
 
 /* "+ Ajouter des sous-titres", what it takes beside it. */

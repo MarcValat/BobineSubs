@@ -9,14 +9,31 @@ import { saveCleanSubtitles, saveSubsOnly, useCleanSubtitles, useSubsOnly } from
 import { pickFolder } from "./shared";
 import { FIELD_PROPS } from "./util";
 
-/** Paires de fichiers: what the corrected track says of itself in every
- * pair's new MKV (a pair's detail can say otherwise), and what becomes of
- * the video's own track in its language. */
+/** A flag of the corrected tracks for the whole batch: the replaced
+ * track's as it was ("keep": none for an added one), or set. */
+export type Flag = "keep" | "yes" | "no";
+
+/** What the engine takes for a flag: null keeps the replaced track's. */
+export const flagValue = (flag: Flag): boolean | null => (flag === "keep" ? null : flag === "yes");
+
+/** The corrected tracks' name and flags in the new MKVs, for the whole
+ * batch (both modes): "" keeps each track's own name (a pair's detail can
+ * still name its own). */
+export interface TrackOptions {
+  title: string;
+  isDefault: Flag;
+  forced: Flag;
+  onChange: (patch: Partial<Omit<TrackOptions, "onChange">>) => void;
+}
+
+export const DEFAULT_TRACK_OPTIONS = { title: "", isDefault: "keep" as Flag, forced: "keep" as Flag };
+
+/** Paires de fichiers: the added track's language in every pair (a pair's
+ * detail can say otherwise), and what becomes of the video's own track in
+ * its language. */
 export interface AddedTrackOptions {
   /** "": each file's own (its name's, its track's). */
   language: string;
-  title: string;
-  isDefault: boolean;
   /** The video's track in its language replaced (the default), or kept. */
   replaceSame: boolean;
   onChange: (patch: Partial<Omit<AddedTrackOptions, "onChange">>) => void;
@@ -25,16 +42,18 @@ export interface AddedTrackOptions {
 /** "Export : à côté des originaux · nouveaux MKV · nettoyés" in a mode's
  * footer, and "Modifier…" opening the export options. From Bobine Audio's:
  * where it has the codec and the tracks' names, Bobine Subs has what an
- * export writes (MKVs or subtitles alone), the cleanup, and in pairs the
- * added track (`added`). */
+ * export writes (MKVs or subtitles alone), the cleanup, the corrected
+ * tracks' name and flags (`track`), and in pairs the added track (`added`). */
 export function ExportChooser({
   outputDir,
   onOutputDirChange,
+  track,
   added,
   disabled,
 }: {
   outputDir: string | null;
   onOutputDirChange: (dir: string | null) => void;
+  track: TrackOptions;
   added?: AddedTrackOptions;
   disabled: boolean;
 }) {
@@ -46,6 +65,9 @@ export function ExportChooser({
   const format = [
     subsOnly ? e.subsOnlyShort : e.mkvShort,
     clean && e.cleanShort,
+    !subsOnly && track.title && e.titledShort(track.title),
+    !subsOnly && track.isDefault !== "keep" && e.defaultShort[track.isDefault],
+    !subsOnly && track.forced !== "keep" && e.forcedShort[track.forced],
     added && !subsOnly && (added.replaceSame ? e.replaceShort : e.keepShort),
   ].filter(Boolean);
   return (
@@ -54,28 +76,59 @@ export function ExportChooser({
       <span className={outputDir ? "batch-output-dir batch-output-path" : "batch-output-dir"} title={outputDir ?? undefined}>
         {outputDir ?? t.batch.nextToOriginals}
       </span>
-      <span className="batch-output-format">· {format.join(" · ")}</span>
+      <span className="batch-output-format" title={format.join(" · ")}>
+        · {format.join(" · ")}
+      </span>
       <button className="small-button" disabled={disabled} title={added ? e.editHintPairs : e.editHint} onClick={() => setOpen(true)}>
         {e.edit}
       </button>
       {/* At the page's root: inside the footer (a .panel), it took its look. */}
       {open &&
         createPortal(
-          <ExportDialog outputDir={outputDir} onOutputDirChange={onOutputDirChange} added={added} onClose={() => setOpen(false)} />,
+          <ExportDialog
+            outputDir={outputDir}
+            onOutputDirChange={onOutputDirChange}
+            track={track}
+            added={added}
+            onClose={() => setOpen(false)}
+          />,
           document.body,
         )}
     </div>
   );
 }
 
+/** Inchangé / Oui / Non, for a flag of the corrected tracks. */
+function FlagSwitch({ label, value, onChange }: { label: string; value: Flag; onChange: (flag: Flag) => void }) {
+  const t = useT();
+  const f = t.exportOptions.flags;
+  return (
+    <span className="export-options-choice">
+      <span>{t.common.labelled(label)}</span>
+      <PillSwitch
+        label={label}
+        options={[
+          ["keep", f.keep],
+          ["yes", f.yes],
+          ["no", f.no],
+        ]}
+        value={value}
+        onChange={onChange}
+      />
+    </span>
+  );
+}
+
 function ExportDialog({
   outputDir,
   onOutputDirChange,
+  track,
   added,
   onClose,
 }: {
   outputDir: string | null;
   onOutputDirChange: (dir: string | null) => void;
+  track: TrackOptions;
   added?: AddedTrackOptions;
   onClose: () => void;
 }) {
@@ -130,6 +183,23 @@ function ExportDialog({
         </label>
       </Setting>
 
+      {!subsOnly && (
+        <Setting label={e.tracks} hint={e.tracksHint}>
+          <label className="export-options-name">
+            <span>{t.common.labelled(e.name)}</span>
+            <input
+              {...FIELD_PROPS}
+              type="text"
+              value={track.title}
+              placeholder={e.nameEmpty}
+              onChange={(ev) => track.onChange({ title: ev.target.value })}
+            />
+          </label>
+          <FlagSwitch label={e.isDefault} value={track.isDefault} onChange={(isDefault) => track.onChange({ isDefault })} />
+          <FlagSwitch label={e.forced} value={track.forced} onChange={(forced) => track.onChange({ forced })} />
+        </Setting>
+      )}
+
       {added && (
         <Setting label={p.addedTrack} hint={p.languageHint} note={e.addedNote}>
           <label className="export-options-choice">
@@ -142,34 +212,18 @@ function ExportDialog({
             />
           </label>
           {!subsOnly && (
-            <>
-              <label className="export-options-name" title={p.titleHint}>
-                <span>{t.common.labelled(p.title)}</span>
-                <input
-                  {...FIELD_PROPS}
-                  type="text"
-                  value={added.title}
-                  placeholder={p.titlePlaceholder}
-                  onChange={(ev) => added.onChange({ title: ev.target.value })}
-                />
-              </label>
-              <label className="export-options-check" title={p.defaultTrackHint}>
-                <input type="checkbox" checked={added.isDefault} onChange={(ev) => added.onChange({ isDefault: ev.target.checked })} />
-                {p.defaultTrack}
-              </label>
-              <span className="export-options-choice" title={p.sameLanguageHint}>
-                <span>{t.common.labelled(p.sameLanguage)}</span>
-                <PillSwitch
-                  label={p.sameLanguage}
-                  options={[
-                    ["replace", p.replace],
-                    ["keep", p.keep],
-                  ]}
-                  value={added.replaceSame ? "replace" : "keep"}
-                  onChange={(v) => added.onChange({ replaceSame: v === "replace" })}
-                />
-              </span>
-            </>
+            <span className="export-options-choice" title={p.sameLanguageHint}>
+              <span>{t.common.labelled(p.sameLanguage)}</span>
+              <PillSwitch
+                label={p.sameLanguage}
+                options={[
+                  ["replace", p.replace],
+                  ["keep", p.keep],
+                ]}
+                value={added.replaceSame ? "replace" : "keep"}
+                onChange={(v) => added.onChange({ replaceSame: v === "replace" })}
+              />
+            </span>
           )}
         </Setting>
       )}

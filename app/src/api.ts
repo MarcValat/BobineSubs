@@ -88,6 +88,8 @@ export interface RenderTrack {
   language?: string | null;
   title?: string | null;
   default?: boolean | null;
+  /** As `default`: null keeps the replaced track's (none when added). */
+  forced?: boolean | null;
   /** Its own file, in a subtitles-only export. */
   output?: string | null;
   /** The reference file's subtitle track it takes the place of. */

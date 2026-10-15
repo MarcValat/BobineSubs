@@ -201,7 +201,15 @@ def write_result(
         out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
         write_subtitle(corrected, out)
         return Written(out, "subtitles", None, dropped, cleaned)
-    track = TrackToWrite(target, segments, language, title, default, replaces, replace_same_language)
+    track = TrackToWrite(
+        target,
+        segments,
+        language=language,
+        title=title,
+        default=default,
+        replaces=replaces,
+        replace_same_language=replace_same_language,
+    )
     return write_tracks(reference, [track], output, log, clean)[0]
 
 
@@ -222,6 +230,8 @@ class TrackToWrite:
     language: str | None = None
     title: str | None = None
     default: bool | None = None
+    # As the default flag: None keeps the replaced track's (none when added).
+    forced: bool | None = None
     # A track of the reference's file (subtitle index) this one takes the
     # place of: a standalone file replacing a poor track of the video.
     replaces: int | None = None
@@ -303,7 +313,10 @@ def write_tracks(
         target = track.target
         replace_index = None
         metadata = TrackMetadata(
-            language=track.language or guess_language(target.path), title=track.title, default=bool(track.default)
+            language=track.language or guess_language(target.path),
+            title=track.title,
+            default=bool(track.default),
+            forced=bool(track.forced),
         )
         if track.replaces is not None:
             if not 0 <= track.replaces < len(streams):
@@ -314,7 +327,7 @@ def write_tracks(
                 language=track.language or guess_language(target.path) or old.language,
                 title=track.title or old.title,
                 default=old.default if track.default is None else track.default,
-                forced=old.forced,
+                forced=old.forced if track.forced is None else track.forced,
             )
         elif not target.is_external:
             source = probe_subtitle_streams(target.path)[target.stream_index]
@@ -326,7 +339,7 @@ def write_tracks(
                 default=(source.default if replace_index is not None else False)
                 if track.default is None
                 else track.default,
-                forced=source.forced,
+                forced=source.forced if track.forced is None else track.forced,
             )
         corrected, dropped, cleaned = _retimed(target, track.segments, log, clean, metadata.language)
         muxed.append(MuxTrack(corrected, metadata, replace_index))

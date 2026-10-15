@@ -167,3 +167,19 @@ test("export all: every file written, the footer says so", async ({ app }) => {
   // All done: no next step left.
   await expect(app.footerPrimary()).toHaveCount(0);
 });
+
+test("the corrected tracks' name and flags, for the whole batch", async ({ app }) => {
+  await app.page.goto(multiUrl(E04));
+  await app.analyze();
+  await app.page.getByRole("button", { name: "Modifier…" }).click();
+  const dialog = app.page.getByRole("dialog", { name: "Options d'export" });
+  await dialog.getByRole("textbox", { name: "Nom :" }).fill("Français (corrigé)");
+  await dialog.getByRole("tablist", { name: "Par défaut" }).getByRole("tab", { name: "Oui" }).click();
+  await dialog.getByRole("tablist", { name: "Forcée" }).getByRole("tab", { name: "Oui" }).click();
+  await app.page.keyboard.press("Escape");
+  await expect(app.page.locator(".batch-output")).toContainText("« Français (corrigé) » · par défaut · forcées");
+  await app.page.getByRole("button", { name: "Exporter ce fichier" }).click();
+  await expect(app.rows().first().locator(".list-badge")).toHaveText("Exporté", { timeout: 120_000 });
+  const fre = (await probe(app.jobs.written[0])).tracks[1];
+  expect([fre.language, fre.title, fre.default, fre.forced]).toEqual(["fre", "Français (corrigé)", true, true]);
+});
