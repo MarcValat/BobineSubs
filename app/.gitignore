@@ -29,3 +29,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# End-to-end tests (playwright.config.ts): the synthetic media
+# (e2e/make_media.py), each run's results and report, and the screenshots
+# recorded on this system (fonts and rendering differ between systems).
+e2e/media/
+e2e/results/
+e2e/report/
+e2e/__screenshots__/

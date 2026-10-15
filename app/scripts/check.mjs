@@ -44,6 +44,7 @@ if (staged) {
 } else {
   steps.push(
     ["TypeScript", app, "npx", ["tsc", "--noEmit", "-p", "."]],
+    ["TypeScript (e2e)", app, "npx", ["tsc", "-p", "tsconfig.e2e.json"]],
     ["Prettier", app, "npx", ["prettier", "--check", "."]],
     ["ESLint", app, "npx", ["eslint", ".", "--max-warnings", "0"]],
     ["knip (dead code)", app, "npx", ["knip"]],
