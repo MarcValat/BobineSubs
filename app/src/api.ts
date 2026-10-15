@@ -59,6 +59,19 @@ interface TargetCue {
 export interface CueEdits {
   keep: number[];
   drop: number[];
+  /** The cleanup's fixes refused, by line (RenderTrack clean_skip). */
+  skip?: number[];
+}
+
+/** What the export's cleanup does to one line (the engine's cleanup.Change). */
+interface CleanupChange {
+  index: number;
+  kinds: string[];
+  before: string;
+  /** null: taken out (a site's ad). */
+  after: string | null;
+  duration_before: number;
+  duration_after: number;
 }
 
 export interface Analysis {
@@ -77,6 +90,8 @@ export interface Analysis {
   /** What the cleanup would fix in the corrected SRT file, by kind
    * (engine cleanup.clean): empty for ASS, or nothing to fix. */
   cleanup?: Record<string, number>;
+  /** The same, line by line: each fix can be refused (edits.skip). */
+  cleanup_changes?: CleanupChange[];
 }
 
 interface RenderResult {
@@ -103,6 +118,7 @@ export interface RenderTrack {
   /** Lines kept or taken out by hand (see CueEdits). */
   keep?: number[];
   drop?: number[];
+  clean_skip?: number[];
   /** Its own file, in a subtitles-only export. */
   output?: string | null;
   /** The reference file's subtitle track it takes the place of. */

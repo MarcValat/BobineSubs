@@ -1,6 +1,6 @@
 import pytest
 
-from syncsubtitles.cleanup import MIN_DURATION_S, clean
+from syncsubtitles.cleanup import MIN_DURATION_S, Change, clean, review
 from syncsubtitles.subformats import ASS, SRT, Cue, SubtitleDocument, parse
 
 NBSP = " "
@@ -131,3 +131,33 @@ def test_a_standalone_export_is_cleaned_unless_told_not_to(tmp_path):
     kept = write_result(target, target, segments, str(tmp_path / "b.srt"), True, clean=False)
     assert "-Bonjour  toi?" in (tmp_path / "b.srt").read_text("utf-8")
     assert kept.cleaned == {}
+
+
+def test_each_line_says_its_fixes_and_any_can_be_refused():
+    cues = [
+        Cue(0.0, 2.0, "Bonjour  toi !"),
+        Cue(10.0, 10.3, "Vite"),
+        Cue(20.0, 22.0, "www.site.com"),
+        Cue(30.0, 32.0, "Rien"),
+    ]
+    document = SubtitleDocument(SRT, cues)
+    out, fixed, changes = review(document, "fre")
+    assert changes == [
+        Change(0, ("punctuation", "spaces"), "Bonjour  toi !", "Bonjour toi" + NBSP + "!", 2.0, 2.0),
+        Change(1, ("short",), "Vite", "Vite", 0.3, MIN_DURATION_S),
+        Change(2, ("ads",), "www.site.com", None, 2.0, 0.0),
+    ]
+    assert fixed == {"spaces": 1, "punctuation": 1, "short": 1, "ads": 1}
+    # The first and third fixes refused: those lines as they were.
+    out, fixed, changes = review(document, "fre", skip={0, 2})
+    assert [c.text for c in out.cues] == ["Bonjour  toi !", "Vite", "www.site.com", "Rien"]
+    assert [c.index for c in changes] == [1]
+
+
+def test_lines_are_known_by_their_index_in_the_target():
+    """A retimed copy lacks the lines it dropped: each keeps its own index."""
+    document = SubtitleDocument(SRT, [Cue(0.0, 2.0, "Un"), Cue(10.0, 12.0, "Deux  mots")])
+    _, _, changes = review(document, "fre", indices=[3, 7])
+    assert [c.index for c in changes] == [7]
+    _, _, changes = review(document, "fre", skip={7}, indices=[3, 7])
+    assert changes == []

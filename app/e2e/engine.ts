@@ -20,18 +20,31 @@ export async function probe(path: string): Promise<ProbedFile> {
 
 let ffmpeg: string | null = null;
 
+/** Each line's (start, end), in seconds: as subtitleStarts. */
+export function subtitleTimes(file: string, index?: number): [number, number][] {
+  const srt = readSubtitles(file, index);
+  const time = (h: string, m: string, s: string, ms: string) => +h * 3600 + +m * 60 + +s + +ms / 1000;
+  return [...srt.matchAll(/^(\d+):(\d+):(\d+),(\d+) --> (\d+):(\d+):(\d+),(\d+)/gm)].map(
+    ([, h, m, s, ms, h2, m2, s2, ms2]) => [time(h, m, s, ms), time(h2, m2, s2, ms2)] as [number, number],
+  );
+}
+
 /** When each line starts, in seconds: of `file`'s subtitle track `index`
- * (among its subtitles), or of a subtitle file (no index). With -copyts:
- * else ffmpeg moves what it reads to start at 0. */
+ * (among its subtitles), or of a subtitle file (no index). */
 export function subtitleStarts(file: string, index?: number): number[] {
+  return subtitleTimes(file, index).map(([start]) => start);
+}
+
+/** `file`'s subtitle track `index` (or a subtitle file) as SRT text. With
+ * -copyts: else ffmpeg moves what it reads to start at 0. */
+function readSubtitles(file: string, index?: number): string {
   ffmpeg ??= execFileSync(
     "uv",
     ["run", "--project", "../engine", "python", "-c", "from syncsubtitles.ffmpeg_backend import resolve_ffmpeg; print(resolve_ffmpeg())"],
     { encoding: "utf8" },
   ).trim();
   const map = index === undefined ? [] : ["-map", `0:s:${index}`];
-  const srt = execFileSync(ffmpeg, ["-v", "error", "-copyts", "-i", file, ...map, "-f", "srt", "-"], { encoding: "utf8" });
-  return [...srt.matchAll(/^(\d+):(\d+):(\d+),(\d+) -->/gm)].map(([, h, m, s, ms]) => +h * 3600 + +m * 60 + +s + +ms / 1000);
+  return execFileSync(ffmpeg, ["-v", "error", "-copyts", "-i", file, ...map, "-f", "srt", "-"], { encoding: "utf8" });
 }
 
 /** Whether `starts` are `expected` moved by `shift` (each line within

@@ -336,6 +336,7 @@ export function MultiTrackBatch({
                   segments: r.result!.segments,
                   keep: r.result!.edits?.keep ?? [],
                   drop: r.result!.edits?.drop ?? [],
+                  clean_skip: r.result!.edits?.skip ?? [],
                   output: subsOnly ? outputs[k] : null,
                   replaces: target.replaces ?? null,
                   title: batchTrack.title || null,

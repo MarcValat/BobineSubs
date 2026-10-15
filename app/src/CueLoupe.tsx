@@ -122,6 +122,11 @@ export function CueLoupe({
   // of the export picked ("Avant" row), to keep it or put it back.
   const [picked, setPicked] = useState<number | null>(null);
   const [outPicked, setOutPicked] = useState<number | null>(null);
+  // The lines the export's cleanup changes (those not refused).
+  const cleaned = useMemo(() => {
+    const skip = new Set(analysis.edits?.skip ?? []);
+    return new Set((analysis.cleanup_changes ?? []).map((c) => c.index).filter((i) => !skip.has(i)));
+  }, [analysis]);
   // Each line left out of the export, or kept by hand, and why.
   const fates = useMemo(() => new Map(lineFates(analysis).map((f) => [f.index, f.fate])), [analysis]);
   const boundaries = useMemo(() => analysis.segments.slice(1).map((s) => s.start_s), [analysis]);
@@ -218,8 +223,10 @@ export function CueLoupe({
                     b: c.corrected[1],
                     text: c.text,
                     target,
-                    kind: c.group < 0 ? "after orphan" : "after",
-                    note: c.group < 0 ? m.noCounterpart : undefined,
+                    kind: `${c.group < 0 ? "after orphan" : "after"}${cleaned.has(target) ? " cleaned" : ""}`,
+                    note:
+                      [c.group < 0 ? m.noCounterpart : null, cleaned.has(target) ? m.cleaned : null].filter(Boolean).join("\n") ||
+                      undefined,
                   },
                 ]
               : [],
@@ -227,7 +234,7 @@ export function CueLoupe({
           .sort(byStart),
       },
     ];
-  }, [analysis, m, fates, t]);
+  }, [analysis, m, fates, t, cleaned]);
   // The navigator's bars: the reference's lines, the corrected ones.
   const spans = useMemo(
     () => ({

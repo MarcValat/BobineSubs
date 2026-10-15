@@ -342,6 +342,17 @@ class TargetCueModel(BaseModel):
     corrected: tuple[float, float] | None
 
 
+class CleanupChangeModel(BaseModel):
+    """What the cleanup does to one line (see cleanup.Change)."""
+
+    index: int
+    kinds: list[str]
+    before: str
+    after: str | None
+    duration_before: float
+    duration_after: float
+
+
 class AnalysisModel(BaseModel):
     reference: TrackRef
     target: TrackRef
@@ -353,6 +364,7 @@ class AnalysisModel(BaseModel):
     target_cues: list[TargetCueModel]
     warnings: list[str]
     cleanup: dict[str, int] = {}
+    cleanup_changes: list[CleanupChangeModel] = []
 
     @classmethod
     def of(cls, a: Analysis) -> AnalysisModel:
@@ -367,6 +379,7 @@ class AnalysisModel(BaseModel):
             target_cues=[TargetCueModel(**vars(c)) for c in a.target_cues],
             warnings=a.warnings,
             cleanup=a.cleanup,
+            cleanup_changes=[CleanupChangeModel(**vars(c)) for c in a.cleanup_changes],
         )
 
 
@@ -404,6 +417,8 @@ class RenderTrack(BaseModel):
     # hand: indices into the analysis' target_cues.
     keep: list[int] = []
     drop: list[int] = []
+    # The cleanup's fixes refused by hand, by line (indices as keep / drop).
+    clean_skip: list[int] = []
 
 
 class RenderRequest(BaseModel):
@@ -474,6 +489,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                     clean=req.clean,
                     keep=track.keep,
                     drop=track.drop,
+                    skip=track.clean_skip,
                 )
                 for track in tracks
             ]
@@ -492,6 +508,7 @@ def start_render(req: RenderRequest) -> JobStarted:
                         replace_same_language=t.replace_same_language,
                         keep=tuple(t.keep),
                         drop=tuple(t.drop),
+                        skip=tuple(t.clean_skip),
                     )
                     for t in tracks
                 ],

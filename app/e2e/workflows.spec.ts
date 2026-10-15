@@ -6,7 +6,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { probe, shiftedBy, subtitleStarts } from "./engine";
+import { probe, shiftedBy, subtitleStarts, subtitleTimes } from "./engine";
 import { expect, test, type App, type Segment } from "./fixtures";
 import { BONUS, BONUS_FR, E01, E01_FR, E02, E02_FR, E03, E04, multiUrl, pairsUrl } from "./media";
 
@@ -182,4 +182,26 @@ test("the corrected tracks' name and flags, for the whole batch", async ({ app }
   await expect(app.rows().first().locator(".list-badge")).toHaveText("Exporté", { timeout: 120_000 });
   const fre = (await probe(app.jobs.written[0])).tracks[1];
   expect([fre.language, fre.title, fre.default, fre.forced]).toEqual(["fre", "Français (corrigé)", true, true]);
+});
+
+test("the cleanup's fixes, seen and refused line by line", async ({ app }) => {
+  // E01's French track has lines too short to be read: lengthened on export.
+  const short = subtitleTimes(E01, 1).filter(([a, b]) => b - a < 0.8).length;
+  expect(short).toBeGreaterThan(0);
+  await app.page.goto(multiUrl(E01));
+  await app.analyze();
+  await expect(app.page.locator(".analysis-cleanup")).toContainText(`${short} ligne${short > 1 ? "s" : ""} trop courte`);
+  await app.page.locator(".analysis-cleanup .link-button").click();
+  const list = app.page.getByRole("dialog", { name: "Nettoyage à l'export" });
+  await expect(list.locator("tbody tr")).toHaveCount(short);
+  await list.getByRole("button", { name: "Tout refuser" }).click();
+  await expect(list.getByRole("checkbox", { checked: true })).toHaveCount(0);
+  await app.page.keyboard.press("Escape");
+  await expect(app.page.locator(".analysis-cleanup")).toContainText(`${short} refusé`);
+
+  await app.page.getByRole("button", { name: "Exporter ce fichier" }).click();
+  await expect(app.rows().first().locator(".list-badge")).toHaveText("Exporté", { timeout: 120_000 });
+  // Refused: those lines as short as they were.
+  const written = subtitleTimes(app.jobs.written[0], 1).filter(([a, b]) => b - a < 0.8).length;
+  expect(written).toBe(short);
 });

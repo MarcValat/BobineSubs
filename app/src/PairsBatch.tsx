@@ -550,6 +550,7 @@ export function PairsBatch({
                     segments: analyses[key].result!.segments,
                     keep: analyses[key].result!.edits?.keep ?? [],
                     drop: analyses[key].result!.edits?.drop ?? [],
+                    clean_skip: analyses[key].result!.edits?.skip ?? [],
                     output: subsOnly ? outputs[0] : null,
                     language: languageOf(i).code,
                     title: own?.title || addedTitle || null,

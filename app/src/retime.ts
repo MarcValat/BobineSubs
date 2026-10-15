@@ -102,5 +102,15 @@ export function editLine(edits: CueEdits | undefined, index: number, change: "ke
   const drop = (edits?.drop ?? []).filter((i) => i !== index);
   if (change === "keep") keep.push(index);
   if (change === "drop") drop.push(index);
-  return { keep, drop };
+  return { ...edits, keep, drop };
+}
+
+/** `edits` with the cleanup's fixes of `lines` refused (`refuse`), or applied. */
+export function skipCleanup(edits: CueEdits | undefined, lines: number[], refuse: boolean): CueEdits {
+  const skip = new Set(edits?.skip ?? []);
+  for (const i of lines) {
+    if (refuse) skip.add(i);
+    else skip.delete(i);
+  }
+  return { keep: edits?.keep ?? [], drop: edits?.drop ?? [], skip: [...skip].sort((a, b) => a - b) };
 }

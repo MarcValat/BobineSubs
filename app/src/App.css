@@ -1155,3 +1155,46 @@ input {
 .lines-table tr.line-kept td {
   color: var(--text-muted);
 }
+
+/* The cleanup's list: what each fix takes out (struck) and puts in. */
+/* A little room each side: a changed space must show. */
+.diff-removed,
+.diff-added {
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+.diff-removed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  text-decoration: line-through;
+}
+
+.diff-added {
+  color: var(--success-text);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+/* A no-break space, drawn: it looks like any other space. */
+.diff-nbsp {
+  font-weight: 700;
+}
+
+.line-duration {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.lines-table tr.line-refused td {
+  color: var(--text-muted);
+}
+
+.lines-table tr.line-refused mark {
+  color: inherit;
+  background: none;
+  text-decoration: none;
+}
+
+.cleanup-panel {
+  max-width: 980px;
+}

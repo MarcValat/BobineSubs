@@ -417,6 +417,7 @@ export const en: Messages = {
     navigator: "Navigation through the whole episode: drag the frame, or click to take the loupe there",
     lines: (n) => `${n} lines: zoom in to read them`,
     noCounterpart: "(no counterpart in the reference)",
+    cleaned: "(cleaned up on export)",
   },
 
   editor: {
@@ -478,6 +479,34 @@ export const en: Messages = {
   cleanup: {
     toggle: "Clean up subtitles",
     hint: "On export, fixes the corrected SRT files' obvious faults: extra spaces, dialogue dashes stuck to their line, sentences run together, punctuation (in French, a no-break space before ? ! : ;), mixed apostrophes, a site's ad lines (the translator's credit stays), lines overlapping or too short to be read. ASS files aren't touched.",
+    names: {
+      spaces: "Spaces",
+      dashes: "Dashes",
+      glued: "Sentences run together",
+      punctuation: "Punctuation",
+      apostrophes: "Apostrophes",
+      ads: "Ad",
+      overlaps: "Overlap",
+      short: "Too short",
+      inverted: "Ends before it starts",
+    },
+    review: {
+      title: "Cleanup on export",
+      hint: "Each line the cleanup changes, before and after (the change highlighted); untick a line to leave it as it is.",
+      kind: "Kind of fix",
+      all: (n) => `All (${n})`,
+      applyAll: "Apply all",
+      refuseAll: "Refuse all",
+      apply: "Apply",
+      applyLine: (time) => `Apply the cleanup of the line at ${time}`,
+      before: "Before",
+      after: "After",
+      fixes: "Fixes",
+      removed: "taken out (an ad)",
+      nbsp: "no-break space",
+      duration: (before, after) => ` · lasts ${before.toFixed(1)} s → ${after.toFixed(1)} s`,
+      refusedCount: (n) => ` · ${n} refused`,
+    },
     summary: (fixes) => `Cleanup on export: ${fixes}`,
     kinds: {
       spaces: (n) => `${n} extra space${n > 1 ? "s" : ""}`,

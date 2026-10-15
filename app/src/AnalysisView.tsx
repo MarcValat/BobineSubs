@@ -8,7 +8,9 @@ import { isDrift } from "./editing";
 import { clock, offset } from "./format";
 import { t, useT } from "./i18n";
 import { WarningIcon } from "./icons";
-import { editLine, lineFates, segmentFor, type LineFate } from "./retime";
+import { editLine, lineFates, segmentFor, skipCleanup, type LineFate } from "./retime";
+import { Select } from "./Dropdown";
+import { textDiff, type DiffPart } from "./textDiff";
 import { describeSegments } from "./SegmentChart";
 import { LOW_CONFIDENCE } from "./shared";
 import type { TimeView } from "./timeView";
@@ -33,7 +35,10 @@ export function AnalysisSummary({
   const t = useT();
   const m = t.analysis;
   const [listing, setListing] = useState(false);
-  const fixes = Object.entries(analysis.cleanup ?? {}).filter(([kind, n]) => n > 0 && kind in t.cleanup.kinds);
+  const [reviewing, setReviewing] = useState(false);
+  const fixes = Object.entries(cleanupCounts(analysis)).filter(([kind, n]) => n > 0 && kind in t.cleanup.kinds);
+  const refused = analysis.edits?.skip?.length ?? 0;
+  const reviewable = !!onEdits && (analysis.cleanup_changes?.length ?? 0) > 0;
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
   const fates = lineFates(analysis);
   const dropped = fates.filter((f) => f.fate !== "kept").length;
@@ -65,11 +70,22 @@ export function AnalysisSummary({
       {listing &&
         onEdits &&
         createPortal(<LinesDialog analysis={analysis} onEdits={onEdits} onClose={() => setListing(false)} />, document.body)}
-      {cleanup && fixes.length > 0 && (
+      {cleanup && (fixes.length > 0 || refused > 0) && (
         <p className="analysis-cleanup" title={t.cleanup.hint}>
-          {t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))}
+          {/* The list of the lines it changes, each fix to apply or refuse. */}
+          {reviewable ? (
+            <button className="link-button" title={t.cleanup.review.hint} onClick={() => setReviewing(true)}>
+              {t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))}
+            </button>
+          ) : (
+            t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))
+          )}
+          {refused > 0 && t.cleanup.review.refusedCount(refused)}
         </p>
       )}
+      {reviewing &&
+        onEdits &&
+        createPortal(<CleanupDialog analysis={analysis} onEdits={onEdits} onClose={() => setReviewing(false)} />, document.body)}
       {analysis.warnings.map((w) => (
         <p key={w} className="warning">
           <WarningIcon /> {w}
@@ -138,6 +154,123 @@ function LinesDialog({ analysis, onEdits, onClose }: { analysis: Analysis; onEdi
           </table>
         </div>
       )}
+    </Dialog>
+  );
+}
+
+/** What the export's cleanup will fix, by kind: line by line, less the
+ * fixes refused by hand (the analysis' own counts before line-by-line ones). */
+function cleanupCounts(analysis: Analysis): Record<string, number> {
+  if (!analysis.cleanup_changes) return analysis.cleanup ?? {};
+  const skip = new Set(analysis.edits?.skip ?? []);
+  const counts: Record<string, number> = {};
+  for (const change of analysis.cleanup_changes)
+    if (!skip.has(change.index)) for (const kind of change.kinds) counts[kind] = (counts[kind] ?? 0) + 1;
+  return counts;
+}
+
+/** A line's text, its changed runs marked; a no-break space drawn (it
+ * looks like any other), a line break as " / ". */
+function DiffText({ parts, kind }: { parts: DiffPart[]; kind: "removed" | "added" }) {
+  const t = useT();
+  return (
+    <>
+      {parts.map((part, i) => {
+        const shown = part.text.split("\n").join(" / ");
+        if (!part.changed) return <span key={i}>{shown}</span>;
+        return (
+          <mark key={i} className={`diff-${kind}`}>
+            {[...shown].map((ch, k) =>
+              ch === "\u00a0" ? (
+                <span key={k} className="diff-nbsp" title={t.cleanup.review.nbsp} aria-label={t.cleanup.review.nbsp}>
+                  ·
+                </span>
+              ) : (
+                ch
+              ),
+            )}
+          </mark>
+        );
+      })}
+    </>
+  );
+}
+
+/** The lines the export's cleanup changes, before and after (the change
+ * marked), by kind of fix: each applied or refused (its box), all those
+ * shown at once too. */
+function CleanupDialog({ analysis, onEdits, onClose }: { analysis: Analysis; onEdits: (edits: CueEdits) => void; onClose: () => void }) {
+  const t = useT();
+  const m = t.cleanup.review;
+  const names = t.cleanup.names as Record<string, string>;
+  const changes = analysis.cleanup_changes ?? [];
+  const skip = new Set(analysis.edits?.skip ?? []);
+  const [kind, setKind] = useState("all");
+  const counts: Record<string, number> = {};
+  for (const change of changes) for (const k of change.kinds) counts[k] = (counts[k] ?? 0) + 1;
+  const shown = changes.filter((c) => kind === "all" || c.kinds.includes(kind));
+  const lines = shown.map((c) => c.index);
+  return (
+    <Dialog onClose={onClose} closeOnBackdrop className="lines-panel cleanup-panel" labelledBy="cleanup-title">
+      <DialogHeader id="cleanup-title" title={m.title} onClose={onClose}>
+        <Select
+          label={m.kind}
+          value={kind}
+          options={[
+            { value: "all", label: m.all(changes.length) },
+            ...Object.entries(counts).map(([k, n]) => ({ value: k, label: `${names[k] ?? k} (${n})` })),
+          ]}
+          onChange={setKind}
+        />
+        <button className="small-button" onClick={() => onEdits(skipCleanup(analysis.edits, lines, false))}>
+          {m.applyAll}
+        </button>
+        <button className="small-button" onClick={() => onEdits(skipCleanup(analysis.edits, lines, true))}>
+          {m.refuseAll}
+        </button>
+      </DialogHeader>
+      <p className="hint">{m.hint}</p>
+      <div className="tracks-table-wrap list-scroll lines-table-wrap">
+        <table className="data-table segments-table lines-table">
+          <thead>
+            <tr>
+              <th className="track-pick">{m.apply}</th>
+              <th>{t.analysis.lines.time}</th>
+              <th>{m.before}</th>
+              <th>{m.after}</th>
+              <th>{m.fixes}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((c) => {
+              const refused = skip.has(c.index);
+              const diff = textDiff(c.before, c.after ?? "");
+              const timed = Math.abs(c.duration_after - c.duration_before) >= 0.001 && c.after !== null;
+              return (
+                <tr key={c.index} className={refused ? "line-refused" : undefined}>
+                  <td className="track-pick">
+                    <input
+                      type="checkbox"
+                      aria-label={m.applyLine(clock(analysis.target_cues[c.index]?.start ?? 0, 2))}
+                      checked={!refused}
+                      onChange={() => onEdits(skipCleanup(analysis.edits, [c.index], !refused))}
+                    />
+                  </td>
+                  <td>{clock(analysis.target_cues[c.index]?.start ?? 0, 2)}</td>
+                  <td className="line-text">
+                    <DiffText parts={diff.before} kind="removed" />
+                  </td>
+                  <td className="line-text">
+                    {c.after === null ? <span className="placeholder">{m.removed}</span> : <DiffText parts={diff.after} kind="added" />}
+                    {timed && <span className="line-duration">{m.duration(c.duration_before, c.duration_after)}</span>}
+                  </td>
+                  <td>{c.kinds.map((k) => names[k] ?? k).join(", ")}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Dialog>
   );
 }

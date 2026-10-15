@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from dataclasses import replace
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass, replace
 
 from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 
@@ -45,25 +46,80 @@ _BEFORE_MARK = re.compile(r"[ \t" + _NBSP + " ]*([?!:;]+)")
 _COLON_KEEP = re.compile(r"\d$")
 
 
+@dataclass(frozen=True)
+class Change:
+    """What the cleanup does to one line: its index (in the target, as the
+    analysis lists its lines), the kinds of fixes, its text before and
+    after (None: taken out, a site's ad), how long it shows before and after."""
+
+    index: int
+    kinds: tuple[str, ...]
+    before: str
+    after: str | None
+    duration_before: float
+    duration_after: float
+
+
 def clean(document: SubtitleDocument, language: str | None) -> tuple[SubtitleDocument, Counter[str]]:
     """``document`` with its obvious faults fixed (SRT only), and how many
     of each kind (keys: "spaces", "dashes", "glued", "punctuation",
     "apostrophes", "ads", "overlaps", "short", "inverted")."""
+    cleaned, fixed, _ = review(document, language)
+    return cleaned, fixed
+
+
+def review(
+    document: SubtitleDocument,
+    language: str | None,
+    skip: Collection[int] = (),
+    indices: Sequence[int] | None = None,
+) -> tuple[SubtitleDocument, Counter[str], list[Change]]:
+    """As clean, line by line: each line's own fixes (see Change), the
+    lines in ``skip`` left as they are (fixes refused by hand). Lines are
+    known by ``indices`` (the target's line each of ``document``'s is: it
+    may be a retimed copy, some lines dropped), else by their place."""
     fixed: Counter[str] = Counter()
     if document.fmt != SRT:
-        return document, fixed
+        return document, fixed, []
     # Unknown: the spaces before ? ! : ; stay as they are.
     french = None if not language else language.lower() in _FRENCH
     curly = _curly_apostrophes(document.cues)
-    cues = []
-    for cue in document.cues:
-        text = _clean_text(cue.text, french, curly, fixed)
-        if text is None:
-            fixed["ads"] += 1
+    kinds: dict[int, Counter[str]] = {}
+    originals: dict[int, Cue] = {}
+    entries: list[tuple[int, Cue]] = []
+    for k, cue in enumerate(document.cues):
+        index = indices[k] if indices is not None else k
+        originals[index] = cue
+        if index in skip:
+            entries.append((index, cue))
             continue
-        cues.append(replace(cue, text=text))
-    cues = _clean_timing(sorted(cues, key=lambda c: c.start), fixed)
-    return replace(document, cues=cues), +fixed
+        own: Counter[str] = Counter()
+        text = _clean_text(cue.text, french, curly, own)
+        if text is None:
+            own["ads"] += 1
+        else:
+            entries.append((index, replace(cue, text=text)))
+        kinds[index] = own
+    entries = _clean_timing(sorted(entries, key=lambda e: e[1].start), kinds, skip)
+    kept = dict(entries)
+    changes = []
+    for index, own in kinds.items():
+        if not +own:
+            continue
+        fixed.update(own)
+        before, after = originals[index], kept.get(index)
+        changes.append(
+            Change(
+                index,
+                tuple(sorted(+own)),
+                before.text,
+                after.text if after is not None else None,
+                round(before.end - before.start, 3),
+                round(after.end - after.start, 3) if after is not None else 0.0,
+            )
+        )
+    changes.sort(key=lambda c: c.index)
+    return replace(document, cues=[cue for _, cue in entries]), +fixed, changes
 
 
 def _curly_apostrophes(cues: list[Cue]) -> bool:
@@ -128,12 +184,18 @@ def _punctuation(line: str, french: bool) -> str:
     return _BEFORE_MARK.sub(fix, line)
 
 
-def _clean_timing(cues: list[Cue], fixed: Counter[str]) -> list[Cue]:
+def _clean_timing(
+    entries: list[tuple[int, Cue]], kinds: dict[int, Counter[str]], skip: Collection[int]
+) -> list[tuple[int, Cue]]:
     """Lines ending before they start, overlapping the next one, or too
-    short to be read, fixed without ever covering the next line."""
-    out = list(cues)
-    for i, cue in enumerate(out):
-        nxt = out[i + 1].start if i + 1 < len(out) else None
+    short to be read, fixed without ever covering the next line (those in
+    ``skip`` left as they are); each line's fixes counted in ``kinds``."""
+    out = list(entries)
+    for i, (index, cue) in enumerate(out):
+        if index in skip:
+            continue
+        fixed = kinds.setdefault(index, Counter())
+        nxt = out[i + 1][1].start if i + 1 < len(out) else None
         start, end = cue.start, cue.end
         if end <= start:
             end = start + MIN_DURATION_S
@@ -148,5 +210,5 @@ def _clean_timing(cues: list[Cue], fixed: Counter[str]) -> list[Cue]:
             # Lengthened: only up to the next line.
             end = max(nxt, cue.end)
         if end != cue.end:
-            out[i] = replace(cue, end=end)
+            out[i] = (index, replace(cue, end=end))
     return out
