@@ -72,3 +72,34 @@ def test_lines_timed_by_hand():
         (14.0, 15.0),
         (13.0, 14.0),
     ]
+
+
+def _rounded(times):
+    return [None if t is None else (round(t[0], 3), round(t[1], 3)) for t in times]
+
+
+def test_a_line_running_into_the_next_segments_first_one_shares_the_time():
+    """At a jump where the target gains a second, the lines each side come
+    that much closer: one running into the next ends where it starts while
+    it stays readable, else the next starts later; never out of order. Lines
+    of one segment, and lines timed by hand, keep their own overlaps."""
+    a, b = Segment(0.0, 10.0, 0.0, 0.0), Segment(10.0, 20.0, 1.0, 1.0)
+    doc = SubtitleDocument(
+        SRT,
+        [Cue(5.0, 8.4, "un"), Cue(8.0, 9.8, "deux"), Cue(10.2, 12.0, "trois"), Cue(11.5, 13.0, "quatre")],
+    )
+    assert _rounded(remap_cues(doc, [a, b])) == [(5.0, 8.4), (8.0, 9.2), (9.2, 11.0), (10.5, 12.0)]
+    # Timed by hand: as it is.
+    assert remap_cues(doc, [a, b], timing={1: (8.0, 9.8)})[1] == (8.0, 9.8)
+    # Ending where the next starts would leave it too short: the next starts later.
+    close = SubtitleDocument(SRT, [Cue(9.0, 9.9, "un"), Cue(10.2, 12.0, "deux")])
+    assert _rounded(remap_cues(close, [a, b])) == [(9.0, 9.8), (9.8, 11.0)]
+    # Too little time for both: the next runs on, up to the line after it...
+    short = SubtitleDocument(SRT, [Cue(9.4, 10.0, "un"), Cue(10.6, 11.6, "deux")])
+    assert _rounded(remap_cues(short, [a, b])) == [(9.4, 10.2), (10.2, 11.0)]
+    # ...then the first starts earlier, down to the line before it...
+    packed = SubtitleDocument(SRT, [Cue(9.4, 10.0, "un"), Cue(10.6, 11.6, "deux"), Cue(11.7, 12.5, "trois")])
+    assert _rounded(remap_cues(packed, [a, b])) == [(9.1, 9.9), (9.9, 10.7), (10.7, 11.5)]
+    # ...and when that's not enough, shared in proportion to their lengths.
+    packed = SubtitleDocument(SRT, [Cue(8.0, 9.3, "zéro"), *packed.cues])
+    assert _rounded(remap_cues(packed, [a, b])) == [(8.0, 9.3), (9.3, 9.844), (9.844, 10.7), (10.7, 11.5)]

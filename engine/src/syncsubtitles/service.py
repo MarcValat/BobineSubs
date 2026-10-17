@@ -25,7 +25,7 @@ from syncsubtitles.render import (
     mux_tracks,
     write_subtitle,
 )
-from syncsubtitles.retime import Segment, remap_cue, remap_cues, retime
+from syncsubtitles.retime import Segment, remap_cues, retime
 from syncsubtitles.segments import STANDARD_RATIOS, detect_segments
 from syncsubtitles.subformats import SRT, SubtitleDocument, read_file
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS, load_pair, same_file
@@ -152,8 +152,8 @@ def analyze(
         segments=segments,
         reference_cues=[(c.start, c.end, plain_text(c.text).strip()) for c in ref_doc.cues],
         target_cues=[
-            TargetCue(c.start, c.end, plain_text(c.text).strip(), groups.get(i, -1), remap_cue(c, segments))
-            for i, c in enumerate(tgt_doc.cues)
+            TargetCue(c.start, c.end, plain_text(c.text).strip(), groups.get(i, -1), mapped)
+            for i, (c, mapped) in enumerate(zip(tgt_doc.cues, remap_cues(tgt_doc, segments)))
         ],
         warnings=warnings,
         cleanup=dict(cleanup),
@@ -179,7 +179,7 @@ def _reviewed(
 
 
 def corrected_cues(document: SubtitleDocument, segments: Sequence[Segment]) -> list[tuple[float, float] | None]:
-    return [remap_cue(c, segments) for c in document.cues]
+    return remap_cues(document, segments)
 
 
 def load_target(target: SubtitleTrackSpec) -> SubtitleDocument:

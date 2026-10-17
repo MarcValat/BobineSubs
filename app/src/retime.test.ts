@@ -154,3 +154,85 @@ describe("lines timed by hand", () => {
     expect(timeLine(edits, 0, null).timing).toEqual({});
   });
 });
+
+describe("lines at a segment boundary", () => {
+  // Target gains a second at 10 s: the second segment's lines 1 s earlier.
+  const gained = [seg(0, 10, 0, 0), seg(10, 20, 1, 1)];
+  const rounded = (cues: [number, number][]) => corrected(gained, cues).map((c) => c && c.map((t) => +t.toFixed(3)));
+
+  it("ends a line running into the next segment's first one where it starts", () => {
+    expect(
+      rounded([
+        [5, 8.4],
+        [8, 9.8],
+        [10.2, 12],
+        [11.5, 13],
+      ]),
+    ).toEqual([
+      [5, 8.4],
+      [8, 9.2],
+      [9.2, 11],
+      [10.5, 12],
+    ]);
+  });
+
+  it("starts the next later rather than leave one too short, in their order", () => {
+    expect(
+      rounded([
+        [9, 9.9],
+        [10.2, 12],
+      ]),
+    ).toEqual([
+      [9, 9.8],
+      [9.8, 11],
+    ]);
+    // Too little time for both: the next runs on, up to the line after it...
+    expect(
+      rounded([
+        [9.4, 10],
+        [10.6, 11.6],
+      ]),
+    ).toEqual([
+      [9.4, 10.2],
+      [10.2, 11],
+    ]);
+    // ...then the first starts earlier, down to the line before it...
+    expect(
+      rounded([
+        [9.4, 10],
+        [10.6, 11.6],
+        [11.7, 12.5],
+      ]),
+    ).toEqual([
+      [9.1, 9.9],
+      [9.9, 10.7],
+      [10.7, 11.5],
+    ]);
+    // ...and when that's not enough, shared in proportion to their lengths.
+    expect(
+      rounded([
+        [8, 9.3],
+        [9.4, 10],
+        [10.6, 11.6],
+        [11.7, 12.5],
+      ]),
+    ).toEqual([
+      [8, 9.3],
+      [9.3, 9.844],
+      [9.844, 10.7],
+      [10.7, 11.5],
+    ]);
+  });
+
+  it("leaves lines timed by hand as they are", () => {
+    const timed = withSegments(
+      analysis([
+        [8, 9.8],
+        [10.2, 12],
+      ]),
+      gained,
+      { keep: [], drop: [], timing: { 0: [8, 9.8] } },
+    );
+    expect(timed.target_cues[0].corrected).toEqual([8, 9.8]);
+  });
+});

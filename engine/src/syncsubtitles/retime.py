@@ -7,6 +7,7 @@ which covers a constant shift, a drift, and (segment after segment) jumps.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 
@@ -137,19 +138,80 @@ def remap_cues(
     those by index in ``drop`` too (taken out by hand), and those in
     ``keep`` not, even in a gap (kept by hand: through the nearest segment).
     ``timing``: lines given their (start, end) by hand, in reference time
-    (kept wherever they are, unless taken out)."""
+    (kept wherever they are, unless taken out). A line running into the
+    next segment's first one shares the time with it (see
+    _trimmed_at_boundaries)."""
     out: list[tuple[float, float] | None] = []
+    # The segment each cue went through (None: timed by hand, or dropped).
+    through: list[Segment | None] = []
     for i, cue in enumerate(document.cues):
         if timing and i in timing and i not in drop:
             start, end = timing[i]
             out.append((float(start), float(end)))
+            through.append(None)
             continue
-        mapped = None if i in drop else remap_cue(cue, segments)
-        if mapped is None and i in keep and i not in drop and segments:
-            seg = nearest_segment((cue.start + cue.end) / 2.0, segments)
-            mapped = seg.to_reference(cue.start), seg.to_reference(cue.end)
-        out.append(mapped)
+        mid = (cue.start + cue.end) / 2.0
+        seg = None if i in drop or not segments else segment_for(mid, segments)
+        if seg is None and i in keep and i not in drop and segments:
+            seg = nearest_segment(mid, segments)
+        if not segments and i not in drop:
+            out.append((cue.start, cue.end))
+        else:
+            out.append(None if seg is None else (seg.to_reference(cue.start), seg.to_reference(cue.end)))
+        through.append(seg)
+    return _trimmed_at_boundaries(document, out, through)
+
+
+# Shorter than this (s), a line can't be read (cleanup.MIN_DURATION_S).
+MIN_READABLE_S = 0.8
+
+
+def _trimmed_at_boundaries(
+    document: SubtitleDocument, mapped: list[tuple[float, float] | None], through: list[Segment | None]
+) -> list[tuple[float, float] | None]:
+    """``mapped`` with each line running into the next one, when they went
+    through two different segments, sharing the time they cover with it:
+    at a jump where the target gains a second (a longer black at an ad
+    break), the lines each side come that much closer, and two that
+    followed each other closely overlapped. The first ends where the next
+    starts, as long as it stays readable (MIN_READABLE_S); else the next
+    starts a little later, each kept readable (the next running on, up to
+    the line after it, then the first starting earlier, down to the line
+    before it, if that's what it takes), or (too little time even so) the
+    time split in proportion to their lengths. Their order never
+    changes: the next always starts after the first. Lines of one segment
+    keep their own overlaps (the file's), and lines timed by hand theirs."""
+    out = list(mapped)
+    order = sorted((i for i, seg in enumerate(through) if seg is not None), key=lambda i: document.cues[i].start)
+    for k in range(len(order) - 1):
+        a, b = order[k], order[k + 1]
+        if through[a] is through[b]:
+            continue
+        (start_a, end_a), (start_b, end_b) = out[a], out[b]
+        if start_b >= end_a or end_b <= start_a:
+            continue
+        floor = out[order[k - 1]][1] if k else -math.inf
+        limit = out[order[k + 2]][0] if k + 2 < len(order) else math.inf
+        out[a], out[b] = _shared(start_a, end_a, start_b, end_b, floor, limit)
     return out
+
+
+def _shared(
+    start_a: float, end_a: float, start_b: float, end_b: float, floor: float, limit: float
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Two overlapping lines, the second after the first, meeting at one
+    time between them, the second running on up to ``limit`` and then the
+    first starting from ``floor`` if need be (see _trimmed_at_boundaries)."""
+    end_b = max(end_b, min(start_a + 2 * MIN_READABLE_S, limit))
+    # Still not enough: the first starting earlier, down to the end of the
+    # line before it.
+    start_a = min(start_a, max(floor, end_b - 2 * MIN_READABLE_S))
+    if end_b - start_a >= 2 * MIN_READABLE_S - 1e-9:
+        meet = min(max(start_b, start_a + MIN_READABLE_S), end_b - MIN_READABLE_S)
+    else:
+        a, b = max(end_a - start_a, 0.0), max(end_b - start_b, 0.0)
+        meet = start_a + (end_b - start_a) * (a / (a + b) if a + b > 0 else 0.5)
+    return (start_a, meet), (meet, end_b)
 
 
 def retime(

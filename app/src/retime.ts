@@ -50,14 +50,45 @@ function nearestSegment(t: number, segments: Segment[]): number {
   return segments.reduce((best, s, k) => (distance(s) < distance(segments[best]) ? k : best), 0);
 }
 
-/** A cue's (start, end) in reference time; null: dropped. `kept`: by hand,
- * through the nearest segment even in a gap (see retime.remap_cues). */
-function remapCue(start: number, end: number, segments: Segment[], kept = false): [number, number] | null {
+/** The segment a cue goes through: the one its middle belongs to; `kept`
+ * by hand, the nearest even in a gap (see retime.remap_cues). */
+function segmentOf(start: number, end: number, segments: Segment[], kept: boolean): number | null {
   const mid = (start + end) / 2;
-  const i = kept && segments.length ? nearestSegment(mid, segments) : segmentFor(mid, segments);
-  if (i === null) return null;
-  const mapped: [number, number] = [toReference(segments[i], start), toReference(segments[i], end)];
-  return mapped[1] <= 0 ? null : [Math.max(0, mapped[0]), mapped[1]];
+  return kept && segments.length ? nearestSegment(mid, segments) : segmentFor(mid, segments);
+}
+
+/** Shorter than this (s), a line can't be read: retime.MIN_READABLE_S. */
+const MIN_READABLE_S = 0.8;
+
+/** Each line running into the next one, when they went through two
+ * different segments, sharing the time they cover with it, in their order
+ * (see retime._trimmed_at_boundaries). */
+function trimmedAtBoundaries(cues: { start: number }[], mapped: ([number, number] | null)[], through: (number | null)[]) {
+  const order = through.flatMap((seg, i) => (seg === null ? [] : [i])).sort((a, b) => cues[a].start - cues[b].start);
+  for (let k = 0; k + 1 < order.length; k++) {
+    const [a, b] = [order[k], order[k + 1]];
+    if (through[a] === through[b]) continue;
+    let startA = mapped[a]![0];
+    const endA = mapped[a]![1];
+    const startB = mapped[b]![0];
+    let endB = mapped[b]![1];
+    if (startB >= endA || endB <= startA) continue;
+    // Running on up to the line after it, if that's what it takes.
+    const limit = k + 2 < order.length ? mapped[order[k + 2]]![0] : Infinity;
+    endB = Math.max(endB, Math.min(startA + 2 * MIN_READABLE_S, limit));
+    // Still not enough: the first starting earlier, down to the line before it.
+    const floor = k > 0 ? mapped[order[k - 1]]![1] : -Infinity;
+    startA = Math.min(startA, Math.max(floor, endB - 2 * MIN_READABLE_S));
+    let meet: number;
+    if (endB - startA >= 2 * MIN_READABLE_S - 1e-9) {
+      meet = Math.min(Math.max(startB, startA + MIN_READABLE_S), endB - MIN_READABLE_S);
+    } else {
+      const [lengthA, lengthB] = [Math.max(endA - startA, 0), Math.max(endB - startB, 0)];
+      meet = startA + (endB - startA) * (lengthA + lengthB > 0 ? lengthA / (lengthA + lengthB) : 0.5);
+    }
+    mapped[a] = [startA, meet];
+    mapped[b] = [meet, endB];
+  }
 }
 
 export const NO_EDITS: CueEdits = { keep: [], drop: [] };
@@ -68,14 +99,23 @@ export const NO_EDITS: CueEdits = { keep: [], drop: [] };
 export function withSegments(analysis: Analysis, segments: Segment[], edits: CueEdits = analysis.edits ?? NO_EDITS): Analysis {
   const keep = new Set(edits.keep);
   const drop = new Set(edits.drop);
+  const cues = analysis.target_cues;
+  // In reference time, before the video's start too (as the engine's).
+  const through = cues.map((c, i) => (drop.has(i) || edits.timing?.[i] ? null : segmentOf(c.start, c.end, segments, keep.has(i))));
+  const mapped = cues.map((c, i): [number, number] | null => {
+    const k = through[i];
+    return k === null ? null : [toReference(segments[k], c.start), toReference(segments[k], c.end)];
+  });
+  trimmedAtBoundaries(cues, mapped, through);
   return {
     ...analysis,
     segments,
     edits,
-    target_cues: analysis.target_cues.map((c, i) => ({
-      ...c,
-      corrected: drop.has(i) ? null : (edits.timing?.[i] ?? remapCue(c.start, c.end, segments, keep.has(i))),
-    })),
+    target_cues: cues.map((c, i) => {
+      const timed = drop.has(i) ? undefined : edits.timing?.[i];
+      const m = mapped[i];
+      return { ...c, corrected: timed ?? (m === null || m[1] <= 0 ? null : [Math.max(0, m[0]), m[1]]) };
+    }),
   };
 }
 
