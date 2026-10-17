@@ -59,10 +59,17 @@ app = FastAPI(title="Bobine Subs", version="0.1.0")
 #   its headers). /health alone answers without it (it tells nothing);
 # - only the app's own pages may read its answers (CORS): the Tauri window
 #   (tauri://localhost on Linux, http(s)://tauri.localhost on Windows) and
-#   the dev server.
+#   the dev server, and any SYNCSUBTITLES_ORIGINS adds (comma-separated: the
+#   end-to-end tests' own dev server, on a port of its own).
 # Without SYNCSUBTITLES_TOKEN (`syncsubtitles serve` run by hand), no token is asked.
 TOKEN_HEADER = "X-Bobine-Token"
-APP_ORIGINS = ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420"]
+APP_ORIGINS = [
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "http://localhost:1420",
+    *(o.strip() for o in os.environ.get("SYNCSUBTITLES_ORIGINS", "").split(",") if o.strip()),
+]
 
 
 class TokenGuard:

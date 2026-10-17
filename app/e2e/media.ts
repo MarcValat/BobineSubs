@@ -6,6 +6,9 @@ export const MEDIA_DIR = fileURLToPath(new URL("media", import.meta.url));
 /** The tests' own engine (see playwright.config.ts): not the app's 8757. */
 export const ENGINE_PORT = 8758;
 
+/** The tests' own Vite (see playwright.config.ts): not `tauri dev`'s 1420. */
+export const APP_PORT = 1430;
+
 /** A media file's full path, with forward slashes (as the dev URLs take it). */
 const media = (name: string) => `${MEDIA_DIR}/${name}`.replaceAll("\\", "/");
 

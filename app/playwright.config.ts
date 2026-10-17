@@ -1,15 +1,16 @@
 // The end-to-end tests (npm run test:e2e): the app in Chromium, driven like
 // a user, against the real engine and synthetic media (e2e/make_media.py,
-// made before the tests by e2e/global-setup.ts). Vite is started for the run
-// and stopped after -- or, already running (`tauri dev` or `npm run dev`),
-// used as it is. The engine is the tests' own, on its own port (the page
-// is pointed at it with ?enginePort=, see e2e/media.ts): never a `tauri dev`
-// engine on the app's port, which may run older code. From Bobine Audio.
+// made before the tests by e2e/global-setup.ts). Vite and the engine are the
+// tests' own, on ports of their own (the page is pointed at the engine with
+// ?enginePort=, see e2e/media.ts), started for the run and stopped after:
+// never `tauri dev`'s (1420, 8757), which may run older code and may be
+// started or closed during the run. A port already taken (another run) fails
+// the run rather than share it. From Bobine Audio.
 //
 // Not covered here: the real Tauri window (title bar, native dialogs,
 // WebView2 / WebKitGTK specifics).
 import { defineConfig } from "@playwright/test";
-import { ENGINE_PORT } from "./e2e/media";
+import { APP_PORT, ENGINE_PORT } from "./e2e/media";
 
 export default defineConfig({
   testDir: "e2e",
@@ -31,7 +32,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never", outputFolder: "e2e/report" }]],
   outputDir: "e2e/results",
   use: {
-    baseURL: "http://localhost:1420",
+    baseURL: `http://localhost:${APP_PORT}`,
     viewport: { width: 1440, height: 900 },
     colorScheme: "dark",
     locale: "fr-FR",
@@ -39,22 +40,23 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "npx vite --port 1420 --strictPort",
-      url: "http://localhost:1420",
-      reuseExistingServer: true,
+      command: `npx vite --port ${APP_PORT} --strictPort`,
+      url: `http://localhost:${APP_PORT}`,
+      reuseExistingServer: false,
       timeout: 60_000,
     },
     {
       command: `uv run --project ../engine syncsubtitles serve --port ${ENGINE_PORT}`,
       url: `http://127.0.0.1:${ENGINE_PORT}/health`,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
       timeout: 120_000,
       // Its request log stays out of the tests' output.
       stdout: "ignore",
       stderr: "ignore",
       // The dev builds' token (src-tauri/src/lib.rs's DEV_TOKEN), which the
       // page sends outside Tauri.
-      env: { SYNCSUBTITLES_TOKEN: "bobine-dev" },
+      // The page's own origin, on the tests' port, let in (CORS).
+      env: { SYNCSUBTITLES_TOKEN: "bobine-dev", SYNCSUBTITLES_ORIGINS: `http://localhost:${APP_PORT}` },
     },
   ],
 });

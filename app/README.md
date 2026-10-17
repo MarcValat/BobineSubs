@@ -43,7 +43,7 @@ npm run test:e2e -- -g "pairs"                     # les tests dont le nom conti
 npx playwright show-report e2e/report              # le rapport du dernier passage (traces des échecs)
 ```
 
-L'app dans Chromium, pilotée comme par un utilisateur (Playwright, `playwright.config.ts`), contre le vrai moteur. Vite est démarré pour le passage puis arrêté — ou réutilisé s'il tourne déjà (`tauri dev`). Le moteur des tests est le leur, sur le port 8758 (la page y est dirigée par `?enginePort=8758`) : jamais celui de `tauri dev` sur 8757, qui peut tourner sur un code plus ancien.
+L'app dans Chromium, pilotée comme par un utilisateur (Playwright, `playwright.config.ts`), contre le vrai moteur. Vite et le moteur des tests sont les leurs, sur leurs propres ports (1430 et 8758 ; la page est dirigée vers le moteur par `?enginePort=8758`), démarrés pour le passage puis arrêtés : jamais ceux de `tauri dev` (1420 et 8757), qui peut tourner sur un code plus ancien et qu'on peut lancer ou fermer pendant les tests.
 
 Les médias sont **synthétiques** (`e2e/make_media.py`, quelques secondes, refaits seulement quand le script change, dans `e2e/media/`, ignoré par git) : des MKV de 10 min dont la piste de référence (anglais) suit un rythme de répliques, et la piste à corriger (français) les mêmes répliques — quelques-unes perdues ou fusionnées, leurs bords un peu décalés, comme une traduction — déplacées d'une valeur connue : un décalage, un saut, une dérive PAL ; et des SRT à part pour les paires, nommés d'après leur épisode (ou non). Les tests vérifient que l'analyse retrouve ces défauts.
 
