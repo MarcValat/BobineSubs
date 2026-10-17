@@ -23,7 +23,16 @@ import {
   type ExportFields,
 } from "./batchShared";
 import { InfoTip } from "./InfoTip";
-import { correctable, defaultPick, readable, resolveTracks, trackOptions, TrackFilterPicker, type TrackKey } from "./TrackFilter";
+import {
+  awaitsCues,
+  correctable,
+  defaultPick,
+  readable,
+  resolveTracks,
+  trackOptions,
+  TrackFilterPicker,
+  type TrackKey,
+} from "./TrackFilter";
 import {
   EmptyWorkspace,
   PairKind,
@@ -389,6 +398,8 @@ export function PairsBatch({
     const other = probes[pair.target];
     if (!video?.tracks || (!standalone && !other?.tracks)) return null;
     const choice = choices[filesKey(i)];
+    // Its reference not picked yet: its tracks' line counts decide.
+    if (!choice && awaitsCues(video.tracks, video.cues, referenceKey, [])) return null;
     const ref = resolveTracks(
       video.tracks,
       video.cues,

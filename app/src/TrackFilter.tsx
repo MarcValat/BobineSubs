@@ -224,6 +224,25 @@ function bestReference(candidates: TrackInfo[], cues: Record<number, number> | n
   return ranked[0] ?? null;
 }
 
+/** Whether a file's reference (see resolveTracks) may still change once
+ * its tracks' line counts (`cues`) are read: none picked by hand, the
+ * counts not read yet, and several tracks it could be, as good but for
+ * their counts (none forced, or all). Until then it isn't picked: else an
+ * analysis made of one track would then be shown as another's, not done. */
+export function awaitsCues(
+  tracks: TrackInfo[],
+  cues: Record<number, number> | null,
+  referenceKey: TrackKey,
+  targetKeys: TrackKey[],
+  choice?: TrackChoice,
+): boolean {
+  if (choice || cues !== null) return false;
+  const named = referenceKey && referenceKey !== AUTO_REFERENCE ? tracks.filter((tr) => readable(tr) && matchesKey(tr, referenceKey)) : [];
+  const candidates = named.length > 0 ? named : tracks.filter((tr) => readable(tr) && !(correctable(tr) && matchesAny(tr, targetKeys)));
+  const unforced = candidates.filter((tr) => !tr.forced);
+  return (unforced.length > 0 ? unforced : candidates).length > 1;
+}
+
 /** A file's tracks as the top bar picks them (by number, language or name,
  * see above), or as ticked in its detail (`choice`). The tracks to correct
  * are its text tracks one of `targetKeys` names; the reference, the best

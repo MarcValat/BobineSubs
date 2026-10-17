@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { probe, startAnalyze, startRenderTracks, type Analysis, type CueEdits, type Segment, type TrackInfo, type TrackRef } from "./api";
 import { runJob } from "./jobs";
 import {
+  awaitsCues,
   defaultPick,
   resolveTracks,
   trackOptions,
@@ -200,7 +201,9 @@ export function MultiTrackBatch({
   const resolutions: Record<string, Resolution | null> = Object.fromEntries(
     files.map((f) => {
       const p = probes[f];
-      return [f, p?.tracks ? resolveTracks(p.tracks, p.cues, referenceKey, targetKeys, choices[f]) : null];
+      // Its reference not picked until its tracks' line counts decide it.
+      const ready = p?.tracks && !awaitsCues(p.tracks, p.cues, referenceKey, targetKeys, choices[f]);
+      return [f, ready ? resolveTracks(p.tracks!, p.cues, referenceKey, targetKeys, choices[f]) : null];
     }),
   );
 
@@ -787,7 +790,7 @@ export function MultiTrackBatch({
             analyzeButton={
               <AnalyzeButton
                 analyzing={analyzing}
-                reading={files.some((f) => !probes[f])}
+                reading={files.some((f) => !probes[f] || (probes[f].tracks && !resolutions[f]))}
                 missing={missingCount}
                 analyzed={analyzedCount}
                 unit="track"
