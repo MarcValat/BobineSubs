@@ -18,7 +18,8 @@ import type { TimeView } from "./timeView";
 /** What an analysis found, in a few words: the drift, a hand edit, how
  * many lines on each side, those without a counterpart or left out of the
  * export (a button: their list, to keep them or put them back, `onEdits`),
- * what the export's cleanup will fix (`cleanup`: it's on), and its warnings. */
+ * what the export's cleanup will fix (`cleanup`: the batch's choice, each
+ * file's own then picked here), and its warnings. */
 export function AnalysisSummary({
   analysis,
   edited = false,
@@ -37,6 +38,12 @@ export function AnalysisSummary({
   const [listing, setListing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const fixes = Object.entries(cleanupCounts(analysis)).filter(([kind, n]) => n > 0 && kind in t.cleanup.kinds);
+  const fixesText = fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", ");
+  // Cleaned at export: this file's own choice, else the batch's (`cleanup`).
+  const own = analysis.edits?.clean;
+  const on = own ?? cleanup;
+  // Something to clean in it (an SRT file), or a choice already made.
+  const cleanable = Object.keys(analysis.cleanup ?? {}).length > 0 || own !== undefined;
   const refused = analysis.edits?.skip?.length ?? 0;
   const reviewable = !!onEdits && (analysis.cleanup_changes?.length ?? 0) > 0;
   const orphans = analysis.target_cues.filter((c) => c.group < 0).length;
@@ -73,18 +80,43 @@ export function AnalysisSummary({
       {listing &&
         onEdits &&
         createPortal(<LinesDialog analysis={analysis} onEdits={onEdits} onClose={() => setListing(false)} />, document.body)}
-      {cleanup && (fixes.length > 0 || refused > 0) && (
-        <p className="analysis-cleanup" title={t.cleanup.hint}>
-          {/* The list of the lines it changes, each fix to apply or refuse. */}
-          {reviewable ? (
-            <button className="link-button" title={t.cleanup.review.hint} onClick={() => setReviewing(true)}>
-              {t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))}
-            </button>
-          ) : (
-            t.cleanup.summary(fixes.map(([kind, n]) => t.cleanup.kinds[kind as keyof typeof t.cleanup.kinds](n)).join(", "))
+      {/* This file's own choice (onEdits), then what the cleanup will fix. */}
+      {onEdits && cleanable ? (
+        <div className="analysis-cleanup">
+          <span title={t.cleanup.file.hint}>{t.common.labelled(t.cleanup.file.label)}</span>
+          <Select
+            label={t.cleanup.file.label}
+            value={own === undefined ? "batch" : own ? "yes" : "no"}
+            options={[
+              { value: "batch", label: t.cleanup.file.batch(cleanup) },
+              { value: "yes", label: t.cleanup.file.yes },
+              { value: "no", label: t.cleanup.file.no },
+            ]}
+            onChange={(v) => onEdits({ keep: [], drop: [], ...analysis.edits, clean: v === "batch" ? undefined : v === "yes" })}
+          />
+          {on && (fixes.length > 0 || refused > 0) && (
+            <span title={t.cleanup.hint}>
+              {" · "}
+              {/* The list of the lines it changes, each fix to apply or refuse. */}
+              {reviewable ? (
+                <button className="link-button" title={t.cleanup.review.hint} onClick={() => setReviewing(true)}>
+                  {fixesText}
+                </button>
+              ) : (
+                fixesText
+              )}
+              {refused > 0 && t.cleanup.review.refusedCount(refused)}
+            </span>
           )}
-          {refused > 0 && t.cleanup.review.refusedCount(refused)}
-        </p>
+        </div>
+      ) : (
+        on &&
+        (fixes.length > 0 || refused > 0) && (
+          <p className="analysis-cleanup" title={t.cleanup.hint}>
+            {t.cleanup.summary(fixesText)}
+            {refused > 0 && t.cleanup.review.refusedCount(refused)}
+          </p>
+        )
       )}
       {reviewing &&
         onEdits &&

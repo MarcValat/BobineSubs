@@ -429,6 +429,9 @@ class RenderTrack(BaseModel):
     # Lines given their (start, end) by hand, in reference time (indices
     # as keep / drop).
     timing: dict[int, tuple[float, float]] = {}
+    # Its obvious faults fixed or not, whatever the request's ``clean``
+    # (None: as it says).
+    clean: bool | None = None
 
 
 class RenderRequest(BaseModel):
@@ -449,8 +452,10 @@ class RenderRequest(BaseModel):
     # ...or several: all in one new MKV, or (``subs_only``) each in its own
     # file.
     tracks: list[RenderTrack] = []
-    # The corrected SRT files' obvious faults fixed too (see cleanup).
+    # The corrected SRT files' obvious faults fixed too (see cleanup):
+    # those of ``clean_kinds`` only (cleanup.KINDS; None: all).
     clean: bool = True
+    clean_kinds: list[str] | None = None
 
 
 def _written(written: Written) -> dict:
@@ -496,11 +501,12 @@ def start_render(req: RenderRequest) -> JobStarted:
                     track.output or (req.output if len(tracks) == 1 else None),
                     True,
                     log=log,
-                    clean=req.clean,
+                    clean=req.clean if track.clean is None else track.clean,
                     keep=track.keep,
                     drop=track.drop,
                     skip=track.clean_skip,
                     timing=track.timing,
+                    clean_kinds=req.clean_kinds,
                 )
                 for track in tracks
             ]
@@ -521,18 +527,43 @@ def start_render(req: RenderRequest) -> JobStarted:
                         drop=tuple(t.drop),
                         skip=tuple(t.clean_skip),
                         timing=t.timing,
+                        clean=t.clean,
                     )
                     for t in tracks
                 ],
                 req.output,
                 log,
                 req.clean,
+                req.clean_kinds,
             )
         log(tr("Écrit : {path}", path=written[0].path))
         # The first track's, and every track's.
         return {**_written(written[0]), "tracks": [_written(w) for w in written]}
 
     return JobStarted(job_id=start_job(run).id)
+
+
+class CleanupPreviewRequest(BaseModel):
+    target: TrackRef
+    segments: list[SegmentModel]
+    # The fixes asked for (cleanup.KINDS; None: all), and the lines kept,
+    # taken out or timed by hand (as RenderTrack's).
+    kinds: list[str] | None = None
+    keep: list[int] = []
+    drop: list[int] = []
+    timing: dict[int, tuple[float, float]] = {}
+
+
+@app.post("/cleanup-preview")
+def cleanup_preview(req: CleanupPreviewRequest) -> dict[str, list[CleanupChangeModel]]:
+    """What the export's cleanup would do to each line, for a choice of
+    kinds other than the analysis' (all of them)."""
+    from syncsubtitles.service import cleanup_changes
+
+    changes = cleanup_changes(
+        req.target.to_spec(), [s.to_segment() for s in req.segments], req.kinds, req.keep, req.drop, req.timing
+    )
+    return {"changes": [CleanupChangeModel(**vars(c)) for c in changes]}
 
 
 class PreviewRequest(BaseModel):

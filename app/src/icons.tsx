@@ -146,6 +146,15 @@ export function ScissorsIcon() {
   );
 }
 
+/** A tick: checked by hand (Valider). */
+export function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.5 12.5l5 5L19.5 7" />
+    </svg>
+  );
+}
+
 /** A line onto lines: align a cue onto a reference one (Aligner). */
 export function AlignIcon() {
   return (

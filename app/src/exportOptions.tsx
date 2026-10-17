@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Dialog, DialogHeader } from "./Dialog";
+import { Dropdown, DropdownHeading, DropdownOption } from "./Dropdown";
 import { useT } from "./i18n";
 import { LanguageSelect } from "./languages";
 import { Setting } from "./Options";
 import { PillSwitch } from "./PillSwitch";
-import { saveCleanSubtitles, saveSubsOnly, useCleanSubtitles, useSubsOnly } from "./settings";
+import {
+  CLEAN_KINDS,
+  saveCleanKinds,
+  saveCleanSubtitles,
+  saveSubsOnly,
+  useCleanKinds,
+  useCleanSubtitles,
+  useSubsOnly,
+  type CleanKind,
+} from "./settings";
 import { pickFolder } from "./shared";
 import { FIELD_PROPS } from "./util";
 
@@ -136,7 +146,6 @@ function ExportDialog({
   const e = t.exportOptions;
   const p = t.pairs;
   const subsOnly = useSubsOnly();
-  const clean = useCleanSubtitles();
   return (
     <Dialog onClose={onClose} closeOnBackdrop className="export-options-panel" labelledBy="export-options-title">
       <DialogHeader id="export-options-title" title={e.title} onClose={onClose} />
@@ -174,13 +183,6 @@ function ExportDialog({
           value={subsOnly ? "subs" : "mkv"}
           onChange={(v) => saveSubsOnly(v === "subs")}
         />
-      </Setting>
-
-      <Setting label={t.cleanup.toggle} hint={t.cleanup.hint}>
-        <label className="export-options-check">
-          <input type="checkbox" checked={clean} onChange={(ev) => saveCleanSubtitles(ev.target.checked)} />
-          {e.cleanLabel}
-        </label>
       </Setting>
 
       {!subsOnly && (
@@ -228,5 +230,45 @@ function ExportDialog({
         </Setting>
       )}
     </Dialog>
+  );
+}
+
+/** The top bar's "Nettoyage": the export's cleanup on or off for every
+ * file (each can say otherwise, see AnalysisSummary), and which kinds of
+ * fix it makes. */
+export function CleanupPicker({ disabled }: { disabled: boolean }) {
+  const t = useT();
+  const c = t.cleanup;
+  const clean = useCleanSubtitles();
+  const kinds = useCleanKinds();
+  const shown = !clean ? c.off : kinds.length === CLEAN_KINDS.length ? c.all : c.some(kinds.length, CLEAN_KINDS.length);
+
+  function pick(kind: CleanKind) {
+    // Off, a kind picked turns it on with that kind.
+    if (!clean) {
+      saveCleanSubtitles(true);
+      if (!kinds.includes(kind)) saveCleanKinds([...kinds, kind]);
+    } else {
+      saveCleanKinds(kinds.includes(kind) ? kinds.filter((k) => k !== kind) : [...kinds, kind]);
+    }
+  }
+
+  return (
+    <span className="config-field">
+      <span title={c.hint}>{t.common.labelled(c.label)}</span>
+      <Dropdown label={c.label} shown={shown} disabled={disabled} multi>
+        {() => (
+          <>
+            <DropdownOption check selected={clean} label={c.toggle} onPick={() => saveCleanSubtitles(!clean)} />
+            <div role="group" aria-label={c.kindsHeading} className="dropdown-group">
+              <DropdownHeading>{c.kindsHeading}</DropdownHeading>
+              {CLEAN_KINDS.map((kind) => (
+                <DropdownOption key={kind} check selected={clean && kinds.includes(kind)} label={c.names[kind]} onPick={() => pick(kind)} />
+              ))}
+            </div>
+          </>
+        )}
+      </Dropdown>
+    </span>
   );
 }

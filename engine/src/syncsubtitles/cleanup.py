@@ -21,6 +21,8 @@ from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 # A line shown less than this can't be read: lengthened, as far as the
 # next one allows.
 MIN_DURATION_S = 0.8
+# Every kind of fix (see clean), each of which can be left out.
+KINDS = ("spaces", "dashes", "glued", "punctuation", "apostrophes", "ads", "overlaps", "short", "inverted")
 # Two lines overlapping by less than this aren't worth changing.
 _OVERLAP_TOLERANCE_S = 0.04
 
@@ -74,19 +76,22 @@ def review(
     skip: Collection[int] = (),
     indices: Sequence[int] | None = None,
     timed: Collection[int] = (),
+    kinds: Collection[str] | None = None,
 ) -> tuple[SubtitleDocument, Counter[str], list[Change]]:
     """As clean, line by line: each line's own fixes (see Change), the
     lines in ``skip`` left as they are (fixes refused by hand), those in
-    ``timed`` keeping their times (timed by hand). Lines are known by
-    ``indices`` (the target's line each of ``document``'s is: it may be a
-    retimed copy, some lines dropped), else by their place."""
+    ``timed`` keeping their times (timed by hand); only the fixes of
+    ``kinds`` (see clean; None: all). Lines are known by ``indices`` (the
+    target's line each of ``document``'s is: it may be a retimed copy, some
+    lines dropped), else by their place."""
     fixed: Counter[str] = Counter()
     if document.fmt != SRT:
         return document, fixed, []
     # Unknown: the spaces before ? ! : ; stay as they are.
     french = None if not language else language.lower() in _FRENCH
     curly = _curly_apostrophes(document.cues)
-    kinds: dict[int, Counter[str]] = {}
+    on = frozenset(KINDS if kinds is None else kinds)
+    found: dict[int, Counter[str]] = {}
     originals: dict[int, Cue] = {}
     entries: list[tuple[int, Cue]] = []
     for k, cue in enumerate(document.cues):
@@ -96,16 +101,16 @@ def review(
             entries.append((index, cue))
             continue
         own: Counter[str] = Counter()
-        text = _clean_text(cue.text, french, curly, own)
+        text = _clean_text(cue.text, french, curly, own, on)
         if text is None:
             own["ads"] += 1
         else:
             entries.append((index, replace(cue, text=text)))
-        kinds[index] = own
-    entries = _clean_timing(sorted(entries, key=lambda e: e[1].start), kinds, {*skip, *timed})
+        found[index] = own
+    entries = _clean_timing(sorted(entries, key=lambda e: e[1].start), found, {*skip, *timed}, on)
     kept = dict(entries)
     changes = []
-    for index, own in kinds.items():
+    for index, own in found.items():
         if not +own:
             continue
         fixed.update(own)
@@ -130,28 +135,37 @@ def _curly_apostrophes(cues: list[Cue]) -> bool:
     return text.count("’") > text.count("'")
 
 
-def _clean_text(text: str, french: bool | None, curly: bool, fixed: Counter[str]) -> str | None:
-    """A cue's text fixed, or None: nothing but a site's ad."""
+def _clean_text(
+    text: str, french: bool | None, curly: bool, fixed: Counter[str], on: Collection[str] = KINDS
+) -> str | None:
+    """A cue's text fixed (the fixes of the kinds ``on`` only), or None:
+    nothing but a site's ad."""
     lines = []
     for line in text.split("\n"):
-        if _is_ad(line):
+        if "ads" in on and _is_ad(line):
             continue
-        new = _SPACES.sub(" ", line.strip())
-        if new != line:
-            fixed["spaces"] += 1
-        line, n = _STUCK_DASH.subn(r"\1 ", new)
-        fixed["dashes"] += n
-        line, n = _SPACE_BEFORE.subn("", line)
-        fixed["spaces"] += n
-        line, n = _GLUED.subn(r"\1 ", line)
-        fixed["glued"] += n
+        if "spaces" in on:
+            new = _SPACES.sub(" ", line.strip())
+            if new != line:
+                fixed["spaces"] += 1
+            line = new
+        if "dashes" in on:
+            line, n = _STUCK_DASH.subn(r"\1 ", line)
+            fixed["dashes"] += n
+        if "spaces" in on:
+            line, n = _SPACE_BEFORE.subn("", line)
+            fixed["spaces"] += n
+        if "glued" in on:
+            line, n = _GLUED.subn(r"\1 ", line)
+            fixed["glued"] += n
         # A line naming an address keeps its "://".
-        new = line if french is None or _ADDRESS.search(line) else _punctuation(line, french)
-        if new != line:
-            fixed["punctuation"] += 1
-        line = new
+        if "punctuation" in on and french is not None and not _ADDRESS.search(line):
+            new = _punctuation(line, french)
+            if new != line:
+                fixed["punctuation"] += 1
+            line = new
         wrong, right = ("'", "’") if curly else ("’", "'")
-        if wrong in line:
+        if "apostrophes" in on and wrong in line:
             fixed["apostrophes"] += line.count(wrong)
             line = line.replace(wrong, right)
         if line:
@@ -187,7 +201,10 @@ def _punctuation(line: str, french: bool) -> str:
 
 
 def _clean_timing(
-    entries: list[tuple[int, Cue]], kinds: dict[int, Counter[str]], skip: Collection[int]
+    entries: list[tuple[int, Cue]],
+    kinds: dict[int, Counter[str]],
+    skip: Collection[int],
+    on: Collection[str] = (),
 ) -> list[tuple[int, Cue]]:
     """Lines ending before they start, overlapping the next one, or too
     short to be read, fixed without ever covering the next line (those in
@@ -200,12 +217,18 @@ def _clean_timing(
         nxt = out[i + 1][1].start if i + 1 < len(out) else None
         start, end = cue.start, cue.end
         if end <= start:
+            if "inverted" not in on:
+                continue
             end = start + MIN_DURATION_S
             fixed["inverted"] += 1
         elif nxt is not None and end > nxt + _OVERLAP_TOLERANCE_S and nxt - start >= MIN_DURATION_S:
+            if "overlaps" not in on:
+                continue
             end = nxt
             fixed["overlaps"] += 1
         elif end - start < MIN_DURATION_S:
+            if "short" not in on:
+                continue
             end = start + MIN_DURATION_S
             fixed["short"] += 1
         if nxt is not None and end > nxt and cue.end <= nxt + _OVERLAP_TOLERANCE_S:

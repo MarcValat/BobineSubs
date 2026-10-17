@@ -187,3 +187,43 @@ def test_an_export_sorts_lines_moved_past_others(tmp_path):
         assert out.read_text("utf-8") == (
             "1\n00:00:05,000 --> 00:00:06,000\nDeux\n\n2\n00:00:08,000 --> 00:00:09,500\nUn\n"
         )
+
+
+def test_only_the_kinds_asked_for_are_fixed():
+    cues = [Cue(0.0, 2.0, "Bonjour  toi!"), Cue(10.0, 10.3, "Vite"), Cue(20.0, 22.0, "www.site.com")]
+    document = SubtitleDocument(SRT, cues)
+    out, fixed, changes = review(document, "fre", kinds={"punctuation", "short"})
+    assert [c.text for c in out.cues] == ["Bonjour  toi" + NBSP + "!", "Vite", "www.site.com"]
+    assert out.cues[1].end == 10.0 + MIN_DURATION_S
+    assert fixed == {"punctuation": 1, "short": 1}
+    assert [c.index for c in changes] == [0, 1]
+    assert review(document, "fre", kinds=())[1] == {}
+
+
+def test_the_export_cleans_only_the_kinds_asked_for_and_a_track_may_differ(tmp_path):
+    from syncsubtitles.retime import Segment
+    from syncsubtitles.service import cleanup_changes, write_result
+    from syncsubtitles.tracks import parse_track_spec
+
+    src = tmp_path / "Film.fr.srt"
+    src.write_text("1\n00:00:01,000 --> 00:00:03,000\n-Bonjour  toi?\n", "utf-8")
+    target = parse_track_spec(str(src))
+    segments = [Segment(0.0, 100.0, 0.0, 0.0)]
+    written = write_result(target, target, segments, str(tmp_path / "a.srt"), True, clean_kinds={"punctuation"})
+    assert (tmp_path / "a.srt").read_text("utf-8") == f"1\n00:00:01,000 --> 00:00:03,000\n-Bonjour  toi{NBSP}?\n"
+    assert written.cleaned == {"punctuation": 1}
+    assert [c.kinds for c in cleanup_changes(target, segments, {"dashes"})] == [("dashes",)]
+
+
+def test_the_api_takes_the_kinds_and_a_tracks_own_choice():
+    from syncsubtitles.server import RenderRequest
+
+    req = RenderRequest.model_validate(
+        {
+            "reference": {"path": "a.mkv", "index": 0},
+            "tracks": [{"target": {"path": "a.srt"}, "segments": [], "clean": False}],
+            "clean_kinds": ["spaces"],
+        }
+    )
+    assert req.tracks[0].clean is False
+    assert req.clean_kinds == ["spaces"]

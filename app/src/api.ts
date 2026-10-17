@@ -64,10 +64,13 @@ export interface CueEdits {
   /** Lines given their [start, end] by hand, in reference time, by index
    * (RenderTrack timing). */
   timing?: Record<number, [number, number]>;
+  /** This track cleaned at export or not, whatever the batch's choice
+   * (RenderTrack clean); undefined: as the batch. */
+  clean?: boolean;
 }
 
 /** What the export's cleanup does to one line (the engine's cleanup.Change). */
-interface CleanupChange {
+export interface CleanupChange {
   index: number;
   kinds: string[];
   before: string;
@@ -80,6 +83,9 @@ interface CleanupChange {
 export interface Analysis {
   /** Lines kept or taken out by hand (app side, sent with the export). */
   edits?: CueEdits;
+  /** Checked by hand: no longer "À vérifier", whatever it found (app
+   * side only; a new analysis starts unchecked). */
+  validated?: boolean;
   reference: TrackRef;
   target: TrackRef;
   reference_choice: string | null;
@@ -123,6 +129,7 @@ export interface RenderTrack {
   drop?: number[];
   clean_skip?: number[];
   timing?: Record<number, [number, number]>;
+  clean?: boolean | null;
   /** Its own file, in a subtitles-only export. */
   output?: string | null;
   /** The reference file's subtitle track it takes the place of. */
@@ -179,6 +186,18 @@ export interface FilePair {
   episode: string | null;
 }
 
+/** What the export's cleanup would do to each line of `target`, the
+ * fixes of `kinds` only (the analysis lists those of every kind). */
+export async function cleanupPreview(
+  target: TrackRef,
+  segments: Segment[],
+  kinds: readonly string[],
+  edits: CueEdits | undefined,
+): Promise<CleanupChange[]> {
+  const body = { target, segments, kinds, keep: edits?.keep ?? [], drop: edits?.drop ?? [], timing: edits?.timing ?? {} };
+  return (await (await postJson("/cleanup-preview", body)).json()).changes;
+}
+
 export async function pairFiles(videos: string[], subtitles: string[]): Promise<FilePair[]> {
   return (await (await postJson("/pairs", { videos, subtitles })).json()).pairs;
 }
@@ -199,9 +218,16 @@ export async function startAnalyze(reference: TrackRef, target: TrackRef, consta
 export async function startRenderTracks(
   reference: TrackRef,
   tracks: RenderTrack[],
-  options: { output: string | null; subsOnly: boolean; clean: boolean },
+  options: { output: string | null; subsOnly: boolean; clean: boolean; cleanKinds: readonly string[] | null },
 ): Promise<string> {
-  const body = { reference, tracks, output: options.output, subs_only: options.subsOnly, clean: options.clean };
+  const body = {
+    reference,
+    tracks,
+    output: options.output,
+    subs_only: options.subsOnly,
+    clean: options.clean,
+    clean_kinds: options.cleanKinds,
+  };
   return (await (await postJson("/jobs/render", body)).json()).job_id;
 }
 

@@ -143,7 +143,9 @@ test("the export options: in pairs, the added track's too", async ({ app }) => {
   await app.page.getByRole("button", { name: "Modifier…" }).click();
   const dialog = app.page.getByRole("dialog", { name: "Options d'export" });
   await expect(dialog).toContainText("Dossier de sortie");
-  await expect(dialog).toContainText("Nettoyer les sous-titres");
+  // The cleanup: in the top bar, for every file.
+  await expect(dialog).not.toContainText("Nettoyer les sous-titres");
+  await expect(app.page.locator(".batch-config").getByRole("button", { name: "Nettoyage" })).toHaveText("Toutes les corrections");
   await expect(dialog).not.toContainText("Piste ajoutée");
   await app.page.keyboard.press("Escape");
 

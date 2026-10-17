@@ -150,7 +150,8 @@ describe("lines timed by hand", () => {
     expect(edits).toEqual({ keep: [1], drop: [], skip: [0], timing: { 0: [1.235, 2.5] } });
     edits = skipCleanup(editLine(edits, 1, "reset"), [1], true);
     expect(edits.timing).toEqual({ 0: [1.235, 2.5] });
-    expect(renderEdits(edits)).toEqual({ keep: [], drop: [], clean_skip: [0, 1], timing: { 0: [1.235, 2.5] } });
+    expect(renderEdits(edits)).toEqual({ keep: [], drop: [], clean_skip: [0, 1], timing: { 0: [1.235, 2.5] }, clean: null });
+    expect(renderEdits({ ...edits, clean: false }).clean).toBe(false);
     expect(timeLine(edits, 0, null).timing).toEqual({});
   });
 });

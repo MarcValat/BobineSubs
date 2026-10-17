@@ -159,7 +159,13 @@ export function timeLine(edits: CueEdits | undefined, index: number, times: [num
 /** What an export sends of `edits` (RenderTrack keep, drop, clean_skip,
  * timing). */
 export function renderEdits(edits: CueEdits | undefined) {
-  return { keep: edits?.keep ?? [], drop: edits?.drop ?? [], clean_skip: edits?.skip ?? [], timing: edits?.timing ?? {} };
+  return {
+    keep: edits?.keep ?? [],
+    drop: edits?.drop ?? [],
+    clean_skip: edits?.skip ?? [],
+    timing: edits?.timing ?? {},
+    clean: edits?.clean ?? null,
+  };
 }
 
 /** `edits` with line `index` kept (or no longer), or taken out (or put back). */

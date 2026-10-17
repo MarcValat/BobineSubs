@@ -169,13 +169,31 @@ def _reviewed(
     drop: Collection[int] = (),
     skip: Collection[int] = (),
     timing: Mapping[int, tuple[float, float]] | None = None,
+    kinds: Collection[str] | None = None,
 ) -> tuple[SubtitleDocument, Counter[str], list[Change]]:
     """``document`` retimed and cleaned (see cleanup.review): its lines known
     by their index in ``document``, those in ``skip`` left as they are, and
-    those in ``timing`` (timed by hand) keeping their times."""
+    those in ``timing`` (timed by hand) keeping their times; the fixes of
+    ``kinds`` only (None: all)."""
     mapped = remap_cues(document, segments, keep, drop, timing)
     indices = [i for i, m in enumerate(mapped) if m is not None and m[1] > 0]
-    return review(retime(document, segments, keep, drop, timing), language, skip, indices, timing or ())
+    return review(retime(document, segments, keep, drop, timing), language, skip, indices, timing or (), kinds)
+
+
+def cleanup_changes(
+    target: SubtitleTrackSpec,
+    segments: Sequence[Segment],
+    kinds: Collection[str] | None = None,
+    keep: Collection[int] = (),
+    drop: Collection[int] = (),
+    timing: Mapping[int, tuple[float, float]] | None = None,
+) -> list[Change]:
+    """What the export's cleanup would do to each line of ``target`` (see
+    cleanup.review), the fixes of ``kinds`` only (None: all), with the
+    lines kept, taken out or timed by hand: as the analysis lists them,
+    for another choice of kinds."""
+    document = load_target(target)
+    return _reviewed(document, segments, _source_language(target), keep, drop, (), timing, kinds)[2]
 
 
 def corrected_cues(document: SubtitleDocument, segments: Sequence[Segment]) -> list[tuple[float, float] | None]:
@@ -216,16 +234,27 @@ def write_result(
     drop: Collection[int] = (),
     skip: Collection[int] = (),
     timing: Mapping[int, tuple[float, float]] | None = None,
+    clean_kinds: Collection[str] | None = None,
 ) -> Written:
     """Retime the target by ``segments`` and write it: a standalone
     subtitle file, or a new MKV (the reference's) where it replaces the
     original track (same file) or is added (anything else). ``clean``:
-    its obvious faults fixed too (see cleanup); ``keep`` / ``drop`` /
+    its obvious faults fixed too (see cleanup; those of ``clean_kinds``
+    only, None: all); ``keep`` / ``drop`` /
     ``timing``: lines kept, taken out or timed by hand (see
     retime.remap_cues)."""
     if subs_only or (output and Path(output).suffix.lower() in SUBTITLE_EXTENSIONS):
         corrected, dropped, cleaned = _retimed(
-            target, segments, log, clean, language or _source_language(target), keep, drop, skip, timing
+            target,
+            segments,
+            log,
+            clean,
+            language or _source_language(target),
+            keep,
+            drop,
+            skip,
+            timing,
+            clean_kinds,
         )
         out = Path(output) if output else default_subtitle_output(target, corrected.fmt)
         write_subtitle(corrected, out)
@@ -243,7 +272,7 @@ def write_result(
         skip=tuple(skip),
         timing=dict(timing or {}),
     )
-    return write_tracks(reference, [track], output, log, clean)[0]
+    return write_tracks(reference, [track], output, log, clean, clean_kinds)[0]
 
 
 def _source_language(target: SubtitleTrackSpec) -> str | None:
@@ -280,6 +309,9 @@ class TrackToWrite:
     # Lines given their (start, end) by hand, in reference time (by index
     # as ``keep``, see retime.remap_cues).
     timing: Mapping[int, tuple[float, float]] = field(default_factory=dict)
+    # Its obvious faults fixed or not, whatever the export's ``clean``
+    # (None: as it says).
+    clean: bool | None = None
 
 
 def _retimed(
@@ -292,6 +324,7 @@ def _retimed(
     drop: Collection[int] = (),
     skip: Collection[int] = (),
     timing: Mapping[int, tuple[float, float]] | None = None,
+    kinds: Collection[str] | None = None,
 ) -> tuple[SubtitleDocument, list[tuple[float, str]], dict[str, int]]:
     """The target retimed by ``segments`` (and cleaned, in ``language``),
     the lines that fell off, and what the cleanup fixed. ``keep`` / ``drop``
@@ -312,7 +345,7 @@ def _retimed(
             # A line moved by hand past others: back in order of time.
             corrected = replace(corrected, cues=sorted(corrected.cues, key=lambda c: c.start))
         return corrected, dropped, {}
-    corrected, fixed, _ = _reviewed(document, segments, language, keep, drop, skip, timing)
+    corrected, fixed, _ = _reviewed(document, segments, language, keep, drop, skip, timing, kinds)
     return corrected, dropped, dict(fixed)
 
 
@@ -337,6 +370,7 @@ def write_tracks(
     output: str | None = None,
     log: Log = _no_log,
     clean: bool = True,
+    clean_kinds: Collection[str] | None = None,
 ) -> list[Written]:
     """A new MKV (the reference's) with every track of ``tracks`` retimed:
     one of the reference's own tracks takes its place, any other is added.
@@ -400,12 +434,13 @@ def write_tracks(
             target,
             track.segments,
             log,
-            clean,
+            clean if track.clean is None else track.clean,
             metadata.language,
             track.keep,
             track.drop,
             track.skip,
             track.timing,
+            clean_kinds,
         )
         muxed.append(MuxTrack(corrected, metadata, replace_index))
         written.append(

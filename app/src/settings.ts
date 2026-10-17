@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { loadSetting, saveSetting } from "./util";
 
 // Options' settings, remembered across sessions; a view using one follows
@@ -61,6 +61,25 @@ export function saveCleanSubtitles(clean: boolean): void {
 
 export function useCleanSubtitles(): boolean {
   return useSyncExternalStore(subscribe, loadCleanSubtitles);
+}
+
+/** Every kind of fix the cleanup makes (the engine's cleanup.KINDS). */
+export const CLEAN_KINDS = ["spaces", "dashes", "glued", "punctuation", "apostrophes", "ads", "overlaps", "short", "inverted"] as const;
+export type CleanKind = (typeof CLEAN_KINDS)[number];
+
+const CLEAN_KINDS_OFF_KEY = "syncsubtitles.cleanKindsOff";
+
+/** The kinds of fix the cleanup makes, of every file: all but those left
+ * out (kept as such, so a kind added later is on). */
+export function saveCleanKinds(kinds: readonly CleanKind[]): void {
+  const off = CLEAN_KINDS.filter((k) => !kinds.includes(k));
+  saveSetting(CLEAN_KINDS_OFF_KEY, off.length ? off.join(",") : null);
+  changed();
+}
+
+export function useCleanKinds(): CleanKind[] {
+  const off = useSyncExternalStore(subscribe, () => loadSetting(CLEAN_KINDS_OFF_KEY) ?? "");
+  return useMemo(() => CLEAN_KINDS.filter((k) => !off.split(",").includes(k)), [off]);
 }
 
 const SUBS_ONLY_KEY = "syncsubtitles.subsOnly";

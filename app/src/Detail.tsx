@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { nextStep, RevealButton, writtenFile, type AnalysisRun, type ExportFields } from "./batchShared";
 import { useT } from "./i18n";
-import { RedoIcon } from "./icons";
+import { CheckIcon, RedoIcon } from "./icons";
 import { InfoTip, Tooltip } from "./InfoTip";
 import { LogPanel } from "./LogPanel";
 import { basename } from "./paths";
@@ -85,6 +85,7 @@ export function DetailHeader({
   exportLabel,
   onAnalyze,
   onExport,
+  validation,
 }: {
   title: ReactNode;
   titleTooltip?: string;
@@ -111,6 +112,8 @@ export function DetailHeader({
   exportLabel: string;
   onAnalyze: () => void;
   onExport: () => void;
+  /** It's "À vérifier", or was checked by hand: it can be, or no longer be. */
+  validation?: { validated: boolean; onToggle: () => void };
 }) {
   const t = useT();
   const next = primary ? nextStep({ analyzing, missing, exportable: done > 0 ? 1 : 0, exported: exported ? 1 : 0 }) : null;
@@ -137,6 +140,17 @@ export function DetailHeader({
             <RedoIcon />
           </button>
         </Tooltip>
+      )}
+      {validation && (
+        <button
+          className={`with-icon validate-button${validation.validated ? " validated" : ""}`}
+          aria-pressed={validation.validated}
+          title={validation.validated ? t.batch.unvalidateHint : t.batch.validateHint}
+          onClick={validation.onToggle}
+        >
+          <CheckIcon />
+          {validation.validated ? t.batch.validated : t.batch.validate}
+        </button>
       )}
       {onEdit && (
         <button disabled={editDisabled} onClick={onEdit}>

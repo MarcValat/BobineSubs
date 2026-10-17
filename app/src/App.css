@@ -1046,6 +1046,14 @@ input {
   font-size: 0.85em;
 }
 
+/* With this file's own choice: its drop-down on the line. */
+div.analysis-cleanup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
+}
+
 .analysis-counts {
   margin-left: auto;
   color: var(--text-muted);
@@ -1197,4 +1205,10 @@ input {
 
 .cleanup-panel {
   max-width: 980px;
+}
+
+/* "Valider" (a file checked by hand): its tick, and once checked, the accent. */
+.validate-button.validated {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }

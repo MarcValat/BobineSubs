@@ -57,8 +57,9 @@ import { devParam, errorMessage, toggled } from "./util";
 import { useT } from "./i18n";
 import { languageCode } from "./languages";
 import { WarningIcon } from "./icons";
-import { useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
-import { DEFAULT_TRACK_OPTIONS, flagValue } from "./exportOptions";
+import { CLEAN_KINDS, useCleanKinds, useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
+import { useCleanupView } from "./useCleanupView";
+import { CleanupPicker, DEFAULT_TRACK_OPTIONS, flagValue } from "./exportOptions";
 
 /** One file's analyses (one per corrected track) and its single export. Kept
  * with the reference they were made against: a different one since makes
@@ -143,6 +144,7 @@ export function MultiTrackBatch({
   // Segments / Loupe, when the detail is too low for both.
   const view = useDetailView();
   const cleanSubtitles = useCleanSubtitles();
+  const cleanKinds = useCleanKinds();
   const busy = analyzing || queue.exporting;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
 
@@ -344,7 +346,12 @@ export function MultiTrackBatch({
                   default: flagValue(batchTrack.isDefault),
                   forced: flagValue(batchTrack.forced),
                 })),
-                { output: subsOnly ? null : outputs[0], subsOnly, clean: cleanSubtitles },
+                {
+                  output: subsOnly ? null : outputs[0],
+                  subsOnly,
+                  clean: cleanSubtitles,
+                  cleanKinds: cleanKinds.length === CLEAN_KINDS.length ? null : cleanKinds,
+                },
               ),
             update: (patch: (entry: ExportFields) => Partial<ExportFields>) => updateRun(path, (r) => ({ ...r, ...patch(r) })),
           };
@@ -419,6 +426,16 @@ export function MultiTrackBatch({
 
   /** A corrected track's segments and lines kept or taken out, changed by
    * hand: its export is to do again. */
+  /** A file's analyses checked by hand ("Valider"), or no longer. */
+  function setValidated(path: string, validated: boolean) {
+    updateRun(path, (run) => ({
+      ...run,
+      targets: Object.fromEntries(
+        Object.entries(run.targets).map(([id, t]) => [id, t.result ? { ...t, result: { ...t.result, validated } } : t]),
+      ),
+    }));
+  }
+
   function saveEdits(path: string, target: string, segments: Segment[], edits: CueEdits) {
     updateTarget(path, target, (t) => ({ result: t.result ? withSegments(t.result, segments, edits) : t.result, edited: true }));
     updateRun(path, (r) => ({ ...r, ...IDLE_EXPORT }));
@@ -450,6 +467,7 @@ export function MultiTrackBatch({
     const runsOfFile = res.reference ? targetsOf(path).map((t) => run?.targets[t.id]) : [];
     const statuses = runsOfFile.map((r) => r?.status);
     const badge = runBadge(statuses, run?.exportStatus, { ...s, analyzed: s.analyzed(statuses.length) });
+    if (badge?.[1] === "analyzed" && runsOfFile.every((r) => r?.result?.validated)) return [s.validated, "analyzed"];
     if (badge?.[1] === "analyzed" && runsOfFile.some((r) => r?.result && weak(r.result))) return [s.check, "warning"];
     return badge ?? (res.issues.length > 0 || !res.reference || runsOfFile.length === 0 ? [s.check, "warning"] : [s.toAnalyze, "idle"]);
   }
@@ -463,6 +481,21 @@ export function MultiTrackBatch({
   const shownTarget = detailTargets.find((t) => t.id === shownTargets[detailPath!]) ?? detailTargets[0] ?? null;
   const shownRun = shownTarget ? detailRun?.targets[shownTarget.id] : undefined;
   const shownResult = shownRun?.status === "done" ? shownRun.result : null;
+  // The file checked by hand, all its tracks, when one is to check (or it was).
+  const detailResults =
+    detailPath && detailRes?.reference
+      ? targetsOf(detailPath).flatMap((t) => {
+          const r = runOf(detailPath)?.targets[t.id];
+          return r?.status === "done" && r.result ? [r.result] : [];
+        })
+      : [];
+  const detailValidated = detailResults.length > 0 && detailResults.every((r) => r.validated);
+  const detailValidation =
+    detailPath && detailResults.length > 0 && (detailValidated || detailResults.some(weak))
+      ? { validated: detailValidated, onToggle: () => setValidated(detailPath, !detailValidated) }
+      : undefined;
+  // As the export will clean it (see useCleanupView).
+  const cleanedResult = useCleanupView(shownResult, cleanSubtitles, cleanKinds);
   const shownDuration = shownResult ? analysisDuration(shownResult, detailProbe?.duration ?? null) : 0;
   const shownCues = useMemo(() => shownResult && chartCues(shownResult), [shownResult]);
   // The loupe's stretch, framed on the chart.
@@ -521,6 +554,7 @@ export function MultiTrackBatch({
                 disabled={busy}
               />
             </span>
+            <CleanupPicker disabled={busy} />
             <InfoTip>{m.multi.hint}</InfoTip>
           </div>
 
@@ -614,6 +648,7 @@ export function MultiTrackBatch({
                   analyzeTitle={m.multi.analyzeFileHint}
                   exportLabel={m.multi.exportFile}
                   onAnalyze={() => handleAnalyze(false, detailPath)}
+                  validation={detailValidation}
                   onExport={() => handleExport(detailPath)}
                 />
 
@@ -731,7 +766,7 @@ export function MultiTrackBatch({
                         {shownResult && (
                           <div className="detail-summary">
                             <AnalysisSummary
-                              analysis={shownResult}
+                              analysis={cleanedResult ?? shownResult}
                               edited={shownRun?.edited}
                               cleanup={cleanSubtitles}
                               onEdits={
@@ -757,7 +792,12 @@ export function MultiTrackBatch({
 
                     {shownResult && (
                       <div className={view.loupeClass()}>
-                        <AnalysisView analysis={shownResult} duration={shownDuration} view={loupeView} onView={setLoupeView} />
+                        <AnalysisView
+                          analysis={cleanedResult ?? shownResult}
+                          duration={shownDuration}
+                          view={loupeView}
+                          onView={setLoupeView}
+                        />
                       </div>
                     )}
                   </div>

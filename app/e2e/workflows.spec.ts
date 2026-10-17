@@ -128,7 +128,12 @@ test("pairs: matched by episode or flagged, every offset found, replaced or adde
   expectConstant(app.jobs.segments(BONUS_FR), 2.0);
   expectConstant(app.jobs.segments(E01_FR), 0.7);
   expectConstant(app.jobs.segments(E02_FR), 1.5);
-  // Paired by order: still to check once analyzed.
+  // Paired by order: still to check once analyzed -- until checked by hand.
+  await expect(app.rows().nth(0).locator(".list-badge")).toHaveText("À vérifier");
+  await app.rows().nth(0).locator(".list-row-main").click();
+  await app.page.getByRole("button", { name: "Valider" }).click();
+  await expect(app.rows().nth(0).locator(".list-badge")).toHaveText("Validé");
+  await app.page.getByRole("button", { name: "Validé", exact: true }).click();
   await expect(app.rows().nth(0).locator(".list-badge")).toHaveText("À vérifier");
 
   // E01: the French track replaced (the default), in the language its name gives.
@@ -204,4 +209,37 @@ test("the cleanup's fixes, seen and refused line by line", async ({ app }) => {
   // Refused: those lines as short as they were.
   const written = subtitleTimes(app.jobs.written[0], 1).filter(([a, b]) => b - a < 0.8).length;
   expect(written).toBe(short);
+});
+
+test("the cleanup: its kinds for every file, each file its own choice", async ({ app }) => {
+  const short = subtitleTimes(E01, 1).filter(([a, b]) => b - a < 0.8).length;
+  await app.page.goto(multiUrl(E01));
+  await app.analyze();
+  await expect(app.page.locator(".analysis-cleanup")).toContainText("trop courte");
+
+  // "Trop courte" left out for every file: no longer listed, nor done.
+  const picker = app.page.locator(".batch-config").getByRole("button", { name: "Nettoyage" });
+  await picker.click();
+  await app.page.getByRole("option", { name: "Trop courte" }).click();
+  await app.page.keyboard.press("Escape");
+  await expect(picker).toHaveText("8 corrections sur 9");
+  await expect(app.page.locator(".analysis-cleanup")).not.toContainText("trop courte");
+  await app.page.getByRole("button", { name: "Exporter ce fichier" }).click();
+  await expect(app.rows().first().locator(".list-badge")).toHaveText("Exporté", { timeout: 120_000 });
+  expect(subtitleTimes(app.jobs.written.at(-1)!, 1).filter(([a, b]) => b - a < 0.8).length).toBe(short);
+
+  // Every kind again, but this file not cleaned: its own choice wins. (The
+  // export's report under it may have made the detail two tabs.)
+  const segmentsTab = app.page.getByRole("tab", { name: "Segments" });
+  if (await segmentsTab.isVisible()) await segmentsTab.click();
+  await picker.click();
+  await app.page.getByRole("option", { name: "Trop courte" }).click();
+  await app.page.keyboard.press("Escape");
+  await expect(app.page.locator(".analysis-cleanup")).toContainText("trop courte");
+  await app.page.locator(".analysis-cleanup").getByRole("button", { name: "Nettoyage" }).click();
+  await app.page.getByRole("option", { name: "Non" }).click();
+  await expect(app.page.locator(".analysis-cleanup")).not.toContainText("trop courte");
+  await app.page.getByRole("button", { name: "Exporter ce fichier" }).click();
+  await expect(app.rows().first().locator(".list-badge")).toHaveText("Exporté", { timeout: 120_000 });
+  expect(subtitleTimes(app.jobs.written.at(-1)!, 1).filter(([a, b]) => b - a < 0.8).length).toBe(short);
 });

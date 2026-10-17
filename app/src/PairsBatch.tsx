@@ -65,8 +65,9 @@ import { SegmentChart } from "./SegmentChart";
 import { devParam, errorMessage, FIELD_PROPS } from "./util";
 import { useT } from "./i18n";
 import { languageCode, languageLabel, LanguageSelect } from "./languages";
-import { useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
-import { DEFAULT_TRACK_OPTIONS, flagValue } from "./exportOptions";
+import { CLEAN_KINDS, useCleanKinds, useCleanSubtitles, useListCollapsed, useSubsOnly } from "./settings";
+import { useCleanupView } from "./useCleanupView";
+import { CleanupPicker, DEFAULT_TRACK_OPTIONS, flagValue } from "./exportOptions";
 
 /** One row of the list: a reference video and what to correct (a subtitle
  * file, or a video holding the track), as the engine paired them by
@@ -285,6 +286,7 @@ export function PairsBatch({
   // Segments / Loupe, when the detail is too low for both.
   const view = useDetailView();
   const cleanSubtitles = useCleanSubtitles();
+  const cleanKinds = useCleanKinds();
   const busy = analyzing || queue.exporting;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
 
@@ -568,7 +570,12 @@ export function PairsBatch({
                     replaces: replacesOf(i),
                   },
                 ],
-                { output: subsOnly ? null : outputs[0], subsOnly, clean: cleanSubtitles },
+                {
+                  output: subsOnly ? null : outputs[0],
+                  subsOnly,
+                  clean: cleanSubtitles,
+                  cleanKinds: cleanKinds.length === CLEAN_KINDS.length ? null : cleanKinds,
+                },
               ),
             update: (patch: (entry: ExportFields) => Partial<ExportFields>) => updateExport(key, patch),
           };
@@ -596,6 +603,7 @@ export function PairsBatch({
     const badge = runBadge(run ? [run.status] : [], exportOf(i)?.exportStatus, st);
     // Paired by order: maybe not the same episode, whatever the analysis says.
     const byOrder = pairs[i].by === "order";
+    if (badge?.[1] === "analyzed" && run?.result?.validated) return [m.multi.status.validated, "analyzed"];
     if (badge?.[1] === "analyzed" && ((run?.result && weak(run.result)) || byOrder)) return [m.multi.status.check, "warning"];
     const flagged = res.issues.length > 0 || !res.target || byOrder;
     return badge ?? (flagged ? [m.multi.status.check, "warning"] : [st.toAnalyze, "idle"]);
@@ -620,6 +628,8 @@ export function PairsBatch({
   const detailRes = resolved(selected);
   const detailRun = runOf(selected);
   const detailResult = isDone(detailRun) ? detailRun!.result : null;
+  // As the export will clean it (see useCleanupView).
+  const cleanedResult = useCleanupView(detailResult, cleanSubtitles, cleanKinds);
   const detailKey = trackKey(selected);
   const detailExport = exportOf(selected);
   const detailVideo = detail?.video ? probes[detail.video] : undefined;
@@ -706,6 +716,7 @@ export function PairsBatch({
                 />
               </span>
             )}
+            <CleanupPicker disabled={busy} />
             <InfoTip>{m.pairs.hint}</InfoTip>
           </div>
 
@@ -806,6 +817,15 @@ export function PairsBatch({
                   exportLabel={m.pairs.exportPair}
                   onAnalyze={() => handleAnalyze(false, selected)}
                   onExport={() => handleExport(selected)}
+                  validation={
+                    detailResult && detailKey && (detailResult.validated || weak(detailResult) || detail.by === "order")
+                      ? {
+                          validated: !!detailResult.validated,
+                          onToggle: () =>
+                            updateRun(detailKey, (a) => ({ result: a.result && { ...a.result, validated: !a.result.validated } })),
+                        }
+                      : undefined
+                  }
                 />
 
                 {!detailPaired && <p className="placeholder">{m.pairs.unpairedDetail}</p>}
@@ -925,7 +945,7 @@ export function PairsBatch({
                         {detailResult && (
                           <div className="detail-summary">
                             <AnalysisSummary
-                              analysis={detailResult}
+                              analysis={cleanedResult ?? detailResult}
                               edited={detailRun?.edited}
                               cleanup={cleanSubtitles}
                               onEdits={queue.exporting ? undefined : (edits) => saveEdits(detailKey!, detailResult.segments, edits)}
@@ -949,7 +969,12 @@ export function PairsBatch({
 
                     {detailResult && (
                       <div className={view.loupeClass()}>
-                        <AnalysisView analysis={detailResult} duration={detailDuration} view={loupeView} onView={setLoupeView} />
+                        <AnalysisView
+                          analysis={cleanedResult ?? detailResult}
+                          duration={detailDuration}
+                          view={loupeView}
+                          onView={setLoupeView}
+                        />
                       </div>
                     )}
                   </div>
