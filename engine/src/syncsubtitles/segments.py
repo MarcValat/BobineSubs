@@ -472,6 +472,7 @@ def _detect_at_ratio(
         else:
             groups.append((members, offset))
     groups = _without_previously(groups, kept, reference, ref_cues, tgt_cues, frames)
+    groups = _with_jump_orphans(groups, kept, reference, ref_cues, tgt_cues, frames)
 
     matches = [
         CueMatch(order[j], offsets[j] / FRAME_RATE, float(overlap[j] / durations[j]), -1) for j in range(len(path))
@@ -535,6 +536,59 @@ def _without_previously(
     return [(np.concatenate([joining, second]), then), *groups[2:]]
 
 
+# A jump of this much or less (seconds) holds no scene of its own.
+_SMALL_JUMP_S = 2.0
+
+
+def _with_jump_orphans(
+    groups: list[tuple[np.ndarray, int]],
+    kept: np.ndarray,
+    reference: _Reference,
+    ref_cues: list[Cue],
+    tgt_cues: list[Cue],
+    frames: np.ndarray,
+) -> list[tuple[np.ndarray, int]]:
+    """``groups`` with the lines left between two of them that are real
+    lines after all: at a jump, the Viterbi may give one or two lines an
+    offset of their own (the two languages' timing differs most there),
+    too few to be a group, and they were dropped as a scene only the
+    target has. Each that lands on reference cues at a neighbour's offset
+    (scores above 0), without using the other neighbour's stretch of the
+    reference, joins it: those of the previous group's from the first on,
+    the next one's from the last back. ``kept`` updated."""
+    out = list(groups)
+    for g in range(len(out) - 1):
+        (a, oa), (b, ob) = out[g], out[g + 1]
+        last_a, first_b = int(a[-1]), int(b[0])
+        orphans = np.flatnonzero(~kept[last_a + 1 : first_b]) + last_a + 1
+        if not len(orphans):
+            continue
+        # At a small jump, a line may straddle it by that much: one line
+        # where the reference has two, one each side (seen at ad breaks,
+        # where one edit has a second more of black). A scene only the
+        # target has is longer than that.
+        jump = abs(ob - oa)
+        tolerance = _CHAIN_TOLERANCE_S * FRAME_RATE + (jump if jump <= _SMALL_JUMP_S * FRAME_RATE else 0)
+        offsets = np.array([oa, ob])
+        scores = _scores(reference, frames[orphans], offsets) + _name_bonus(
+            ref_cues, [tgt_cues[j] for j in orphans], offsets
+        )
+        # Before the next group's first line in the reference, after the
+        # previous group's last one.
+        fits_a = (scores[:, 0] > 0) & (frames[orphans, 1] - oa <= frames[first_b, 0] - ob + tolerance)
+        fits_b = (scores[:, 1] > 0) & (frames[orphans, 0] - ob >= frames[last_a, 1] - oa - tolerance)
+        to_a = fits_a & (~fits_b | (scores[:, 0] >= scores[:, 1]))
+        to_b = fits_b & ~to_a
+        head = int(np.argmin(to_a)) if not to_a.all() else len(orphans)
+        tail = int(np.argmin(to_b[::-1])) if not to_b.all() else len(orphans)
+        tail = min(tail, len(orphans) - head)
+        joining_a, joining_b = orphans[:head], orphans[len(orphans) - tail :]
+        kept[joining_a] = kept[joining_b] = True
+        out[g] = (np.concatenate([a, joining_a]), oa)
+        out[g + 1] = (np.concatenate([joining_b, b]), ob)
+    return out
+
+
 def _build_segments(
     groups: list[tuple[np.ndarray, int]],
     frames: np.ndarray,
@@ -546,6 +600,8 @@ def _build_segments(
     """Segments in reference time from cue groups (destretched frames)."""
     mids = frames.mean(axis=1)
     cuts = [0.0]
+    # Where the target's lines change segment, when no gap fits there.
+    target_cuts: list[tuple[float, float] | None] = [None]
     for (a, oa), (b, ob) in zip(groups, groups[1:]):
         # Boundary b (reference frames): A's last cue must stay in A's
         # target-time span (mid <= b + oa), B's first in B's (mid >= b + ob),
@@ -564,10 +620,18 @@ def _build_segments(
                 centre = (frames[orphans[0], 0] + frames[orphans[-1], 1]) / 2
                 cut = float(np.clip(centre - (oa + ob) / 2, lo, hi))
         cuts.append(cut / FRAME_RATE)
+        # The target gaining time there (a longer pause), its lines each
+        # side closer than that: the gap would take one of them. The
+        # target's lines change segment between the two instead.
+        between = None
+        if ob > oa and lo > hi:
+            t = ratio * (mids[last_a] + mids[first_b]) / 2 / FRAME_RATE
+            between = (float(t), float(t))
+        target_cuts.append(between)
     cuts.append(max(length, cuts[-1] + 1.0))
 
     segments = []
-    for (members, offset), start, stop in zip(groups, cuts, cuts[1:]):
+    for (members, offset), start, stop, target_cut in zip(groups, cuts, cuts[1:], target_cuts):
         o = offset / FRAME_RATE
         # Share of the group's displayed time landing on reference cues.
         overlap = _overlaps(ref_cumsum, frames[members], np.array([offset])).sum()
@@ -580,6 +644,7 @@ def _build_segments(
                 float((ratio - 1) * start + ratio * o),
                 float((ratio - 1) * stop + ratio * o),
                 confidence,
+                target_cut,
             )
         )
     return segments

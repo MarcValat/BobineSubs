@@ -107,3 +107,33 @@ def test_names_are_capitalized_words_not_starting_a_sentence():
     assert _names("C'était quand on a eu la Jeep") == {"jeep"}
     # An all-caps line: every word may be one.
     assert _names("ÉTÉ À CHILTON") == {"ete", "chilton"}
+
+
+def test_a_line_straddling_a_small_jump_joins_a_neighbour_a_scene_does_not():
+    """At an ad break one edit has a second more of black: a dub line
+    merging the reference's two lines each side of it straddles the jump,
+    left out by the Viterbi; it's a real line. Lines of a 30 s scene only
+    the target has are not."""
+    from syncsubtitles.activity import FRAME_RATE, activity_signal
+    from syncsubtitles.segments import _cue_frames, _reference, _with_jump_orphans
+
+    ref = [Cue(10.0 + 3 * i, 12.0 + 3 * i, f"line {i}") for i in range(8)]
+    reference = _reference(ref, activity_signal(ref, 200.0))
+    jump = int(1.0 * FRAME_RATE)
+    # Lines 0-2 as the reference's, then one merging 3 and 4, then 5-7 a second later.
+    target = [*ref[:3], Cue(19.0, 24.5 + 1.0, "merged"), *(Cue(c.start + 1.0, c.end + 1.0, c.text) for c in ref[5:])]
+    frames = _cue_frames(target)
+    kept = np.array([True, True, True, False, True, True, True])
+    groups = [(np.array([0, 1, 2]), 0), (np.array([4, 5, 6]), jump)]
+    out = _with_jump_orphans(groups, kept, reference, ref, target, frames)
+    assert kept.all()
+    assert sorted(np.concatenate([m for m, _ in out]).tolist()) == list(range(7))
+
+    # A 30 s scene only the target has: its lines land on the next ones' stretch.
+    scene = [Cue(19.0 + 3 * i, 21.0 + 3 * i, "extra") for i in range(10)]
+    target = [*ref[:3], *scene, *(Cue(c.start + 30.0, c.end + 30.0, c.text) for c in ref[3:])]
+    frames = _cue_frames(target)
+    kept = np.array([True] * 3 + [False] * 10 + [True] * 5)
+    groups = [(np.array([0, 1, 2]), 0), (np.arange(13, 18), int(30.0 * FRAME_RATE))]
+    _with_jump_orphans(groups, kept, reference, ref, target, frames)
+    assert not kept[3:13].any()
