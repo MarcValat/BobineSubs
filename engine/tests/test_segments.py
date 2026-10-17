@@ -4,7 +4,7 @@ from synthetic import dialogue_cues, edited, translated
 
 from syncsubtitles.retime import retime
 from syncsubtitles.segments import STANDARD_RATIOS, detect_segments
-from syncsubtitles.subformats import SRT, SubtitleDocument
+from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 
 PAL = STANDARD_RATIOS[2]  # 23.976 film played at 25 fps: the target runs fast
 
@@ -77,3 +77,33 @@ def test_a_teaser_before_credits_the_target_lacks_is_its_own_segment():
     ref_cues = [c for c in dialogue_cues(2400.0) if c.end < 45.0 or c.start >= 105.0]
     detection = _check(jumps=[(46.0, -55.0)], ratio=PAL, ref_cues=ref_cues)
     assert len(detection.segments) == 2
+
+
+@pytest.mark.parametrize("seed", [2, 8, 10, 11])
+def test_a_previously_only_the_target_has_is_dropped_not_put_on_the_first_scene(seed):
+    """Seen on real episodes: the target opens on 45 s of "previously"
+    (lines of other episodes, packed), then the episode itself 52 s later
+    than the video. It used to land by chance on the first scene, whose
+    own lines were then dropped."""
+    rng = np.random.default_rng(seed + 100)
+    recap, t = [], 1.0
+    while t < 45.0:
+        length = rng.uniform(1.0, 3.0)
+        recap.append(Cue(t, t + length, "extra"))
+        t += length + rng.uniform(0.1, 0.6)
+    ref_cues = dialogue_cues(1800.0, seed=seed)
+    target = recap + translated(ref_cues, 52.0)
+    detection = detect_segments(SubtitleDocument(SRT, ref_cues), SubtitleDocument(SRT, target))
+    corrected = retime(SubtitleDocument(SRT, target), detection.segments)
+    assert {c.text for c in target} - {c.text for c in corrected.cues} <= {"extra"}
+    assert not any(c.text == "extra" for c in corrected.cues)
+
+
+def test_names_are_capitalized_words_not_starting_a_sentence():
+    from syncsubtitles.segments import _names
+
+    assert _names("Bah, Joe Namath portera des bas. Toujours") == {"joe", "namath"}
+    assert _names("- Lane?\n- C'est moi, Rory") == {"rory"}
+    assert _names("C'était quand on a eu la Jeep") == {"jeep"}
+    # An all-caps line: every word may be one.
+    assert _names("ÉTÉ À CHILTON") == {"ete", "chilton"}

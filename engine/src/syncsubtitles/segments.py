@@ -15,7 +15,9 @@ by a Viterbi pass over all cues at once.
 3. Viterbi: each cue scores each candidate offset by how well it lands on
    the reference's displayed cues, and its edges on theirs; changing
    offset between two cues costs ``JUMP_PENALTY``, plus
-   ``BACK_JUMP_PER_S`` per second it goes back in the reference. A jump is
+   ``BACK_JUMP_PER_S`` per second it goes back in the reference; a cue
+   sharing a rare word with a reference cue (a name, mostly) also scores
+   the offsets that put it there. A jump is
    only kept when several cues on its far side agree, and it always falls
    *between* two cues.
 4. Each run of cues sharing an offset is a segment, its offset refined to
@@ -24,13 +26,16 @@ by a Viterbi pass over all cues at once.
 
 from __future__ import annotations
 
+import re
+import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass
 
 import numpy as np
 
 from syncsubtitles.activity import FRAME_RATE, activity_signal
 from syncsubtitles.align import estimate_offset, offset_peaks
-from syncsubtitles.filters import dialogue_indices
+from syncsubtitles.filters import dialogue_indices, plain_text
 from syncsubtitles.retime import Segment
 from syncsubtitles.subformats import Cue, SubtitleDocument
 
@@ -85,6 +90,17 @@ BACK_JUMP_PER_S = 0.3
 # hardly apart, that does. Its share of the score:
 _EDGE_REACH_S = 1.0
 _EDGE_WEIGHT = 0.2
+# A word both languages write the same (a name, mostly: "Joe Namath",
+# "Chilton"), in a target cue and a reference cue: the offsets that put
+# the two within _NAME_REACH_S of each other score this much more. In dense
+# dialogue, where landing on reference cues fits almost any offset (a
+# "previously" put by chance on the first scene, its own lines then
+# dropped), that tells the right one. A word in more reference cues than
+# _NAME_MAX_REF tells nothing ("Lorelai").
+_NAME_BONUS = 1.0
+_NAME_REACH_S = 1.5
+_NAME_MAX_REF = 8
+_WORD = re.compile(r"[^\W\d_]{3,}")
 # Cues of two different offsets may overlap this much in the reference:
 # the two languages' timing differs, most visibly right at a jump (0.32 s
 # on a real episode). Lines from a scene only the target has overlap
@@ -248,7 +264,52 @@ def _scores(ref: _Reference, frames: np.ndarray, offsets: np.ndarray) -> np.ndar
     ends = np.clip(frames[:, 1:] - offsets[None, :], 0, last)
     # In [-1, 1], as the overlap's: both edges on a reference edge, neither near one.
     edges = np.maximum(0, 1 - ref.start_gap[starts] / reach) + np.maximum(0, 1 - ref.end_gap[ends] / reach) - 1
-    return ((1 - _EDGE_WEIGHT) * overlap + _EDGE_WEIGHT * edges).astype(np.float32)
+    score = (1 - _EDGE_WEIGHT) * overlap + _EDGE_WEIGHT * edges
+    # Before the video starts: neither silence nor speech to land on (a
+    # "previously" only the target has). As silence, -1 each, it made a
+    # whole recap cheaper to put by chance onto the dense first scene than
+    # at its true offset, the first scene's own lines then dropped.
+    return np.where(frames[:, 1:] - offsets[None, :] <= 0, 0.0, score).astype(np.float32)
+
+
+def _fold(word: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", word) if not unicodedata.combining(c)).lower()
+
+
+def _names(text: str) -> set[str]:
+    """A target cue's words that may be names: capitalized, not starting a
+    sentence (every word of an all-caps line)."""
+    text = plain_text(text)
+    caps = text.upper() == text
+    names = set()
+    for m in _WORD.finditer(text):
+        before = text[: m.start()].rstrip(" \"'«»“”")
+        if caps or (m.group()[0].isupper() and before and before[-1] not in ".!?-–—…:\n"):
+            names.add(_fold(m.group()))
+    return names
+
+
+def _name_bonus(ref_cues: list[Cue], tgt_cues: list[Cue], states: np.ndarray) -> np.ndarray:
+    """(cues, states) what each target cue scores more at each offset for a
+    rare word it shares with a reference cue there (see _NAME_BONUS)."""
+    where: dict[str, list[int]] = defaultdict(list)
+    for r, cue in enumerate(ref_cues):
+        for word in {_fold(w) for w in _WORD.findall(plain_text(cue.text))}:
+            where[word].append(r)
+    ref_frames = _cue_frames(ref_cues)
+    frames = _cue_frames(tgt_cues)
+    reach = _NAME_REACH_S * FRAME_RATE
+    bonus = np.zeros((len(tgt_cues), len(states)), dtype=np.float32)
+    for j, cue in enumerate(tgt_cues):
+        for word in _names(cue.text):
+            refs = where.get(word, ())
+            if len(refs) > _NAME_MAX_REF:
+                continue
+            for r in refs:
+                lo = np.searchsorted(states, frames[j, 0] - ref_frames[r, 1] - reach)
+                hi = np.searchsorted(states, frames[j, 1] - ref_frames[r, 0] + reach, side="right")
+                bonus[j, lo:hi] = _NAME_BONUS
+    return bonus
 
 
 def _running_argmax(x: np.ndarray) -> np.ndarray:
@@ -290,9 +351,9 @@ def viterbi(
     return path
 
 
-def _refine(ref: _Reference, frames: np.ndarray, around: int) -> int:
+def _refine(ref: _Reference, frames: np.ndarray, around: int, reach_s: float = _REFINE_S) -> int:
     """The centre of the best plateau of a group's summed score near ``around``."""
-    reach = int(_REFINE_S * FRAME_RATE)
+    reach = int(reach_s * FRAME_RATE)
     offsets = np.arange(around - reach, around + reach + 1)
     total = _scores(ref, frames, offsets).sum(axis=0)
     best = np.flatnonzero(total >= total.max() - 1e-6)
@@ -373,7 +434,8 @@ def _detect_at_ratio(
 
     frames = _cue_frames(tgt_cues)
     durations = frames[:, 1] - frames[:, 0]
-    path = states[viterbi(_scores(reference, frames, states), states)]
+    scores = _scores(reference, frames, states) + _name_bonus(ref_cues, tgt_cues, states)
+    path = states[viterbi(scores, states)]
 
     # Runs of equal offset, each refined.
     breaks = np.flatnonzero(np.diff(path) != 0) + 1
@@ -392,7 +454,11 @@ def _detect_at_ratio(
     # Weighted like the Viterbi scores, in frames: what lands on reference
     # lines minus what spills over silence. Overlap alone let a long stray
     # line covering a short real one entirely (and a bit more) push it out.
-    kept = forward_chain(frames - offsets[:, None], run_ids, np.maximum(2 * overlap - durations, 0) + 1e-3)
+    # A rare word shared there too: of two runs fitting the same stretch
+    # (a "previously" and the scene itself), the one saying its names.
+    distinct, at = np.unique(offsets, return_inverse=True)
+    named = _name_bonus(ref_cues, tgt_cues, distinct)[np.arange(len(offsets)), at] * durations
+    kept = forward_chain(frames - offsets[:, None], run_ids, np.maximum(2 * overlap - durations, 0) + named + 1e-3)
 
     groups: list[tuple[np.ndarray, int]] = []
     for run in runs:
@@ -405,6 +471,7 @@ def _detect_at_ratio(
             groups[-1] = (np.concatenate([groups[-1][0], members]), offset)
         else:
             groups.append((members, offset))
+    groups = _without_previously(groups, kept, reference, ref_cues, tgt_cues, frames)
 
     matches = [
         CueMatch(order[j], offsets[j] / FRAME_RATE, float(overlap[j] / durations[j]), -1) for j in range(len(path))
@@ -421,6 +488,51 @@ def _detect_at_ratio(
     objective -= JUMP_PENALTY * max(len(groups) - 1, 0)
     detection = SegmentDetection(_build_segments(groups, frames, kept, ref_cumsum, ratio, length), ratio, matches)
     return detection, objective
+
+
+def _without_previously(
+    groups: list[tuple[np.ndarray, int]],
+    kept: np.ndarray,
+    reference: _Reference,
+    ref_cues: list[Cue],
+    tgt_cues: list[Cue],
+    frames: np.ndarray,
+) -> list[tuple[np.ndarray, int]]:
+    """``groups`` without a first one that is a "previously" only the
+    target has, put by chance on the first scene (dense dialogue fits
+    almost any offset): one the second group's offset would put entirely
+    before the video starts. The cues from its first to the second group's
+    then take the second's offset (those before the start are dropped
+    anyway), when they score more there than it does at its own. A teaser
+    of another offset (the video's opening credits the target lacks) is
+    the other way round: never one. Weighed as the Viterbi does: the
+    first group's cues, less going back in the reference to the second;
+    the cues taking its place, at the offset that suits them best near the
+    second's (a group of their own, or the second's). ``kept`` updated."""
+    if len(groups) < 2:
+        return groups
+    (first, own), (second, then) = groups[0], groups[1]
+    if np.any(frames[first, 1] - then > 0):
+        return groups
+    span = np.arange(first[0], second[0])
+
+    def score(cues: np.ndarray, offsets: np.ndarray) -> np.ndarray:
+        return (
+            _scores(reference, frames[cues], offsets) + _name_bonus(ref_cues, [tgt_cues[j] for j in cues], offsets)
+        )[:, 0]
+
+    joining = span[frames[span, 1] - then > 0]
+    if not len(joining):
+        return groups
+    near = _refine(reference, frames[joining], then, _BAND_S) if len(joining) >= _MIN_GROUP_CUES else then
+    back = JUMP_PENALTY + BACK_JUMP_PER_S * (then - own) / FRAME_RATE
+    if np.maximum(score(joining, np.array([near])), 0).sum() <= score(first, np.array([own])).sum() - back:
+        return groups
+    kept[first] = False
+    kept[joining] = True
+    if near != then:
+        return [(joining, near), *groups[1:]]
+    return [(np.concatenate([joining, second]), then), *groups[2:]]
 
 
 def _build_segments(
