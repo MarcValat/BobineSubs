@@ -885,6 +885,9 @@ input {
 
 .primary-button {
   background: var(--gradient-action);
+  /* From the outer edge: else the gradient repeats under the transparent
+     border, its light end as a one-pixel line down the left side. */
+  background-origin: border-box;
   border-color: transparent;
   color: var(--accent-fg);
   box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-2) 30%, transparent);
@@ -893,6 +896,7 @@ input {
 /* Deeper on hover, not lighter: the white text keeps its contrast. */
 .primary-button:hover:not(:disabled) {
   background: var(--gradient-action);
+  background-origin: border-box;
   border-color: transparent;
   filter: brightness(0.92);
 }

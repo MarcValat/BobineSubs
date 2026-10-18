@@ -83,6 +83,7 @@
 
 .switch:checked {
   background: var(--gradient);
+  background-origin: border-box;
   box-shadow: none;
 }
 

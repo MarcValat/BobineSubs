@@ -5,6 +5,27 @@
   gap: 8px;
 }
 
+/* "+" / "−" (from Bobine Audio's): drawn, not typed -- the font's glyphs sit
+   at lowercase height, never quite centered. Same height as the neighbouring
+   buttons. */
+.zoom-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+}
+
+.zoom-button svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
 /* One row: the jumps, the stretch shown, the zoom. */
 .loupe-toolbar {
   display: flex;

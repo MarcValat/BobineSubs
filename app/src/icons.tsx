@@ -134,6 +134,22 @@ export function RedoEditIcon() {
 }
 
 /** Scissors: cut a segment in two ("Couper ici"). */
+export function PlusIcon() {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M6 1.5v9M1.5 6h9" />
+    </svg>
+  );
+}
+
+export function MinusIcon() {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M1.5 6h9" />
+    </svg>
+  );
+}
+
 export function ScissorsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

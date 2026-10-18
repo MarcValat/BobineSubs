@@ -415,6 +415,9 @@ export const en: Messages = {
     previousJump: "← Previous jump",
     nextJump: "Next jump →",
     zoom: "Zoom:",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    wholeTrack: "Whole track",
     zoomHint:
       "Wheel on the lines: zoom in or out under the pointer. Drag: move through time. A click or a drag on the chart above, or in the editor on the bar below: take the loupe there.",
     reference: "Reference",

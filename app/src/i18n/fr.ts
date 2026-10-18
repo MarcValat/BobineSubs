@@ -421,6 +421,9 @@ export const fr = {
     previousJump: "← Saut précédent",
     nextJump: "Saut suivant →",
     zoom: "Zoom :",
+    zoomIn: "Zoomer",
+    zoomOut: "Dézoomer",
+    wholeTrack: "Piste entière",
     zoomHint:
       "Molette sur les répliques : zoomer ou dézoomer sous le curseur. Glisser : se déplacer dans le temps. Clic ou glisser sur la courbe au-dessus, ou dans l'éditeur sur la barre du dessous : y amener la loupe.",
     reference: "Référence",

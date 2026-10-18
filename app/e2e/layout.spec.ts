@@ -99,7 +99,11 @@ for (const [width, height] of SIZES)
           await page.waitForTimeout(800);
         });
         await audit("editor zoomed, cut, a line picked to align", async () => {
-          await page.locator(".editor-panel").getByRole("button", { name: "30 s" }).click();
+          for (let k = 0; k < 4; k++)
+            await page
+              .locator(".editor-panel")
+              .getByRole("button", { name: fr ? "Zoomer" : "Zoom in", exact: true })
+              .click();
           await page
             .locator(".editor-panel")
             .getByRole("button", { name: fr ? "Couper ici" : "Cut here" })

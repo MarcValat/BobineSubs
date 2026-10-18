@@ -3,8 +3,8 @@ import type { Analysis } from "./api";
 import { clock } from "./format";
 import { useT } from "./i18n";
 import { CueNavigator } from "./CueNavigator";
-import { AlignIcon, ScissorsIcon } from "./icons";
-import { InfoTip } from "./InfoTip";
+import { AlignIcon, MinusIcon, PlusIcon, ScissorsIcon } from "./icons";
+import { InfoTip, Tooltip } from "./InfoTip";
 import { isOut, lineFates, MIN_LINE_S, segmentFor } from "./retime";
 import {
   DRAG_THRESHOLD_PX,
@@ -19,8 +19,7 @@ import {
 import { useElementSize } from "./useElementSize";
 import "./CueLoupe.css";
 
-/** The zoom buttons' stretches (seconds). */
-const ZOOMS = [10, 30, 60, 120];
+/** The stretch an analysis' loupe opens on (seconds). */
 const DEFAULT_ZOOM = 30;
 
 /** Where an analysis' loupe opens: its first reference line, at 30 s. */
@@ -238,10 +237,9 @@ export function CueLoupe({
     });
   });
 
-  /** `seconds` long around the loupe's middle (a zoom button). */
-  function zoomTo(seconds: number) {
-    const span = Math.min(seconds, duration);
-    onView({ start: Math.max(0, Math.min(centre - span / 2, duration - span)), duration: span });
+  /** "+" / "−": twice closer or farther, around the loupe's middle. */
+  function zoomBy(factor: number) {
+    onView(zoomView(view, factor, centre, duration));
   }
 
   /** The loupe's middle on `time` (a jump). */
@@ -425,16 +423,19 @@ export function CueLoupe({
         </span>
         <div className="button-group">
           <span className="toolbar-label">{m.zoom}</span>
-          {ZOOMS.map((z) => (
-            <button
-              key={z}
-              className={Math.abs(view.duration - Math.min(z, duration)) < 0.05 ? "small-button primary-button" : "small-button"}
-              aria-pressed={Math.abs(view.duration - Math.min(z, duration)) < 0.05}
-              onClick={() => zoomTo(z)}
-            >
-              {z < 60 ? `${z} s` : `${z / 60} min`}
+          <Tooltip text={m.zoomIn}>
+            <button className="small-button zoom-button" aria-label={m.zoomIn} onClick={() => zoomBy(0.5)}>
+              <PlusIcon />
             </button>
-          ))}
+          </Tooltip>
+          <Tooltip text={m.zoomOut}>
+            <button className="small-button zoom-button" aria-label={m.zoomOut} onClick={() => zoomBy(2)}>
+              <MinusIcon />
+            </button>
+          </Tooltip>
+          <button className="small-button" onClick={() => onView({ start: 0, duration })}>
+            {m.wholeTrack}
+          </button>
           <InfoTip>{m.zoomHint}</InfoTip>
         </div>
       </div>

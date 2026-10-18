@@ -21,6 +21,11 @@ async function cutAt(app: App, share: number) {
   await app.page.mouse.dblclick(box.x + box.width * share, box.y + box.height / 2);
 }
 
+/** From the whole episode to about 40 s around its middle ("Zoomer" x4). */
+async function zoomIn(app: App) {
+  for (let k = 0; k < 4; k++) await editor(app).getByRole("button", { name: "Zoomer", exact: true }).click();
+}
+
 let outDir: string;
 
 test.beforeEach(async ({ app }) => {
@@ -51,7 +56,7 @@ test("cut, undo, redo, reset", async ({ app }) => {
   await expect(rows(app)).toHaveCount(2);
   // "Couper ici": the loupe's middle -- zoomed in, taken to a fifth of the
   // episode first (its middle, 300 s, is the jump itself: nothing to cut).
-  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await zoomIn(app);
   const bar = (await app.page.locator(".cue-navigator-svg").boundingBox())!;
   await app.page.mouse.click(bar.x + bar.width * 0.2, bar.y + bar.height / 2);
   await editor(app).getByRole("button", { name: "Couper ici" }).click();
@@ -77,10 +82,7 @@ test("the chart and the loupe zoom and move together, the bar too", async ({ app
   await app.page.mouse.move(chart.x + chart.width / 2, chart.y + chart.height / 2);
   for (let k = 0; k < 10; k++) await app.page.mouse.wheel(0, -120);
   await expect(shown(app)).not.toHaveText("0:00 – 10:00");
-  await editor(app)
-    .getByRole("tab", { name: "30 s" })
-    .or(editor(app).getByRole("button", { name: "30 s" }))
-    .click();
+  await zoomIn(app);
   const before = await shown(app).textContent();
   // The navigation bar's frame dragged right: later in the episode.
   const frame = (await app.page.locator(".cue-navigator-window").boundingBox())!;
@@ -92,7 +94,7 @@ test("the chart and the loupe zoom and move together, the bar too", async ({ app
 });
 
 test("Aligner moves a line's whole segment onto a reference line", async ({ app }) => {
-  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await zoomIn(app);
   const offset = rows(app).first().getByRole("textbox", { name: "Décal. début, segment 1" });
   await expect(offset).toHaveValue("500");
   await app.page.locator(".editor-panel .loupe-row-after .cue.labelled").nth(1).click();
@@ -122,7 +124,7 @@ test("what's saved is what's exported", async ({ app }) => {
 
 test("lines taken out or kept by hand are the export's", async ({ app }) => {
   // One line taken out by hand in the editor.
-  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await zoomIn(app);
   await app.page.locator(".editor-panel .loupe-row-after .cue.labelled").nth(1).click();
   await app.page.getByRole("button", { name: "Retirer cette réplique" }).click();
   await expect(editor(app)).toContainText("Modifié · 1 changement");
@@ -156,7 +158,7 @@ async function tipTimes(cue: ReturnType<App["page"]["locator"]>): Promise<[numbe
 }
 
 test("a line picked is resized and moved by hand, as exported", async ({ app }) => {
-  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await zoomIn(app);
   const picked = app.page.locator(".editor-panel .loupe-row-after .cue.picked");
   await app.page.locator(".editor-panel .loupe-row-after .cue.labelled").nth(1).click();
   const [a, b] = await tipTimes(picked);
@@ -210,7 +212,7 @@ test("a line picked is resized and moved by hand, as exported", async ({ app }) 
 });
 
 test("Delete takes the line picked out", async ({ app }) => {
-  await editor(app).getByRole("button", { name: "30 s" }).click();
+  await zoomIn(app);
   await app.page.locator(".editor-panel .loupe-row-after .cue.labelled").nth(1).click();
   await expect(app.page.locator(".editor-panel .cue.picked")).toHaveCount(1);
   await app.page.keyboard.press("Delete");
