@@ -16,7 +16,8 @@ describe("clock", () => {
 describe("offset", () => {
   it("always shows its sign, a true minus for a negative one", () => {
     expect(offset(1.06)).toBe("+1.060 s");
-    expect(offset(0)).toBe("+0.000 s");
+    expect(offset(0)).toBe("0 s");
+    expect(offset(-0.0001)).toBe("0 s");
     expect(offset(-0.5)).toBe("−0.500 s");
   });
 });
