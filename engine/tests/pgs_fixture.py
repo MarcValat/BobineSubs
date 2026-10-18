@@ -16,7 +16,9 @@ def _segment(pts: float, kind: int, payload: bytes) -> bytes:
 def _display_set(pts: float, number: int, show: bool) -> bytes:
     width, height = 64, 36
     objects = struct.pack(">HBBHH", 0, 0, 0, 10, 10) if show else b""
-    pcs = struct.pack(">HHBHBBBB", width, height, 0x10, number, 0x80 if show else 0x00, 0, 0, 1 if show else 0) + objects
+    pcs = (
+        struct.pack(">HHBHBBBB", width, height, 0x10, number, 0x80 if show else 0x00, 0, 0, 1 if show else 0) + objects
+    )
     wds = struct.pack(">BBHHHH", 1, 0, 10, 10, 1, 1)
     out = _segment(pts, 0x16, pcs) + _segment(pts, 0x17, wds)
     if show:

@@ -2,8 +2,8 @@
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use tauri::path::BaseDirectory;
 use tauri::Manager;
+use tauri::path::BaseDirectory;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 /// The engine's port, picked at startup: the usual one when it's free,
@@ -33,6 +33,38 @@ const DEFAULT_PORT: u16 = 8757;
 #[tauri::command]
 fn engine_port(port: tauri::State<EnginePort>) -> u16 {
     port.0
+}
+
+/// The secret every request to the engine carries (the engine refuses any
+/// other: see its server.py, TokenGuard): it listens on 127.0.0.1, where
+/// this machine's other programs and the websites open in its browser could
+/// otherwise call it. The frontend asks for it through `engine_token`.
+struct EngineToken(String);
+
+/// The dev builds' token, fixed: a plain browser on the dev server (and the
+/// end-to-end tests, which may reuse `tauri dev`'s engine) knows it too --
+/// see the frontend's engine.ts.
+const DEV_TOKEN: &str = "bobine-dev";
+
+/// A new secret at each launch, in 64 hex digits: hashers keyed with the
+/// 128 random bits the standard library draws from the OS once per process.
+fn new_token() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    if cfg!(debug_assertions) {
+        return DEV_TOKEN.to_string();
+    }
+    (0..4u64)
+        .map(|i| {
+            let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+            hasher.write_u64(i);
+            format!("{:016x}", hasher.finish())
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn engine_token(token: tauri::State<EngineToken>) -> String {
+    token.0.clone()
 }
 
 /// The running engine: a dev-time `uv run` child (live Python source) or a
@@ -70,8 +102,9 @@ impl KillOnCloseJob {
     fn new() -> Option<Self> {
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::System::JobObjects::{
-            CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
         };
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -185,7 +218,7 @@ fn kill_process_tree(pid: u32) {
 /// A failure here (e.g. `uv` missing in dev, or the binary wasn't built for
 /// a release) is logged, not fatal: the GUI window still opens, it just
 /// can't reach the engine until fixed and restarted.
-fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
+fn spawn_sidecar(app: &tauri::AppHandle, port: u16, token: &str) -> Option<Child> {
     // Second, independent safety net next to the Job Object (see
     // KillOnCloseJob): the engine watches this PID itself and exits once
     // it's gone. Covers dev mode's `uv run` hop and any gap between spawning
@@ -195,12 +228,24 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
     if cfg!(debug_assertions) {
         let dir = engine_dir();
         match Command::new("uv")
-            .args(["run", "syncsubtitles", "serve", "--port", &port, "--parent-pid", &parent_pid])
+            .args([
+                "run",
+                "syncsubtitles",
+                "serve",
+                "--port",
+                &port,
+                "--parent-pid",
+                &parent_pid,
+            ])
             .current_dir(&dir)
+            .env("SYNCSUBTITLES_TOKEN", token)
             .spawn()
         {
             Ok(child) => {
-                println!("[sidecar] démarré (uv run syncsubtitles serve) dans {:?}", dir);
+                println!(
+                    "[sidecar] démarré (uv run syncsubtitles serve) dans {:?}",
+                    dir
+                );
                 Some(child)
             }
             Err(err) => {
@@ -210,7 +255,10 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
         }
     } else {
         // ".exe" on Windows, no extension on Linux.
-        let name = format!("engine/syncsubtitles-engine{}", std::env::consts::EXE_SUFFIX);
+        let name = format!(
+            "engine/syncsubtitles-engine{}",
+            std::env::consts::EXE_SUFFIX
+        );
         let exe = match app.path().resolve(name, BaseDirectory::Resource) {
             Ok(path) => path,
             Err(err) => {
@@ -220,6 +268,7 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
         };
         match Command::new(&exe)
             .args(["serve", "--port", &port, "--parent-pid", &parent_pid])
+            .env("SYNCSUBTITLES_TOKEN", token)
             .spawn()
         {
             Ok(child) => {
@@ -232,6 +281,43 @@ fn spawn_sidecar(app: &tauri::AppHandle, port: u16) -> Option<Child> {
             }
         }
     }
+}
+
+/// What's remembered of the main window: everything but its decorations --
+/// it has none (its title bar is the app's own, tauri.conf.json), and a
+/// state saved by a version that had them would bring them back.
+fn window_state_flags() -> StateFlags {
+    StateFlags::all() - StateFlags::DECORATIONS
+}
+
+/// Before the window first shows: on a screen with less room than its
+/// minimum size (tauri.conf.json) or its size (the default, or one saved on
+/// a bigger screen), e.g. a 1366x768 laptop at 125%, its minimum shrinks to
+/// the screen's free area (taskbar excluded) and it opens maximized, all of
+/// it on screen. The page then zooms out to fit there (uiScale.ts).
+///
+/// Not for a window restored maximized (window-state): it fills the screen
+/// already, and a new minimum size would take it out of maximized at that
+/// size -- the size it then got back once unmaximized, past the screen's
+/// edges, instead of the one it had before being maximized.
+fn fit_to_screen(window: &tauri::WebviewWindow) {
+    if window.is_maximized().unwrap_or(false) {
+        return;
+    }
+    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else {
+        return;
+    };
+    let area = monitor.work_area().size;
+    if size.width <= area.width && size.height <= area.height {
+        return;
+    }
+    let scale = monitor.scale_factor();
+    let min = tauri::LogicalSize::new(
+        f64::min(1024.0, area.width as f64 / scale),
+        f64::min(640.0, area.height as f64 / scale),
+    );
+    let _ = window.set_min_size(Some(min));
+    let _ = window.maximize();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -254,18 +340,25 @@ pub fn run() {
         // Restores the main window's size, position and maximized state as
         // it's created. It's created hidden (tauri.conf.json) and only shown
         // here, once restored, so it doesn't flash at the default size first.
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(window_state_flags())
+                .build(),
+        )
         .setup(|app| {
             // Known before the window shows: the frontend asks for it at once.
             let port = free_port();
             app.manage(EnginePort(port));
+            let token = new_token();
+            app.manage(EngineToken(token.clone()));
             if let Some(window) = app.get_webview_window("main") {
+                fit_to_screen(&window);
                 let _ = window.show();
             }
             let handle = app.handle().clone();
             #[cfg(windows)]
             let job = KillOnCloseJob::new();
-            let child = spawn_sidecar(&handle, port);
+            let child = spawn_sidecar(&handle, port, &token);
             #[cfg(windows)]
             {
                 // Right after spawning, before the engine has had time to
@@ -273,22 +366,27 @@ pub fn run() {
                 // so those are born inside the job and inherit it. The
                 // engine's own --parent-pid watchdog covers the case where
                 // one isn't.
-                if let (Some(job), Some(child)) = (&job, &child) {
-                    if !job.assign(child.id()) {
-                        eprintln!("[sidecar] impossible de rattacher le moteur au job de l'UI");
-                    }
+                if let (Some(job), Some(child)) = (&job, &child)
+                    && !job.assign(child.id())
+                {
+                    eprintln!("[sidecar] impossible de rattacher le moteur au job de l'UI");
                 }
                 app.manage(SidecarJob(job));
             }
             app.manage(SidecarState(Mutex::new(child)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![engine_port, stop_sidecar])
+        .invoke_handler(tauri::generate_handler![
+            engine_port,
+            engine_token,
+            stop_sidecar
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                        let _ = app_handle.save_window_state(StateFlags::all());
+                // Also covers exits that close no window first (the updater's restart).
+                let _ = app_handle.save_window_state(window_state_flags());
                 let state = app_handle.state::<SidecarState>();
                 let mut guard = state.0.lock().unwrap();
                 if let Some(child) = guard.take() {

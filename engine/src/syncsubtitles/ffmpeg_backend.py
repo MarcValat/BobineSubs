@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+from collections import OrderedDict
 from functools import lru_cache
 from pathlib import Path
 
 from syncsubtitles.cancellation import Cancelled, current_cancel_event
+from syncsubtitles.i18n import tr
 from syncsubtitles.models import StreamInfo, SubtitleStreamInfo
 from syncsubtitles.pgs import parse_sup
+from syncsubtitles.subformats import PGS, VOBSUB, SubtitleDocument, decode_subtitle_bytes, format_for_codec, parse
 from syncsubtitles.vobsub import split_packets, vobsub_cues
-from syncsubtitles.subformats import PGS, VOBSUB, Cue, SubtitleDocument, decode_subtitle_bytes, format_for_codec, parse
 
 # Never flash a console window per ffmpeg call once packaged without a console.
 _SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
@@ -26,16 +30,39 @@ class FFmpegError(RuntimeError):
 _CANCEL_POLL_S = 0.2
 
 
+def _child_env(environ: dict[str, str], frozen: bool) -> dict[str, str] | None:
+    """The environment ffmpeg runs in: the system's own, not the one a
+    PyInstaller build gives itself on Linux, whose LD_LIBRARY_PATH points at
+    the libraries bundled with the engine. The system's ffmpeg (preferred
+    over the bundled one, see resolve_ffmpeg) then loaded the bundle's older
+    libstdc++ and failed at once ("GLIBCXX_3.4.32 not found", ffmpeg 8 on
+    Ubuntu 26.04; found in Bobine Audio). PyInstaller keeps the original
+    value in LD_LIBRARY_PATH_ORIG. ``None`` (inherit as is) when not frozen,
+    and on Windows."""
+    if not frozen or sys.platform == "win32":
+        return None
+    env = dict(environ)
+    original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if original is None:
+        env.pop("LD_LIBRARY_PATH", None)
+    else:
+        env["LD_LIBRARY_PATH"] = original
+    return env
+
+
+_CHILD_ENV = _child_env(dict(os.environ), getattr(sys, "frozen", False))
+
+
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
-    """Run ffmpeg, killing it (raising ``Cancelled``) as soon as the job
-    running it is cancelled."""
+    """Run ffmpeg in the system's environment (see _child_env), killing it
+    (raising ``Cancelled``) as soon as the job running it is cancelled."""
     event = current_cancel_event()
     if event is None:
-        return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS)
+        return subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS, env=_CHILD_ENV)
     if event.is_set():
         raise Cancelled()
     with subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS, env=_CHILD_ENV
     ) as proc:
         while True:
             try:
@@ -52,7 +79,13 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
 def run_checked(cmd: list[str]) -> bytes:
     proc = _run(cmd)
     if proc.returncode != 0:
-        raise FFmpegError(f"ffmpeg failed:\n{' '.join(cmd)}\n{proc.stderr.decode(errors='replace')}")
+        raise FFmpegError(
+            tr(
+                "Échec ffmpeg :\n{command}\n{details}",
+                command=" ".join(cmd),
+                details=proc.stderr.decode(errors="replace"),
+            )
+        )
     return proc.stdout
 
 
@@ -67,7 +100,7 @@ def resolve_ffmpeg() -> str:
 
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception as exc:  # pragma: no cover - defensive
-        raise FFmpegError("ffmpeg not found: neither on PATH nor through the imageio-ffmpeg package.") from exc
+        raise FFmpegError(tr("ffmpeg introuvable : ni sur le PATH, ni via le paquet imageio-ffmpeg.")) from exc
 
 
 def _file_identity(path: str) -> tuple[str, int, int]:
@@ -85,10 +118,10 @@ def _ffmpeg_info_cached(path: str, identity: tuple[str, int, int]) -> str:
 def ffmpeg_info(path: str) -> str:
     """``ffmpeg -i path``'s report, read once per unchanged file."""
     if not Path(path).is_file():
-        raise FFmpegError(f"File not found: {path}")
+        raise FFmpegError(tr("Fichier introuvable : {path}", path=path))
     info = _ffmpeg_info_cached(path, _file_identity(path))
     if "Invalid data found" in info:
-        raise FFmpegError(f"Cannot read {path!r}:\n{info}")
+        raise FFmpegError(tr("Impossible de lire {path!r} :\n{details}", path=path, details=info))
     return info
 
 
@@ -179,7 +212,34 @@ def subtitle_format(codec: str) -> str | None:
     return format_for_codec(codec) or _IMAGE_FORMATS.get(codec.strip().lower())
 
 
+# The subtitle tracks already read, by file (its path, size and date: a
+# changed file is read again): the app reads every track of a file as soon
+# as it's listed (its line counts), and the analysis then starts from them.
+# Text tracks weigh little; a few files' worth are kept.
+_EXTRACTED: OrderedDict[tuple[str, int, int], dict[int, SubtitleDocument]] = OrderedDict()
+_EXTRACTED_FILES = 16
+_EXTRACTED_LOCK = threading.Lock()
+
+
 def extract_subtitles(path: str, indices: list[int]) -> dict[int, SubtitleDocument]:
+    """Subtitle streams ``indices`` (``0:s:N``) of ``path``: those already
+    read from the file as it is now (see _EXTRACTED), the others read in
+    one pass."""
+    identity = _file_identity(path)
+    with _EXTRACTED_LOCK:
+        known = dict(_EXTRACTED.get(identity, {}))
+    missing = [i for i in dict.fromkeys(indices) if i not in known]
+    if missing:
+        known.update(_extract_subtitles(path, missing))
+        with _EXTRACTED_LOCK:
+            _EXTRACTED.setdefault(identity, {}).update(known)
+            _EXTRACTED.move_to_end(identity)
+            while len(_EXTRACTED) > _EXTRACTED_FILES:
+                _EXTRACTED.popitem(last=False)
+    return {i: known[i] for i in indices}
+
+
+def _extract_subtitles(path: str, indices: list[int]) -> dict[int, SubtitleDocument]:
     """Read subtitle streams ``indices`` (``0:s:N``) of ``path``, all in one pass.
 
     One ffmpeg run reads the whole file whatever it extracts, which on a
@@ -193,10 +253,24 @@ def extract_subtitles(path: str, indices: list[int]) -> dict[int, SubtitleDocume
     formats = {}
     for index in dict.fromkeys(indices):
         if index >= len(streams):
-            raise FFmpegError(f"No subtitle track @{index} in {path!r} ({len(streams)} found).")
+            raise FFmpegError(
+                tr(
+                    "Piste de sous-titres @{index} absente de {path!r} ({count} trouvée(s)).",
+                    index=index,
+                    path=path,
+                    count=len(streams),
+                )
+            )
         fmt = subtitle_format(streams[index].codec)
         if fmt is None:
-            raise FFmpegError(f"Subtitle track @{index} of {path!r} is {streams[index].codec}, which isn't supported.")
+            raise FFmpegError(
+                tr(
+                    "La piste de sous-titres @{index} de {path!r} est en {codec}, format non pris en charge.",
+                    index=index,
+                    path=path,
+                    codec=streams[index].codec,
+                )
+            )
         formats[index] = fmt
 
     with tempfile.TemporaryDirectory(prefix="syncsubtitles-") as tmp:

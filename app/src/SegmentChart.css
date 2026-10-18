@@ -1,0 +1,189 @@
+.segment-chart {
+  margin: 1em auto;
+  max-width: 760px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6em 0.8em;
+  box-sizing: border-box;
+}
+
+.segment-chart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The plot inside the axes' margins (SegmentChart.tsx sets them), its
+   labels past its edges. */
+.segment-chart-box {
+  position: relative;
+}
+
+.segment-chart svg.segment-chart-plot {
+  position: absolute;
+  overflow: visible;
+}
+
+/* On a tab of its own: the whole height, the box growing to fill it. */
+.segment-chart-fill {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.segment-chart-fill .segment-chart-box {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.zero-line {
+  stroke: var(--text-muted);
+  stroke-dasharray: 4 3;
+  stroke-width: 1;
+}
+
+.grid-line {
+  stroke: currentColor;
+  opacity: 0.12;
+  stroke-width: 1;
+}
+
+.axis-label {
+  font-size: 11px;
+  fill: currentColor;
+  opacity: 0.7;
+}
+
+.segment-line {
+  stroke-width: 3;
+  fill: none;
+}
+
+.segment-line.constant {
+  stroke: var(--constant);
+}
+
+.segment-line.drift {
+  stroke: var(--drift);
+}
+
+/* Dashed: the detection itself isn't sure of this one (confidence ⚠). */
+.segment-line.low-confidence {
+  stroke-dasharray: 7 5;
+}
+
+.segment-label {
+  font-size: 11px;
+  fill: currentColor;
+  opacity: 0.85;
+}
+
+.segment-chart-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-top: 0.25em;
+}
+
+.segment-chart-legend {
+  display: flex;
+  gap: 1.5em;
+  font-size: 0.85em;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 1.2em;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.legend-swatch.constant {
+  background: var(--constant);
+}
+
+.legend-swatch.drift {
+  background: var(--drift);
+}
+
+.legend-swatch.low-confidence {
+  background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
+  opacity: 0.7;
+}
+
+/* Nothing drawn yet (SegmentChartPlaceholder): a dashed frame, what's going
+   on in its middle. */
+.segment-chart-placeholder {
+  border-style: dashed;
+}
+
+.segment-chart-placeholder-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  text-align: center;
+}
+
+.segment-chart-placeholder-body p {
+  margin: 0;
+}
+
+.segment-chart-placeholder-body .log-button {
+  align-self: center;
+}
+
+/* Bobine Subs: a click or a drag on the chart takes the loupe there. */
+.segment-chart-box.pickable {
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+}
+
+/* The loupe's stretch, framed. */
+.segment-chart-view {
+  fill: color-mix(in srgb, var(--accent) 10%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+/* The cues under the plot: the reference's row, then the corrected ones. */
+.segment-chart svg.segment-chart-cues {
+  position: absolute;
+  pointer-events: none;
+}
+
+.cue-ticks.reference {
+  fill: var(--constant);
+  opacity: 0.6;
+}
+
+.cue-ticks.corrected {
+  fill: var(--accent-2);
+  opacity: 0.75;
+}
+
+.segment-chart-cues-legend {
+  display: flex;
+  gap: 1.2em;
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.legend-swatch.cues-reference {
+  background: var(--constant);
+  height: 5px;
+}
+
+.legend-swatch.cues-corrected {
+  background: var(--accent-2);
+  height: 5px;
+}

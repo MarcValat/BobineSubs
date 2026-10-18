@@ -1,0 +1,211 @@
+/* Every drop-down of the app (Dropdown.tsx): a button showing what's
+   picked, its list unrolling under it (or above), fading in and out. */
+.dropdown-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 7em;
+  max-width: 100%;
+  /* Whole pixels high: its chevron on whole pixels. */
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 0.7em 0 0.85em;
+  background-color: var(--surface-alt);
+  font-weight: 500;
+}
+
+.dropdown-button.open {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.dropdown-shown {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "2 / 5": how many are ticked, of how many. */
+.dropdown-count {
+  padding: 0.1em 0.55em;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  /* The deeper blue: --accent on its own tint read under 4.5:1 (light). */
+  color: var(--accent-hover);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.dropdown-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2.4;
+  transition: transform 150ms;
+}
+
+.dropdown-button.open .dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+/* Rendered at the end of the page (Dropdown.tsx), over everything --
+   dialogs included. */
+.dropdown-list {
+  position: fixed;
+  z-index: 1100;
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 16px));
+  max-height: min(60vh, 26rem);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-popup);
+  text-align: left;
+  animation: dropdown-in 120ms ease-out;
+}
+
+.dropdown-list.closing {
+  animation: dropdown-out 120ms ease-in forwards;
+}
+
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes dropdown-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* Opening upward: it slides from below instead. */
+.dropdown-list.above {
+  animation-name: dropdown-in-above;
+}
+
+.dropdown-list.above.closing {
+  animation-name: dropdown-out-above;
+}
+
+@keyframes dropdown-in-above {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes dropdown-out-above {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-list,
+  .dropdown-list.closing {
+    animation: none;
+  }
+}
+
+.dropdown-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* A section's title, as MKV Muxing Batch GUI's "---Language---". */
+.dropdown-heading {
+  margin: 6px 8px 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 400;
+  text-align: left;
+  color: var(--text);
+}
+
+.dropdown-option:hover,
+.dropdown-option:focus-visible {
+  background: var(--surface-alt);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.dropdown-option.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* The one picked, of a single choice: in the accent. */
+.dropdown-option.selected:not(:has(.dropdown-check)) .dropdown-option-label {
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.dropdown-option-label {
+  white-space: nowrap;
+}
+
+.dropdown-detail {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* One of several: a drawn check box. */
+.dropdown-check {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 4px;
+}
+
+.dropdown-option.selected .dropdown-check {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3.5,8.5 6.5,11.5 12.5,4.5'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+
+.dropdown-footer {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--border);
+}

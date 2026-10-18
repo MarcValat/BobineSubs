@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
-import { errorMessage } from "./shared";
+import { devParam, errorMessage } from "./util";
 import { DownloadIcon } from "./icons";
+import { Tooltip } from "./InfoTip";
+import { useT } from "./i18n";
 import { useCheckUpdates } from "./settings";
 
 // "error": the download failed, the app still works; "failed": the install
@@ -17,16 +19,14 @@ interface PendingUpdate {
   install(): Promise<void>;
 }
 type DownloadEvent =
-  | { event: "Started"; data: { contentLength?: number } }
-  | { event: "Progress"; data: { chunkLength: number } }
-  | { event: "Finished" };
+  { event: "Started"; data: { contentLength?: number } } | { event: "Progress"; data: { chunkLength: number } } | { event: "Finished" };
 
 /** Dev only (see devParam): `?update=1` shows a pretend update. */
 function devUpdate(): PendingUpdate | null {
-  if (!import.meta.env.DEV || new URLSearchParams(location.search).get("update") !== "1") return null;
+  if (devParam("update") !== "1") return null;
   return {
     version: "9.9.9",
-    download: () => Promise.reject(new Error("mise à jour fictive (dev)")),
+    download: () => Promise.reject(new Error("pretend update (dev)")),
     install: () => Promise.resolve(),
   };
 }
@@ -40,6 +40,7 @@ function devUpdate(): PendingUpdate | null {
  * clutter the app over something this optional.
  */
 export function UpdateButton() {
+  const t = useT();
   const [update, setUpdate] = useState<PendingUpdate | null>(devUpdate);
   const [phase, setPhase] = useState<Phase>(() => (devUpdate() ? "available" : "idle"));
   const [progress, setProgress] = useState<{ downloaded: number; total: number | null }>({ downloaded: 0, total: null });
@@ -128,52 +129,47 @@ export function UpdateButton() {
   const busy = phase === "downloading" || phase === "ready";
   const failed = phase === "error" || phase === "failed";
   const title =
-    phase === "downloading"
-      ? `Téléchargement de la mise à jour${percent !== null ? ` : ${percent} %` : "..."}`
-      : failed
-        ? "La mise à jour a échoué"
-        : `Mise à jour disponible : v${update.version}`;
+    phase === "downloading" ? t.update.downloadingTitle(percent) : failed ? t.update.failedTitle : t.update.availableTitle(update.version);
 
   return (
     <div className="update-box" ref={boxRef}>
-      <button
-        className={`icon-button update-button${failed ? " update-button-failed" : ""}${busy ? " update-button-busy" : ""}`}
-        title={title}
-        aria-label={title}
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <DownloadIcon />
-        <span className="update-dot" aria-hidden="true" />
-      </button>
+      <Tooltip text={title}>
+        <button
+          className={`icon-button update-button${failed ? " update-button-failed" : ""}${busy ? " update-button-busy" : ""}`}
+          aria-label={title}
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <DownloadIcon />
+          <span className="update-dot" aria-hidden="true" />
+        </button>
+      </Tooltip>
       {open && (
         <div className="top-menu update-menu" role="dialog">
-          <p className="update-menu-title">
-            {failed ? "Échec de la mise à jour" : `Bobine Subs v${update.version} est disponible`}
-          </p>
+          <p className="update-menu-title">{failed ? t.update.failedHeading : t.update.availableHeading(update.version)}</p>
           {phase === "available" && (
             <>
-              <p className="update-menu-note">L'application redémarre une fois la mise à jour téléchargée : une analyse ou un export en cours sera interrompu.</p>
+              <p className="update-menu-note">{t.update.restartNote}</p>
               <button className="primary-button" onClick={install}>
-                Installer et redémarrer
+                {t.update.install}
               </button>
             </>
           )}
-          {phase === "downloading" && <p>Téléchargement... {percent !== null ? `${percent} %` : ""}</p>}
-          {phase === "ready" && <p>Installation, redémarrage...</p>}
+          {phase === "downloading" && <p>{t.update.downloading(percent)}</p>}
+          {phase === "ready" && <p>{t.update.installing}</p>}
           {phase === "error" && (
             <>
-              <p className="error">Échec du téléchargement : {error}</p>
+              <p className="error">{t.update.downloadFailed(error ?? "")}</p>
               <button className="primary-button" onClick={install}>
-                Réessayer
+                {t.common.retry}
               </button>
             </>
           )}
           {phase === "failed" && (
             <>
-              <p className="error">Échec de l'installation : {error}</p>
+              <p className="error">{t.update.installFailed(error ?? "")}</p>
               <button className="primary-button" onClick={() => relaunch()}>
-                Redémarrer l'application
+                {t.update.restart}
               </button>
             </>
           )}

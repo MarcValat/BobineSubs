@@ -9,29 +9,101 @@ its result, its error or its cancellation.
 from __future__ import annotations
 
 import asyncio
+import os
+import secrets
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from starlette.datastructures import QueryParams
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from syncsubtitles.episodes import natural_key, pair_files
-from syncsubtitles.ffmpeg_backend import FFmpegError, probe_duration, probe_subtitle_streams, subtitle_format
+from syncsubtitles.ffmpeg_backend import (
+    FFmpegError,
+    extract_subtitles,
+    probe_duration,
+    probe_subtitle_streams,
+    subtitle_format,
+)
+from syncsubtitles.i18n import LANGUAGES, set_language, tr
 from syncsubtitles.jobs import get_job, start_job
-from syncsubtitles.outputs import OutputName, plan_outputs
+from syncsubtitles.languages import guess_language
 from syncsubtitles.models import SubtitleTrackSpec
+from syncsubtitles.outputs import OutputName, plan_outputs
 from syncsubtitles.render import default_mkv_output, default_subtitle_output
 from syncsubtitles.retime import Segment
-from syncsubtitles.service import Analysis, AnalysisError, analyze, load_target, write_result
+from syncsubtitles.service import (
+    Analysis,
+    AnalysisError,
+    TrackToWrite,
+    Written,
+    analyze,
+    load_target,
+    write_result,
+    write_tracks,
+)
 from syncsubtitles.subformats import read_file
 from syncsubtitles.tracks import SUBTITLE_EXTENSIONS
 
 app = FastAPI(title="Bobine Subs", version="0.1.0")
 
-# Only ever bound to 127.0.0.1 (see `syncsubtitles serve`): open CORS just
-# lets the app's webview (tauri://..., localhost:1420 in dev) call it.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Who may call the engine. It only listens on 127.0.0.1 (see `syncsubtitles
+# serve`), out of other machines' reach -- but not of this one's other
+# programs, nor of the websites open in its browser. So:
+# - the app that starts it passes it a secret (SYNCSUBTITLES_TOKEN, new at
+#   every launch), and every request must carry it back: the TOKEN_HEADER
+#   header, or a `token` query parameter for a WebSocket (a browser can't set
+#   its headers). /health alone answers without it (it tells nothing);
+# - only the app's own pages may read its answers (CORS): the Tauri window
+#   (tauri://localhost on Linux, http(s)://tauri.localhost on Windows) and
+#   the dev server, and any SYNCSUBTITLES_ORIGINS adds (comma-separated: the
+#   end-to-end tests' own dev server, on a port of its own).
+# Without SYNCSUBTITLES_TOKEN (`syncsubtitles serve` run by hand), no token is asked.
+TOKEN_HEADER = "X-Bobine-Token"
+APP_ORIGINS = [
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "http://localhost:1420",
+    *(o.strip() for o in os.environ.get("SYNCSUBTITLES_ORIGINS", "").split(",") if o.strip()),
+]
+
+
+class TokenGuard:
+    """Refuses any request without the engine's token (see above): 401 for a
+    request, a closed handshake for a WebSocket."""
+
+    def __init__(self, inner: ASGIApp) -> None:
+        self.inner = inner
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        expected = os.environ.get("SYNCSUBTITLES_TOKEN")
+        if not expected or scope["type"] not in ("http", "websocket") or scope["path"] == "/health":
+            await self.inner(scope, receive, send)
+            return
+        # A CORS preflight carries no custom header: CORSMiddleware answers it.
+        if scope["type"] == "http" and scope["method"] == "OPTIONS":
+            await self.inner(scope, receive, send)
+            return
+        if scope["type"] == "http":
+            headers = dict(scope["headers"])
+            given = headers.get(TOKEN_HEADER.lower().encode(), b"").decode("latin-1")
+        else:
+            given = QueryParams(scope["query_string"]).get("token", "")
+        if secrets.compare_digest(given.encode(), expected.encode()):
+            await self.inner(scope, receive, send)
+        elif scope["type"] == "http":
+            await JSONResponse(status_code=401, content={"detail": "unauthorized"})(scope, receive, send)
+        else:
+            await send({"type": "websocket.close", "code": 1008})
+
+
+# The token checked inside CORS: a refusal still says where it came from.
+app.add_middleware(TokenGuard)
+app.add_middleware(CORSMiddleware, allow_origins=APP_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 @app.exception_handler(FFmpegError)
@@ -47,6 +119,20 @@ async def _analysis_error(_request: Request, exc: AnalysisError) -> JSONResponse
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+class LanguageRequest(BaseModel):
+    language: str
+
+
+@app.post("/language", status_code=204)
+def language(req: LanguageRequest) -> Response:
+    """The language of the messages the GUI shows (job logs, errors): it
+    sends its own at startup and whenever the user changes it."""
+    if req.language not in LANGUAGES:
+        raise HTTPException(400, f"Unknown language: {req.language!r}")
+    set_language(req.language)
+    return Response(status_code=204)
 
 
 class TrackRef(BaseModel):
@@ -88,19 +174,28 @@ class ProbeResponse(BaseModel):
     duration: float | None
     tracks: list[TrackInfo]
     cue_count: int | None = None
+    # A standalone file's language, from its name ("Film.fr.srt").
+    language: str | None = None
 
 
 @app.get("/probe", response_model=ProbeResponse)
 def probe(path: str) -> ProbeResponse:
     if not Path(path).is_file():
-        raise HTTPException(400, f"Fichier introuvable : {path}")
+        raise HTTPException(400, tr("Fichier introuvable : {path}", path=path))
     if Path(path).suffix.lower() in SUBTITLE_EXTENSIONS:
         try:
             doc = read_file(path)
         except (ValueError, OSError) as exc:
-            raise HTTPException(400, f"Sous-titres illisibles : {exc}") from exc
+            raise HTTPException(400, tr("Sous-titres illisibles : {error}", error=exc)) from exc
         duration = max((c.end for c in doc.cues), default=None)
-        return ProbeResponse(path=path, kind="subtitles", duration=duration, tracks=[], cue_count=len(doc.cues))
+        return ProbeResponse(
+            path=path,
+            kind="subtitles",
+            duration=duration,
+            tracks=[],
+            cue_count=len(doc.cues),
+            language=guess_language(path),
+        )
     tracks = [
         TrackInfo(
             index=s.index,
@@ -114,6 +209,23 @@ def probe(path: str) -> ProbeResponse:
         for s in probe_subtitle_streams(path)
     ]
     return ProbeResponse(path=path, kind="container", duration=probe_duration(path), tracks=tracks)
+
+
+class ReadTracksRequest(BaseModel):
+    path: str
+
+
+@app.post("/read-tracks")
+def read_tracks(req: ReadTracksRequest) -> dict[str, dict[int, int]]:
+    """Every readable subtitle track of a container, read in one pass and
+    kept (see ffmpeg_backend.extract_subtitles): how many lines each one
+    has, for the app's tracks table, and the analysis then starts from them.
+    The app asks for each file as it's listed, one at a time."""
+    if not Path(req.path).is_file():
+        raise HTTPException(400, tr("Fichier introuvable : {path}", path=req.path))
+    indices = [s.index for s in probe_subtitle_streams(req.path) if subtitle_format(s.codec) is not None]
+    docs = extract_subtitles(req.path, indices) if indices else {}
+    return {"cues": {index: len(doc.cues) for index, doc in docs.items()}}
 
 
 @app.get("/default-output")
@@ -219,13 +331,14 @@ class SegmentModel(BaseModel):
     offset_start: float
     offset_end: float
     confidence: float = 1.0
+    target_cut: tuple[float, float] | None = None
 
     @classmethod
     def of(cls, seg: Segment) -> SegmentModel:
         return cls(**{k: getattr(seg, k) for k in cls.model_fields})
 
     def to_segment(self) -> Segment:
-        return Segment(self.start_s, self.end_s, self.offset_start, self.offset_end, self.confidence)
+        return Segment(self.start_s, self.end_s, self.offset_start, self.offset_end, self.confidence, self.target_cut)
 
 
 class TargetCueModel(BaseModel):
@@ -234,6 +347,17 @@ class TargetCueModel(BaseModel):
     text: str
     group: int
     corrected: tuple[float, float] | None
+
+
+class CleanupChangeModel(BaseModel):
+    """What the cleanup does to one line (see cleanup.Change)."""
+
+    index: int
+    kinds: list[str]
+    before: str
+    after: str | None
+    duration_before: float
+    duration_after: float
 
 
 class AnalysisModel(BaseModel):
@@ -246,6 +370,8 @@ class AnalysisModel(BaseModel):
     reference_cues: list[tuple[float, float, str]]
     target_cues: list[TargetCueModel]
     warnings: list[str]
+    cleanup: dict[str, int] = {}
+    cleanup_changes: list[CleanupChangeModel] = []
 
     @classmethod
     def of(cls, a: Analysis) -> AnalysisModel:
@@ -259,6 +385,8 @@ class AnalysisModel(BaseModel):
             reference_cues=a.reference_cues,
             target_cues=[TargetCueModel(**vars(c)) for c in a.target_cues],
             warnings=a.warnings,
+            cleanup=a.cleanup,
+            cleanup_changes=[CleanupChangeModel(**vars(c)) for c in a.cleanup_changes],
         )
 
 
@@ -276,46 +404,166 @@ def start_analyze(req: AnalyzeRequest) -> JobStarted:
     return JobStarted(job_id=start_job(run).id)
 
 
+class RenderTrack(BaseModel):
+    """One corrected track of an MKV export (see RenderRequest.tracks)."""
+
+    target: TrackRef
+    segments: list[SegmentModel]
+    language: str | None = None
+    title: str | None = None
+    # The default and forced flags; None: the replaced track's (none when added).
+    default: bool | None = None
+    forced: bool | None = None
+    # Its own file, for a standalone subtitle export (``subs_only``).
+    output: str | None = None
+    # The reference's subtitle track it takes the place of, or the one in
+    # its language if there's one (see TrackToWrite).
+    replaces: int | None = None
+    replace_same_language: bool = False
+    # Lines kept though in a stretch the reference lacks, or taken out, by
+    # hand: indices into the analysis' target_cues.
+    keep: list[int] = []
+    drop: list[int] = []
+    # The cleanup's fixes refused by hand, by line (indices as keep / drop).
+    clean_skip: list[int] = []
+    # Lines given their (start, end) by hand, in reference time (indices
+    # as keep / drop).
+    timing: dict[int, tuple[float, float]] = {}
+    # Its obvious faults fixed or not, whatever the request's ``clean``
+    # (None: as it says).
+    clean: bool | None = None
+
+
 class RenderRequest(BaseModel):
     reference: TrackRef
-    target: TrackRef
-    # Possibly edited by hand: exported as given, never re-detected.
-    segments: list[SegmentModel]
+    # One corrected track: ``target`` and its ``segments`` (possibly edited
+    # by hand: exported as given, never re-detected), as a standalone file
+    # (``subs_only``) or in a new MKV...
+    target: TrackRef | None = None
+    segments: list[SegmentModel] = []
     output: str | None = None
     subs_only: bool = False
     language: str | None = None
     title: str | None = None
     default: bool | None = None
+    forced: bool | None = None
+    replaces: int | None = None
+    replace_same_language: bool = False
+    # ...or several: all in one new MKV, or (``subs_only``) each in its own
+    # file.
+    tracks: list[RenderTrack] = []
+    # The corrected SRT files' obvious faults fixed too (see cleanup):
+    # those of ``clean_kinds`` only (cleanup.KINDS; None: all).
+    clean: bool = True
+    clean_kinds: list[str] | None = None
+
+
+def _written(written: Written) -> dict:
+    return {
+        "path": str(written.path),
+        "kind": written.kind,
+        "language": written.language,
+        "dropped": [{"start": start, "text": text} for start, text in written.dropped],
+        "cleaned": written.cleaned,
+    }
 
 
 @app.post("/jobs/render", response_model=JobStarted)
 def start_render(req: RenderRequest) -> JobStarted:
-    if not req.segments:
-        raise HTTPException(400, "Aucun segment à appliquer.")
+    tracks = req.tracks or (
+        [
+            RenderTrack(
+                target=req.target,
+                segments=req.segments,
+                language=req.language,
+                title=req.title,
+                default=req.default,
+                forced=req.forced,
+                replaces=req.replaces,
+                replace_same_language=req.replace_same_language,
+            )
+        ]
+        if req.target
+        else []
+    )
+    if not tracks or any(not t.segments for t in tracks):
+        raise HTTPException(400, tr("Aucun segment à appliquer."))
     if req.reference.index is None and not req.reference.to_spec().is_external:
-        raise HTTPException(400, "Piste de référence non précisée.")
+        raise HTTPException(400, tr("Piste de référence non précisée."))
 
     def run(log):
-        written = write_result(
-            req.reference.to_spec(),
-            req.target.to_spec(),
-            [s.to_segment() for s in req.segments],
-            req.output,
-            req.subs_only,
-            req.language,
-            req.title,
-            req.default,
-            log,
-        )
-        log(f"Écrit : {written.path}")
-        return {
-            "path": str(written.path),
-            "kind": written.kind,
-            "language": written.language,
-            "dropped": [{"start": start, "text": text} for start, text in written.dropped],
-        }
+        if req.subs_only or (req.output and Path(req.output).suffix.lower() in SUBTITLE_EXTENSIONS):
+            written = [
+                write_result(
+                    req.reference.to_spec(),
+                    track.target.to_spec(),
+                    [s.to_segment() for s in track.segments],
+                    track.output or (req.output if len(tracks) == 1 else None),
+                    True,
+                    log=log,
+                    clean=req.clean if track.clean is None else track.clean,
+                    keep=track.keep,
+                    drop=track.drop,
+                    skip=track.clean_skip,
+                    timing=track.timing,
+                    clean_kinds=req.clean_kinds,
+                )
+                for track in tracks
+            ]
+        else:
+            written = write_tracks(
+                req.reference.to_spec(),
+                [
+                    TrackToWrite(
+                        t.target.to_spec(),
+                        [s.to_segment() for s in t.segments],
+                        language=t.language,
+                        title=t.title,
+                        default=t.default,
+                        forced=t.forced,
+                        replaces=t.replaces,
+                        replace_same_language=t.replace_same_language,
+                        keep=tuple(t.keep),
+                        drop=tuple(t.drop),
+                        skip=tuple(t.clean_skip),
+                        timing=t.timing,
+                        clean=t.clean,
+                    )
+                    for t in tracks
+                ],
+                req.output,
+                log,
+                req.clean,
+                req.clean_kinds,
+            )
+        log(tr("Écrit : {path}", path=written[0].path))
+        # The first track's, and every track's.
+        return {**_written(written[0]), "tracks": [_written(w) for w in written]}
 
     return JobStarted(job_id=start_job(run).id)
+
+
+class CleanupPreviewRequest(BaseModel):
+    target: TrackRef
+    segments: list[SegmentModel]
+    # The fixes asked for (cleanup.KINDS; None: all), and the lines kept,
+    # taken out or timed by hand (as RenderTrack's).
+    kinds: list[str] | None = None
+    keep: list[int] = []
+    drop: list[int] = []
+    timing: dict[int, tuple[float, float]] = {}
+
+
+@app.post("/cleanup-preview")
+def cleanup_preview(req: CleanupPreviewRequest) -> dict[str, list[CleanupChangeModel]]:
+    """What the export's cleanup would do to each line, for a choice of
+    kinds other than the analysis' (all of them)."""
+    from syncsubtitles.service import cleanup_changes
+
+    changes = cleanup_changes(
+        req.target.to_spec(), [s.to_segment() for s in req.segments], req.kinds, req.keep, req.drop, req.timing
+    )
+    return {"changes": [CleanupChangeModel(**vars(c)) for c in changes]}
 
 
 class PreviewRequest(BaseModel):
@@ -338,7 +586,7 @@ async def job_ws(websocket: WebSocket, job_id: str) -> None:
     await websocket.accept()
     job = get_job(job_id)
     if job is None:
-        await websocket.send_json({"type": "error", "message": f"Tâche inconnue : {job_id}"})
+        await websocket.send_json({"type": "error", "message": tr("Tâche inconnue : {job_id}", job_id=job_id)})
         await websocket.close()
         return
     since = 0
@@ -365,7 +613,7 @@ async def job_ws(websocket: WebSocket, job_id: str) -> None:
 def job_status(job_id: str) -> dict:
     job = get_job(job_id)
     if job is None:
-        raise HTTPException(404, f"Tâche inconnue : {job_id}")
+        raise HTTPException(404, tr("Tâche inconnue : {job_id}", job_id=job_id))
     messages, _, status, result, error = job.snapshot()
     return {"status": status, "messages": messages, "result": result, "error": error}
 
@@ -374,6 +622,6 @@ def job_status(job_id: str) -> dict:
 def cancel_job(job_id: str) -> dict[str, bool]:
     job = get_job(job_id)
     if job is None:
-        raise HTTPException(404, f"Tâche inconnue : {job_id}")
+        raise HTTPException(404, tr("Tâche inconnue : {job_id}", job_id=job_id))
     job.cancel()
     return {"cancelled": True}

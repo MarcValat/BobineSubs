@@ -9,24 +9,33 @@ by a Viterbi pass over all cues at once.
    best whole-track correlation are each undone ("destretched") and run
    through the steps below; the best overall result wins.
 2. Candidate offsets: sliding-window correlations give the offsets that
-   occur somewhere in the film; only those (± a few seconds) are searched.
+   occur somewhere in the film (long windows all along, short ones over
+   the start, where a teaser and the opening credits often differ); only
+   those (± a few seconds) are searched.
 3. Viterbi: each cue scores each candidate offset by how well it lands on
-   the reference's displayed cues; changing offset between two cues costs
-   ``JUMP_PENALTY``. A jump is only kept when several cues on its far side
-   agree, and it always falls *between* two cues.
+   the reference's displayed cues, and its edges on theirs; changing
+   offset between two cues costs ``JUMP_PENALTY``, plus
+   ``BACK_JUMP_PER_S`` per second it goes back in the reference; a cue
+   sharing a rare word with a reference cue (a name, mostly) also scores
+   the offsets that put it there. A jump is
+   only kept when several cues on its far side agree, and it always falls
+   *between* two cues.
 4. Each run of cues sharing an offset is a segment, its offset refined to
    the centre of its best plateau.
 """
 
 from __future__ import annotations
 
+import re
+import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass
 
 import numpy as np
 
 from syncsubtitles.activity import FRAME_RATE, activity_signal
-from syncsubtitles.align import estimate_offset
-from syncsubtitles.filters import dialogue_indices
+from syncsubtitles.align import estimate_offset, offset_peaks
+from syncsubtitles.filters import dialogue_indices, plain_text
 from syncsubtitles.retime import Segment
 from syncsubtitles.subformats import Cue, SubtitleDocument
 
@@ -43,7 +52,22 @@ _HOP_S = 60.0
 # How far a window looks for its match: covers a scene cut of a few minutes.
 _WINDOW_SEARCH_S = 300.0
 _WINDOW_MIN_SCORE = 0.2
-# Candidate offsets: each window's estimate, plus or minus this.
+# Short windows too, for a stretch shorter than a long window (a teaser
+# before the opening credits, which a version may cut): each gives its few
+# best offsets, ambiguous or not -- they're only candidates, the Viterbi
+# picks.
+_SHORT_WINDOW_S = 30.0
+_SHORT_HOP_S = 15.0
+_SHORT_PEAKS = 3
+_SHORT_MIN_SCORE = 0.4
+# Only over the start: where versions most often differ (a teaser, the
+# opening credits); further on, their peaks are mostly chance fits.
+_SHORT_SPAN_S = 360.0
+# The windows are matched at FRAME_RATE / this.
+_COARSE_DIVISOR = 10
+# Candidate offsets: each window's estimate, plus or minus this, every
+# _STATE_STEP_S.
+_STATE_STEP_S = 0.05
 _BAND_S = 2.0
 
 # Cost of changing offset between two cues, in "cue scores" (a cue scores
@@ -54,6 +78,29 @@ _BAND_S = 2.0
 # the dub has ("Voilà.") moved 2.4 s onto another line. Above 2, it takes
 # at least two cues agreeing.
 JUMP_PENALTY = 2.5
+# A change of offset that goes back in the reference (the target has a
+# scene the reference doesn't) costs this much more per second: a run of
+# lines landing by chance on a stretch the next ones need (dense dialogue
+# fits almost any offset) is never worth it, a real scene is.
+BACK_JUMP_PER_S = 0.3
+# A cue also scores where its start and end fall: on a reference cue's
+# start and end (within _EDGE_REACH_S), as two languages' lines break at
+# the same places even where they're cut differently. In dense dialogue,
+# where landing on reference cues tells offsets a few seconds apart
+# hardly apart, that does. Its share of the score:
+_EDGE_REACH_S = 1.0
+_EDGE_WEIGHT = 0.2
+# A word both languages write the same (a name, mostly: "Joe Namath",
+# "Chilton"), in a target cue and a reference cue: the offsets that put
+# the two within _NAME_REACH_S of each other score this much more. In dense
+# dialogue, where landing on reference cues fits almost any offset (a
+# "previously" put by chance on the first scene, its own lines then
+# dropped), that tells the right one. A word in more reference cues than
+# _NAME_MAX_REF tells nothing ("Lorelai").
+_NAME_BONUS = 1.0
+_NAME_REACH_S = 1.5
+_NAME_MAX_REF = 8
+_WORD = re.compile(r"[^\W\d_]{3,}")
 # Cues of two different offsets may overlap this much in the reference:
 # the two languages' timing differs, most visibly right at a jump (0.32 s
 # on a real episode). Lines from a scene only the target has overlap
@@ -110,10 +157,19 @@ def ratio_candidates(reference: list[Cue], target: list[Cue]) -> list[float]:
     return [1.0] + [r for r in STANDARD_RATIOS[1:] if scores[r] >= best - _RATIO_CANDIDATE_MARGIN]
 
 
+def _coarse(x: np.ndarray) -> np.ndarray:
+    """An activity signal at FRAME_RATE / _COARSE_DIVISOR: what the windows
+    are matched at (their offsets only centre a band, see _BAND_S)."""
+    d = _COARSE_DIVISOR
+    return x[: len(x) // d * d].reshape(-1, d).mean(axis=1)
+
+
 def window_offsets(ref: np.ndarray, tgt: np.ndarray) -> list[int]:
     """Offsets (frames) found by correlating successive reference windows
     against the target around them."""
-    win, hop, search = (int(x * FRAME_RATE) for x in (_WINDOW_S, _HOP_S, _WINDOW_SEARCH_S))
+    rate = FRAME_RATE / _COARSE_DIVISOR
+    ref, tgt = _coarse(ref), _coarse(tgt)
+    win, hop, search = (int(x * rate) for x in (_WINDOW_S, _HOP_S, _WINDOW_SEARCH_S))
     padded = np.concatenate([np.zeros(search), tgt, np.zeros(search + win)])
     found = []
     for w0 in range(0, max(1, len(ref) - win // 2), hop):
@@ -122,10 +178,28 @@ def window_offsets(ref: np.ndarray, tgt: np.ndarray) -> list[int]:
             continue
         # padded[w0 : ...] starts `search` frames before w0 in target time.
         tgt_win = padded[w0 : w0 + len(ref_win) + 2 * search]
-        est = estimate_offset(ref_win, tgt_win, FRAME_RATE, max_offset_s=2 * _WINDOW_SEARCH_S)
+        est = estimate_offset(ref_win, tgt_win, rate, max_offset_s=2 * _WINDOW_SEARCH_S)
         if est.ambiguous or est.score < _WINDOW_MIN_SCORE:
             continue
-        found.append(int(round(est.offset_seconds * FRAME_RATE)) - search)
+        found.append(int(round((est.offset_seconds - _WINDOW_SEARCH_S) * FRAME_RATE)))
+    return found
+
+
+def short_window_offsets(ref: np.ndarray, tgt: np.ndarray) -> list[int]:
+    """Offsets (frames) where short reference windows could land in the
+    target, a few per window (see _SHORT_WINDOW_S)."""
+    rate = FRAME_RATE / _COARSE_DIVISOR
+    ref, tgt = _coarse(ref), _coarse(tgt)
+    win, hop, search = (int(x * rate) for x in (_SHORT_WINDOW_S, _SHORT_HOP_S, _WINDOW_SEARCH_S))
+    padded = np.concatenate([np.zeros(search), tgt, np.zeros(search + win)])
+    found = []
+    for w0 in range(0, max(1, min(len(ref), int(_SHORT_SPAN_S * rate)) - win // 2), hop):
+        ref_win = ref[w0 : w0 + win]
+        if ref_win.sum() < 0.05 * len(ref_win):
+            continue
+        tgt_win = padded[w0 : w0 + len(ref_win) + 2 * search]
+        peaks = offset_peaks(ref_win, tgt_win, rate, 2 * _WINDOW_SEARCH_S, _SHORT_PEAKS, _SHORT_MIN_SCORE, _BAND_S)
+        found += [int(round((p - _WINDOW_SEARCH_S) * FRAME_RATE)) for p in peaks]
     return found
 
 
@@ -153,23 +227,123 @@ def _cue_overlaps(ref_cumsum: np.ndarray, frames: np.ndarray, offsets: np.ndarra
     return ref_cumsum[ends] - ref_cumsum[starts]
 
 
-def _scores(ref_cumsum: np.ndarray, frames: np.ndarray, offsets: np.ndarray) -> np.ndarray:
+@dataclass(frozen=True)
+class _Reference:
+    """The reference's cues as the scores read them, per frame: how many
+    frames of cues up to there, and how far the nearest cue start and end."""
+
+    cumsum: np.ndarray
+    start_gap: np.ndarray
+    end_gap: np.ndarray
+
+
+def _gaps(points: np.ndarray, length: int) -> np.ndarray:
+    """For each frame up to ``length``, how many frames to the nearest of ``points``."""
+    points = np.sort(points)
+    frames = np.arange(length)
+    if len(points) == 1:
+        return np.abs(frames - points[0])
+    i = np.clip(np.searchsorted(points, frames), 1, len(points) - 1)
+    return np.minimum(np.abs(frames - points[i - 1]), np.abs(points[i] - frames))
+
+
+def _reference(cues: list[Cue], signal: np.ndarray) -> _Reference:
+    edges = _cue_frames(cues)
+    length = len(signal) + 1
+    return _Reference(
+        np.concatenate([[0.0], np.cumsum(signal)]), _gaps(edges[:, 0], length), _gaps(edges[:, 1], length)
+    )
+
+
+def _scores(ref: _Reference, frames: np.ndarray, offsets: np.ndarray) -> np.ndarray:
     durations = (frames[:, 1] - frames[:, 0])[:, None]
-    return ((2 * _overlaps(ref_cumsum, frames, offsets) - durations) / durations).astype(np.float32)
+    overlap = (2 * _overlaps(ref.cumsum, frames, offsets) - durations) / durations
+    last = len(ref.start_gap) - 1
+    reach = _EDGE_REACH_S * FRAME_RATE
+    starts = np.clip(frames[:, :1] - offsets[None, :], 0, last)
+    ends = np.clip(frames[:, 1:] - offsets[None, :], 0, last)
+    # In [-1, 1], as the overlap's: both edges on a reference edge, neither near one.
+    edges = np.maximum(0, 1 - ref.start_gap[starts] / reach) + np.maximum(0, 1 - ref.end_gap[ends] / reach) - 1
+    score = (1 - _EDGE_WEIGHT) * overlap + _EDGE_WEIGHT * edges
+    # Before the video starts: neither silence nor speech to land on (a
+    # "previously" only the target has). As silence, -1 each, it made a
+    # whole recap cheaper to put by chance onto the dense first scene than
+    # at its true offset, the first scene's own lines then dropped.
+    return np.where(frames[:, 1:] - offsets[None, :] <= 0, 0.0, score).astype(np.float32)
 
 
-def viterbi(scores: np.ndarray, penalty: float = JUMP_PENALTY) -> np.ndarray:
-    """Best state per cue: maximizes the summed scores minus ``penalty`` per change."""
+def _fold(word: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", word) if not unicodedata.combining(c)).lower()
+
+
+def _names(text: str) -> set[str]:
+    """A target cue's words that may be names: capitalized, not starting a
+    sentence (every word of an all-caps line)."""
+    text = plain_text(text)
+    caps = text.upper() == text
+    names = set()
+    for m in _WORD.finditer(text):
+        before = text[: m.start()].rstrip(" \"'«»“”")
+        if caps or (m.group()[0].isupper() and before and before[-1] not in ".!?-–—…:\n"):
+            names.add(_fold(m.group()))
+    return names
+
+
+def _name_bonus(ref_cues: list[Cue], tgt_cues: list[Cue], states: np.ndarray) -> np.ndarray:
+    """(cues, states) what each target cue scores more at each offset for a
+    rare word it shares with a reference cue there (see _NAME_BONUS)."""
+    where: dict[str, list[int]] = defaultdict(list)
+    for r, cue in enumerate(ref_cues):
+        for word in {_fold(w) for w in _WORD.findall(plain_text(cue.text))}:
+            where[word].append(r)
+    ref_frames = _cue_frames(ref_cues)
+    frames = _cue_frames(tgt_cues)
+    reach = _NAME_REACH_S * FRAME_RATE
+    bonus = np.zeros((len(tgt_cues), len(states)), dtype=np.float32)
+    for j, cue in enumerate(tgt_cues):
+        for word in _names(cue.text):
+            refs = where.get(word, ())
+            if len(refs) > _NAME_MAX_REF:
+                continue
+            for r in refs:
+                lo = np.searchsorted(states, frames[j, 0] - ref_frames[r, 1] - reach)
+                hi = np.searchsorted(states, frames[j, 1] - ref_frames[r, 0] + reach, side="right")
+                bonus[j, lo:hi] = _NAME_BONUS
+    return bonus
+
+
+def _running_argmax(x: np.ndarray) -> np.ndarray:
+    """For each i, the index of the largest of x[0..i] (the first one)."""
+    is_new = np.concatenate([[True], x[1:] > np.maximum.accumulate(x)[:-1]])
+    return np.maximum.accumulate(np.where(is_new, np.arange(len(x)), 0))
+
+
+def viterbi(
+    scores: np.ndarray, states: np.ndarray, penalty: float = JUMP_PENALTY, back_per_s: float = BACK_JUMP_PER_S
+) -> np.ndarray:
+    """Best state per cue: maximizes the summed scores minus ``penalty`` per
+    change, plus ``back_per_s`` per second a change goes back in the
+    reference (to a higher offset, ``states`` ascending)."""
     n, k = scores.shape
     back = np.empty((n, k), dtype=np.int32)
     total = scores[0].astype(np.float64)
     stay = np.arange(k, dtype=np.int32)
+    per_frame = back_per_s / FRAME_RATE
+    positions = states.astype(np.float64)
     for i in range(1, n):
-        best = int(np.argmax(total))
-        jump_value = total[best] - penalty
-        keep = total >= jump_value
+        # From a higher offset (forward in the reference): the penalty alone.
+        forward = (k - 1 - _running_argmax(total[::-1]))[::-1]
+        best, value = forward, total[forward] - penalty
+        # From a lower one: also what it goes back, the best of
+        # total + per_frame * position over the states below.
+        lifted = total + per_frame * positions
+        below = _running_argmax(lifted)
+        backward = lifted[below] - per_frame * positions - penalty
+        better = backward > value
+        best, value = np.where(better, below, best), np.where(better, backward, value)
+        keep = total >= value
         back[i] = np.where(keep, stay, best)
-        total = np.where(keep, total, jump_value) + scores[i]
+        total = np.where(keep, total, value) + scores[i]
     path = np.empty(n, dtype=np.int32)
     path[-1] = int(np.argmax(total))
     for i in range(n - 1, 0, -1):
@@ -177,11 +351,11 @@ def viterbi(scores: np.ndarray, penalty: float = JUMP_PENALTY) -> np.ndarray:
     return path
 
 
-def _refine(ref_cumsum: np.ndarray, frames: np.ndarray, around: int) -> int:
+def _refine(ref: _Reference, frames: np.ndarray, around: int, reach_s: float = _REFINE_S) -> int:
     """The centre of the best plateau of a group's summed score near ``around``."""
-    reach = int(_REFINE_S * FRAME_RATE)
+    reach = int(reach_s * FRAME_RATE)
     offsets = np.arange(around - reach, around + reach + 1)
-    total = _scores(ref_cumsum, frames, offsets).sum(axis=0)
+    total = _scores(ref, frames, offsets).sum(axis=0)
     best = np.flatnonzero(total >= total.max() - 1e-6)
     # The plateau around the maximum (several separate maxima: the first).
     run_end = best[0]
@@ -246,24 +420,29 @@ def _detect_at_ratio(
     length = max(c.end for c in [*ref_cues, *tgt_cues]) + 1.0
     ref = activity_signal(ref_cues, length)
     tgt = activity_signal(tgt_cues, length)
-    ref_cumsum = np.concatenate([[0.0], np.cumsum(ref)])
+    reference = _reference(ref_cues, ref)
+    ref_cumsum = reference.cumsum
 
-    centres = window_offsets(ref, tgt)
-    centres.append(int(round(estimate_offset(ref, tgt, FRAME_RATE, max_offset_s=_WINDOW_SEARCH_S).offset_seconds * FRAME_RATE)))
+    centres = window_offsets(ref, tgt) + short_window_offsets(ref, tgt)
+    centres.append(
+        int(round(estimate_offset(ref, tgt, FRAME_RATE, max_offset_s=_WINDOW_SEARCH_S).offset_seconds * FRAME_RATE))
+    )
     band = int(_BAND_S * FRAME_RATE)
-    states = np.unique(np.concatenate([np.arange(c - band, c + band + 1) for c in centres]))
+    # Every _STATE_STEP_S: each run's offset is refined to the frame after.
+    step = int(_STATE_STEP_S * FRAME_RATE)
+    states = np.unique(np.concatenate([np.arange(c - c % step - band, c + band + 1, step) for c in centres]))
 
     frames = _cue_frames(tgt_cues)
     durations = frames[:, 1] - frames[:, 0]
-    mids = frames.mean(axis=1)
-    path = states[viterbi(_scores(ref_cumsum, frames, states))]
+    scores = _scores(reference, frames, states) + _name_bonus(ref_cues, tgt_cues, states)
+    path = states[viterbi(scores, states)]
 
     # Runs of equal offset, each refined.
     breaks = np.flatnonzero(np.diff(path) != 0) + 1
     runs = [np.arange(a, b) for a, b in zip([0, *breaks], [*breaks, len(path)])]
     offsets = np.empty(len(path), dtype=np.int64)
     for run in runs:
-        offsets[run] = _refine(ref_cumsum, frames[run], int(path[run[0]]))
+        offsets[run] = _refine(reference, frames[run], int(path[run[0]]))
 
     # The Viterbi alone may send a run of lines back onto a stretch of the
     # reference already used (a scene only the target has, its lines landing
@@ -275,7 +454,11 @@ def _detect_at_ratio(
     # Weighted like the Viterbi scores, in frames: what lands on reference
     # lines minus what spills over silence. Overlap alone let a long stray
     # line covering a short real one entirely (and a bit more) push it out.
-    kept = forward_chain(frames - offsets[:, None], run_ids, np.maximum(2 * overlap - durations, 0) + 1e-3)
+    # A rare word shared there too: of two runs fitting the same stretch
+    # (a "previously" and the scene itself), the one saying its names.
+    distinct, at = np.unique(offsets, return_inverse=True)
+    named = _name_bonus(ref_cues, tgt_cues, distinct)[np.arange(len(offsets)), at] * durations
+    kept = forward_chain(frames - offsets[:, None], run_ids, np.maximum(2 * overlap - durations, 0) + named + 1e-3)
 
     groups: list[tuple[np.ndarray, int]] = []
     for run in runs:
@@ -283,13 +466,17 @@ def _detect_at_ratio(
         if len(members) < _MIN_GROUP_CUES:
             kept[members] = False
             continue
-        offset = _refine(ref_cumsum, frames[members], int(offsets[members[0]]))
+        offset = _refine(reference, frames[members], int(offsets[members[0]]))
         if groups and groups[-1][1] == offset:
             groups[-1] = (np.concatenate([groups[-1][0], members]), offset)
         else:
             groups.append((members, offset))
+    groups = _without_previously(groups, kept, reference, ref_cues, tgt_cues, frames)
+    groups = _with_jump_orphans(groups, kept, reference, ref_cues, tgt_cues, frames)
 
-    matches = [CueMatch(order[j], offsets[j] / FRAME_RATE, float(overlap[j] / durations[j]), -1) for j in range(len(path))]
+    matches = [
+        CueMatch(order[j], offsets[j] / FRAME_RATE, float(overlap[j] / durations[j]), -1) for j in range(len(path))
+    ]
     for g, (members, offset) in enumerate(groups):
         for j in members:
             matches[j] = CueMatch(order[j], offset / FRAME_RATE, matches[j].overlap, g)
@@ -304,6 +491,104 @@ def _detect_at_ratio(
     return detection, objective
 
 
+def _without_previously(
+    groups: list[tuple[np.ndarray, int]],
+    kept: np.ndarray,
+    reference: _Reference,
+    ref_cues: list[Cue],
+    tgt_cues: list[Cue],
+    frames: np.ndarray,
+) -> list[tuple[np.ndarray, int]]:
+    """``groups`` without a first one that is a "previously" only the
+    target has, put by chance on the first scene (dense dialogue fits
+    almost any offset): one the second group's offset would put entirely
+    before the video starts. The cues from its first to the second group's
+    then take the second's offset (those before the start are dropped
+    anyway), when they score more there than it does at its own. A teaser
+    of another offset (the video's opening credits the target lacks) is
+    the other way round: never one. Weighed as the Viterbi does: the
+    first group's cues, less going back in the reference to the second;
+    the cues taking its place, at the offset that suits them best near the
+    second's (a group of their own, or the second's). ``kept`` updated."""
+    if len(groups) < 2:
+        return groups
+    (first, own), (second, then) = groups[0], groups[1]
+    if np.any(frames[first, 1] - then > 0):
+        return groups
+    span = np.arange(first[0], second[0])
+
+    def score(cues: np.ndarray, offsets: np.ndarray) -> np.ndarray:
+        return (
+            _scores(reference, frames[cues], offsets) + _name_bonus(ref_cues, [tgt_cues[j] for j in cues], offsets)
+        )[:, 0]
+
+    joining = span[frames[span, 1] - then > 0]
+    if not len(joining):
+        return groups
+    near = _refine(reference, frames[joining], then, _BAND_S) if len(joining) >= _MIN_GROUP_CUES else then
+    back = JUMP_PENALTY + BACK_JUMP_PER_S * (then - own) / FRAME_RATE
+    if np.maximum(score(joining, np.array([near])), 0).sum() <= score(first, np.array([own])).sum() - back:
+        return groups
+    kept[first] = False
+    kept[joining] = True
+    if near != then:
+        return [(joining, near), *groups[1:]]
+    return [(np.concatenate([joining, second]), then), *groups[2:]]
+
+
+# A jump of this much or less (seconds) holds no scene of its own.
+_SMALL_JUMP_S = 2.0
+
+
+def _with_jump_orphans(
+    groups: list[tuple[np.ndarray, int]],
+    kept: np.ndarray,
+    reference: _Reference,
+    ref_cues: list[Cue],
+    tgt_cues: list[Cue],
+    frames: np.ndarray,
+) -> list[tuple[np.ndarray, int]]:
+    """``groups`` with the lines left between two of them that are real
+    lines after all: at a jump, the Viterbi may give one or two lines an
+    offset of their own (the two languages' timing differs most there),
+    too few to be a group, and they were dropped as a scene only the
+    target has. Each that lands on reference cues at a neighbour's offset
+    (scores above 0), without using the other neighbour's stretch of the
+    reference, joins it: those of the previous group's from the first on,
+    the next one's from the last back. ``kept`` updated."""
+    out = list(groups)
+    for g in range(len(out) - 1):
+        (a, oa), (b, ob) = out[g], out[g + 1]
+        last_a, first_b = int(a[-1]), int(b[0])
+        orphans = np.flatnonzero(~kept[last_a + 1 : first_b]) + last_a + 1
+        if not len(orphans):
+            continue
+        # At a small jump, a line may straddle it by that much: one line
+        # where the reference has two, one each side (seen at ad breaks,
+        # where one edit has a second more of black). A scene only the
+        # target has is longer than that.
+        jump = abs(ob - oa)
+        tolerance = _CHAIN_TOLERANCE_S * FRAME_RATE + (jump if jump <= _SMALL_JUMP_S * FRAME_RATE else 0)
+        offsets = np.array([oa, ob])
+        scores = _scores(reference, frames[orphans], offsets) + _name_bonus(
+            ref_cues, [tgt_cues[j] for j in orphans], offsets
+        )
+        # Before the next group's first line in the reference, after the
+        # previous group's last one.
+        fits_a = (scores[:, 0] > 0) & (frames[orphans, 1] - oa <= frames[first_b, 0] - ob + tolerance)
+        fits_b = (scores[:, 1] > 0) & (frames[orphans, 0] - ob >= frames[last_a, 1] - oa - tolerance)
+        to_a = fits_a & (~fits_b | (scores[:, 0] >= scores[:, 1]))
+        to_b = fits_b & ~to_a
+        head = int(np.argmin(to_a)) if not to_a.all() else len(orphans)
+        tail = int(np.argmin(to_b[::-1])) if not to_b.all() else len(orphans)
+        tail = min(tail, len(orphans) - head)
+        joining_a, joining_b = orphans[:head], orphans[len(orphans) - tail :]
+        kept[joining_a] = kept[joining_b] = True
+        out[g] = (np.concatenate([a, joining_a]), oa)
+        out[g + 1] = (np.concatenate([joining_b, b]), ob)
+    return out
+
+
 def _build_segments(
     groups: list[tuple[np.ndarray, int]],
     frames: np.ndarray,
@@ -315,6 +600,8 @@ def _build_segments(
     """Segments in reference time from cue groups (destretched frames)."""
     mids = frames.mean(axis=1)
     cuts = [0.0]
+    # Where the target's lines change segment, when no gap fits there.
+    target_cuts: list[tuple[float, float] | None] = [None]
     for (a, oa), (b, ob) in zip(groups, groups[1:]):
         # Boundary b (reference frames): A's last cue must stay in A's
         # target-time span (mid <= b + oa), B's first in B's (mid >= b + ob),
@@ -333,10 +620,18 @@ def _build_segments(
                 centre = (frames[orphans[0], 0] + frames[orphans[-1], 1]) / 2
                 cut = float(np.clip(centre - (oa + ob) / 2, lo, hi))
         cuts.append(cut / FRAME_RATE)
+        # The target gaining time there (a longer pause), its lines each
+        # side closer than that: the gap would take one of them. The
+        # target's lines change segment between the two instead.
+        between = None
+        if ob > oa and lo > hi:
+            t = ratio * (mids[last_a] + mids[first_b]) / 2 / FRAME_RATE
+            between = (float(t), float(t))
+        target_cuts.append(between)
     cuts.append(max(length, cuts[-1] + 1.0))
 
     segments = []
-    for (members, offset), start, stop in zip(groups, cuts, cuts[1:]):
+    for (members, offset), start, stop, target_cut in zip(groups, cuts, cuts[1:], target_cuts):
         o = offset / FRAME_RATE
         # Share of the group's displayed time landing on reference cues.
         overlap = _overlaps(ref_cumsum, frames[members], np.array([offset])).sum()
@@ -349,6 +644,7 @@ def _build_segments(
                 float((ratio - 1) * start + ratio * o),
                 float((ratio - 1) * stop + ratio * o),
                 confidence,
+                target_cut,
             )
         )
     return segments

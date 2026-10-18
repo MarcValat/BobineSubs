@@ -75,7 +75,9 @@ def test_preview_follows_the_given_segments(pair):
 def test_analysis_error_is_reported_by_the_job(tmp_path, pair):
     empty = tmp_path / "empty.srt"
     empty.write_text("")
-    job = client.post("/jobs/analyze", json={"reference": {"path": str(empty)}, "target": {"path": str(pair[1])}}).json()
+    job = client.post(
+        "/jobs/analyze", json={"reference": {"path": str(empty)}, "target": {"path": str(pair[1])}}
+    ).json()
     state = _wait(job["job_id"])
     assert state["status"] == "error" and "aucune réplique" in state["error"]
 
@@ -83,12 +85,16 @@ def test_analysis_error_is_reported_by_the_job(tmp_path, pair):
 def test_default_output(pair):
     body = client.get("/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1])}).json()
     assert Path(body["path"]) == Path("D:/Films/Film.synced.mkv")
-    body = client.get("/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1]), "subs_only": True}).json()
+    body = client.get(
+        "/default-output", params={"reference": "D:/Films/Film.mkv", "target": str(pair[1]), "subs_only": True}
+    ).json()
     assert body["path"].endswith("episode.fr.synced.srt")
 
 
 def test_job_websocket_streams_progress_then_result(pair):
-    job = client.post("/jobs/analyze", json={"reference": {"path": str(pair[0])}, "target": {"path": str(pair[1])}}).json()
+    job = client.post(
+        "/jobs/analyze", json={"reference": {"path": str(pair[0])}, "target": {"path": str(pair[1])}}
+    ).json()
     kinds = []
     with client.websocket_connect(f"/jobs/{job['job_id']}/ws") as ws:
         while True:
@@ -133,8 +139,8 @@ def test_expand_a_folder_in_episode_order(tmp_path):
 def test_pairs_endpoint():
     body = client.post("/pairs", json={"videos": ["S01E02.mkv", "S01E01.mkv"], "subtitles": ["1x01.srt"]}).json()
     assert body["pairs"] == [
-        {"video": "S01E01.mkv", "subtitle": "1x01.srt", "by": "episode"},
-        {"video": "S01E02.mkv", "subtitle": None, "by": None},
+        {"video": "S01E01.mkv", "subtitle": "1x01.srt", "by": "episode", "episode": "S01E01"},
+        {"video": "S01E02.mkv", "subtitle": None, "by": None, "episode": None},
     ]
 
 
@@ -148,3 +154,61 @@ def test_plan_outputs_keeps_names_in_another_folder(tmp_path, pair):
     assert body["paths"] == [str(out / "episode.fr.srt")]
     body = client.post("/plan-outputs", json={"items": items}).json()
     assert Path(body["paths"][0]) == Path("D:/S/E01.synced.mkv")
+
+
+# Who may call the engine (server.TokenGuard, CORS): the app that started it.
+
+
+@pytest.fixture()
+def token(monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("SYNCSUBTITLES_TOKEN", "s3cret")
+    return "s3cret"
+
+
+def test_a_request_without_the_token_is_refused(token: str) -> None:
+    assert client.get("/exists", params={"path": "x"}).status_code == 401
+    assert client.get("/exists", params={"path": "x"}, headers={"X-Bobine-Token": "wrong"}).status_code == 401
+    assert client.post("/pairs", json={"videos": [], "subtitles": []}).status_code == 401
+
+
+def test_a_request_with_the_token_goes_through(token: str) -> None:
+    assert client.get("/exists", params={"path": "x"}, headers={"X-Bobine-Token": token}).status_code == 200
+
+
+def test_health_answers_without_the_token(token: str) -> None:
+    assert client.get("/health").status_code == 200
+
+
+def test_a_websocket_without_the_token_is_refused(token: str) -> None:
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/jobs/does-not-exist/ws") as ws:
+            ws.receive_json()
+    with client.websocket_connect(f"/jobs/does-not-exist/ws?token={token}") as ws:
+        assert ws.receive_json()["type"] == "error"
+
+
+def test_no_token_asked_when_none_was_given(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SYNCSUBTITLES_TOKEN", raising=False)
+    assert client.get("/exists", params={"path": "x"}).status_code == 200
+
+
+@pytest.mark.parametrize("origin", ["tauri://localhost", "http://tauri.localhost", "http://localhost:1420"])
+def test_the_app_may_read_the_answers(origin: str) -> None:
+    resp = client.get("/health", headers={"Origin": origin})
+    assert resp.headers.get("access-control-allow-origin") == origin
+
+
+def test_a_website_may_not(token: str) -> None:
+    resp = client.get("/health", headers={"Origin": "https://example.com"})
+    assert "access-control-allow-origin" not in resp.headers
+    preflight = client.options(
+        "/exists",
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "x-bobine-token",
+        },
+    )
+    assert "access-control-allow-origin" not in preflight.headers

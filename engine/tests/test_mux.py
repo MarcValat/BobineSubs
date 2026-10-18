@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 from syncsubtitles.ffmpeg_backend import extract_subtitle, probe_subtitle_streams, resolve_ffmpeg
+from syncsubtitles.models import SubtitleTrackSpec
 from syncsubtitles.render import TrackMetadata, mux
+from syncsubtitles.retime import Segment
+from syncsubtitles.service import AnalysisError, TrackToWrite, write_tracks
 from syncsubtitles.subformats import ASS, SRT, Cue, SubtitleDocument, parse
 
 REF = "1\n00:00:10,000 --> 00:00:12,000\nHello\n\n2\n00:00:20,000 --> 00:00:21,500\nWorld\n"
@@ -22,10 +25,24 @@ def _ff(*args: str) -> None:
 def _first_pts_ms(path: Path, selector: str) -> int:
     out = subprocess.run(
         [
-            resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-copyts",
-            "-i", str(path), "-map", selector, "-c", "copy", "-f", "framecrc", "-",
+            resolve_ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-copyts",
+            "-i",
+            str(path),
+            "-map",
+            selector,
+            "-c",
+            "copy",
+            "-f",
+            "framecrc",
+            "-",
         ],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     return int(next(line for line in out.splitlines() if not line.startswith("#")).split(",")[2])
 
@@ -43,14 +60,52 @@ def mkv(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
     video = ["-f", "lavfi", "-i", "color=c=black:s=64x36:r=5:d=30"]
     if request.param == "negative_start":
         _ff(
-            *video, "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono", *subs,
-            "-map", "0", "-map", "1", "-map", "2", "-map", "3", "-t", "30",
-            "-c:v", "mpeg4", "-c:a", "aac", "-c:s", "copy", *tags, str(out),
+            *video,
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=8000:cl=mono",
+            *subs,
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-map",
+            "2",
+            "-map",
+            "3",
+            "-t",
+            "30",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
+            "-c:s",
+            "copy",
+            *tags,
+            str(out),
         )
     else:
         _ff(
-            "-copyts", "-itsoffset", "0.25", *video, *subs,
-            "-map", "0", "-map", "1", "-map", "2", "-t", "30", "-c:v", "mpeg4", "-c:s", "copy", *tags, str(out),
+            "-copyts",
+            "-itsoffset",
+            "0.25",
+            *video,
+            *subs,
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-map",
+            "2",
+            "-t",
+            "30",
+            "-c:v",
+            "mpeg4",
+            "-c:s",
+            "copy",
+            *tags,
+            str(out),
         )
     return out
 
@@ -92,3 +147,183 @@ def test_muxed_track_lands_where_its_timestamps_say_against_the_video(mkv: Path,
     video_start = _first_pts_ms(mkv, "0:v:0")
     assert _subtitle_offset_from_video(out, new_index) == pytest.approx(15000 - video_start, abs=10)
     assert _subtitle_offset_from_video(out, 0) == _subtitle_offset_from_video(mkv, 0)
+
+
+def test_several_corrected_tracks_in_one_mkv(mkv: Path, tmp_path: Path):
+    """A file's own track corrected in its place, and a standalone file
+    added, in one export (write_tracks)."""
+    extra = tmp_path / "extra.srt"
+    extra.write_text("1\n00:00:05,000 --> 00:00:06,000\nZusätzlich\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    out = tmp_path / "out.mkv"
+    written = write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [
+            TrackToWrite(SubtitleTrackSpec(str(mkv), str(mkv), 1), segments),
+            TrackToWrite(SubtitleTrackSpec(str(extra), str(extra), None, is_external=True), segments, language="ger"),
+        ],
+        str(out),
+    )
+    assert [w.kind for w in written] == ["replaced", "added"]
+    streams = probe_subtitle_streams(str(out))
+    assert [(s.language, s.title) for s in streams] == [("eng", None), ("fre", "VF"), ("ger", None)]
+    # Each lands where its timestamps say, against the video (see the test above).
+    video_start = _first_pts_ms(mkv, "0:v:0")
+    assert _subtitle_offset_from_video(out, 1) == pytest.approx(10000 - video_start, abs=10)
+    assert _subtitle_offset_from_video(out, 2) == pytest.approx(6000 - video_start, abs=10)
+
+
+def test_the_render_job_writes_several_tracks(mkv: Path, tmp_path: Path):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from syncsubtitles.server import app
+
+    client = TestClient(app)
+    segments = [{"start_s": 0.0, "end_s": 30.0, "offset_start": -1.0, "offset_end": -1.0}]
+    extra = tmp_path / "extra.srt"
+    extra.write_text("1\n00:00:05,000 --> 00:00:06,000\nZusätzlich\n", encoding="utf-8")
+    out = tmp_path / "out.mkv"
+    job = client.post(
+        "/jobs/render",
+        json={
+            "reference": {"path": str(mkv), "index": 0},
+            "tracks": [
+                {"target": {"path": str(mkv), "index": 1}, "segments": segments},
+                {"target": {"path": str(extra)}, "segments": segments, "language": "ger", "title": "Extra"},
+            ],
+            "output": str(out),
+        },
+    ).json()
+    for _ in range(200):
+        state = client.get(f"/jobs/{job['job_id']}").json()
+        if state["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert state["status"] == "done", state
+    assert [t["kind"] for t in state["result"]["tracks"]] == ["replaced", "added"]
+    assert state["result"]["path"] == str(out)
+
+
+def test_the_render_job_writes_several_subtitle_files(mkv: Path, tmp_path: Path):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from syncsubtitles.server import app
+
+    client = TestClient(app)
+    segments = [{"start_s": 0.0, "end_s": 30.0, "offset_start": -1.0, "offset_end": -1.0}]
+    outs = [tmp_path / "a.srt", tmp_path / "b.srt"]
+    job = client.post(
+        "/jobs/render",
+        json={
+            "reference": {"path": str(mkv), "index": 0},
+            "subs_only": True,
+            "tracks": [
+                {"target": {"path": str(mkv), "index": 1}, "segments": segments, "output": str(out)} for out in outs
+            ],
+        },
+    ).json()
+    for _ in range(200):
+        state = client.get(f"/jobs/{job['job_id']}").json()
+        if state["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert state["status"] == "done", state
+    assert [t["path"] for t in state["result"]["tracks"]] == [str(out) for out in outs]
+    assert all(out.exists() for out in outs)
+
+
+def test_a_standalone_file_takes_the_place_of_a_poor_track(mkv: Path, tmp_path: Path):
+    """A new French file replacing the video's own French track: in its
+    place, with its title, and no second French track."""
+    new = tmp_path / "Film.fr.srt"
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    out = tmp_path / "out.mkv"
+    written = write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [TrackToWrite(SubtitleTrackSpec(str(new), str(new), None, is_external=True), segments, replaces=1)],
+        str(out),
+    )
+    assert [w.kind for w in written] == ["replaced"]
+    streams = probe_subtitle_streams(str(out))
+    assert [(s.language, s.title) for s in streams] == [("eng", None), ("fre", "VF")]
+    video_start = _first_pts_ms(mkv, "0:v:0")
+    assert _subtitle_offset_from_video(out, 1) == pytest.approx(6000 - video_start, abs=10)
+
+
+def test_the_batch_names_and_flags_the_corrected_tracks(mkv: Path, tmp_path: Path):
+    """A name and flags set for the whole batch: over the replaced track's
+    (Oui / Non); left None (Inchangé), the replaced track's are kept."""
+    new = tmp_path / "Film.fr.srt"
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    out = tmp_path / "out.mkv"
+    write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [
+            TrackToWrite(
+                SubtitleTrackSpec(str(new), str(new), None, is_external=True),
+                segments,
+                title="Français (corrigé)",
+                default=True,
+                forced=True,
+                replaces=1,
+            )
+        ],
+        str(out),
+    )
+    fre = probe_subtitle_streams(str(out))[1]
+    assert (fre.title, fre.default, fre.forced) == ("Français (corrigé)", True, True)
+    write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [TrackToWrite(SubtitleTrackSpec(str(new), str(new), None, is_external=True), segments, replaces=1)],
+        str(out),
+    )
+    fre = probe_subtitle_streams(str(out))[1]
+    assert (fre.title, fre.forced) == ("VF", False)
+
+
+def test_two_tracks_cannot_take_the_same_place(mkv: Path, tmp_path: Path):
+    new = tmp_path / "Film.fr.srt"
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    segments = [Segment(0.0, 30.0, -1.0, -1.0)]
+    with pytest.raises(AnalysisError):
+        write_tracks(
+            SubtitleTrackSpec(str(mkv), str(mkv), 0),
+            [
+                TrackToWrite(SubtitleTrackSpec(str(mkv), str(mkv), 1), segments),
+                TrackToWrite(SubtitleTrackSpec(str(new), str(new), None, is_external=True), segments, replaces=1),
+            ],
+            str(tmp_path / "out.mkv"),
+        )
+
+
+@pytest.mark.parametrize(
+    ("name", "kind", "languages"),
+    [
+        ("Film.fr.srt", "replaced", [("eng", None), ("fre", "VF")]),
+        # No German track to replace: added.
+        ("Film.de.srt", "added", [("eng", None), ("fre", "VF"), ("ger", None)]),
+    ],
+)
+def test_a_standalone_file_replaces_the_track_in_its_language(mkv: Path, tmp_path: Path, name, kind, languages):
+    new = tmp_path / name
+    new.write_text("1\n00:00:05,000 --> 00:00:06,000\nBien calée\n", encoding="utf-8")
+    out = tmp_path / "out.mkv"
+    written = write_tracks(
+        SubtitleTrackSpec(str(mkv), str(mkv), 0),
+        [
+            TrackToWrite(
+                SubtitleTrackSpec(str(new), str(new), None, is_external=True),
+                [Segment(0.0, 30.0, -1.0, -1.0)],
+                replace_same_language=True,
+            )
+        ],
+        str(out),
+    )
+    assert [w.kind for w in written] == [kind]
+    assert [(s.language, s.title) for s in probe_subtitle_streams(str(out))] == languages

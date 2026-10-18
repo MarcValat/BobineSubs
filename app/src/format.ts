@@ -8,26 +8,14 @@ export function clock(seconds: number, decimals = 1): string {
   return h ? `${sign}${h}:${String(m).padStart(2, "0")}:${s}` : `${sign}${m}:${s}`;
 }
 
-/** +1.060 s */
+/** +1.060 s, −0.500 s; none: 0 s (as Bobine Audio's "0 ms"). */
 export function offset(seconds: number): string {
+  if (Math.abs(seconds) < 0.0005) return "0 s";
   return `${seconds >= 0 ? "+" : "−"}${Math.abs(seconds).toFixed(3)} s`;
 }
 
 export function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
-}
-
-export function trackLabel(track: {
-  index: number;
-  codec: string;
-  language: string | null;
-  title: string | null;
-  forced: boolean;
-}): string {
-  const parts = [`#${track.index}`, track.language ?? "?", track.codec];
-  if (track.title) parts.push(`« ${track.title} »`);
-  if (track.forced) parts.push("forcés");
-  return parts.join(" · ");
 }
 
 export const SUBTITLE_EXTENSIONS = ["srt", "ass", "ssa"];

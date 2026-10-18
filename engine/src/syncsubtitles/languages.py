@@ -6,15 +6,44 @@ from pathlib import Path
 # Filename tags that commonly mark a subtitle file's language, to ISO 639-2
 # (what Matroska stores).
 _TAGS = {
-    "fr": "fre", "fre": "fre", "fra": "fre", "french": "fre", "francais": "fre", "français": "fre",
-    "vf": "fre", "vff": "fre", "vfq": "fre", "vfi": "fre", "truefrench": "fre",
-    "en": "eng", "eng": "eng", "english": "eng",
-    "es": "spa", "spa": "spa", "spanish": "spa",
-    "de": "ger", "ger": "ger", "deu": "ger", "german": "ger",
-    "it": "ita", "ita": "ita", "italian": "ita",
-    "pt": "por", "por": "por", "portuguese": "por",
-    "ja": "jpn", "jpn": "jpn", "japanese": "jpn",
+    "fr": "fre",
+    "fre": "fre",
+    "fra": "fre",
+    "french": "fre",
+    "francais": "fre",
+    "français": "fre",
+    "vf": "fre",
+    "vff": "fre",
+    "vfq": "fre",
+    "vfi": "fre",
+    "truefrench": "fre",
+    "en": "eng",
+    "eng": "eng",
+    "english": "eng",
+    "es": "spa",
+    "spa": "spa",
+    "spanish": "spa",
+    "de": "ger",
+    "ger": "ger",
+    "deu": "ger",
+    "german": "ger",
+    "it": "ita",
+    "ita": "ita",
+    "italian": "ita",
+    "pt": "por",
+    "por": "por",
+    "portuguese": "por",
+    "ja": "jpn",
+    "jpn": "jpn",
+    "japanese": "jpn",
 }
+
+
+def language_code(code: str | None) -> str | None:
+    """``code`` as Matroska stores it ("fra", "fr" -> "fre"), to compare two."""
+    if not code:
+        return None
+    return _TAGS.get(code.lower(), code.lower())
 
 
 def guess_language(path: str | Path) -> str | None:

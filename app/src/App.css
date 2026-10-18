@@ -7,36 +7,57 @@
   /* Also makes native widgets (select popups, their scrollbars,
      checkboxes...) follow the app's theme. */
   color-scheme: light dark;
-  --accent: light-dark(#396cd8, #6d9eff);
-  --accent-hover: light-dark(#2f5ab8, #85aeff);
-  --on-accent: light-dark(#ffffff, #10141c);
-  --bg: light-dark(#f3f4f6, #1c1d21);
-  --surface: light-dark(#ffffff, #26272c);
-  --surface-sunken: light-dark(#f0f1f4, #2f3036);
-  --border: light-dark(rgba(15, 15, 15, 0.12), rgba(255, 255, 255, 0.12));
-  --text: light-dark(#0f0f0f, #f2f2f2);
-  --text-muted: light-dark(rgba(15, 15, 15, 0.6), rgba(242, 242, 242, 0.6));
-  --error: light-dark(#cc3333, #ff6b6b);
-  --success: light-dark(#2a8c4a, #57c785);
-  /* The two kinds of segment, in the timeline, its legend and the tables
-     (Bobine Audio's). */
-  --constant: #396cd8;
-  --drift: #d38a39;
-  /* Bobine Subs: anything to double-check, and the timeline's lines
-     (reference in neutral grey, target in the accent). */
-  --warn: #d38a39;
-  --warn-soft: light-dark(rgba(211, 138, 57, 0.16), rgba(211, 138, 57, 0.22));
-  --ref: light-dark(#9aa1b0, #6b7080);
-  --target: #396cd8;
-  --target-faded: light-dark(rgba(57, 108, 216, 0.25), rgba(109, 158, 255, 0.3));
-  --band-a: light-dark(#f7f8fa, #2a2b31);
-  --band-b: light-dark(#eceff5, #313238);
-  --border-strong: light-dark(rgba(15, 15, 15, 0.25), rgba(255, 255, 255, 0.25));
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
+  /* The native checkboxes and radios in the app's color, not the browser's. */
+  accent-color: var(--accent-strong);
+  /* Teal to green, Bobine Subs' logo colors: --accent for text, links and
+     focus; --accent-strong and --accent-2 for the fills, the main action's
+     gradient (--gradient). */
+  --accent: light-dark(#08766a, #5fe0b5);
+  --accent-hover: light-dark(#06625a, #9cf0d0);
+  --accent-strong: light-dark(#12b5a5, #12b5a5);
+  --accent-2: light-dark(#9be36a, #9be36a);
+  --gradient: linear-gradient(90deg, var(--accent-strong), #2fcf9c 55%, var(--accent-2));
+  /* The main action's gradient, under dark text (the gradient is light):
+     4.5:1 all along it, in both themes. */
+  --gradient-action: linear-gradient(90deg, #12b5a5, #2fcf9c 55%, #9be36a);
+  --accent-fg: #06231c;
+  --bg: light-dark(#f1f6f5, #091113);
+  /* The soft light at the top of the window. */
+  --bg-glow: light-dark(#dcefea, #0f2a29);
+  --surface: light-dark(#ffffff, #111d20);
+  --surface-alt: light-dark(#e9f1ef, #142225);
+  /* Below the panels: the timeline's and the charts' backgrounds. */
+  --surface-sunken: light-dark(#f5f9f8, #0b1416);
+  --border: light-dark(rgba(8, 40, 34, 0.12), rgba(255, 255, 255, 0.08));
+  --text: light-dark(#0e1f1c, #e6efed);
+  --text-muted: light-dark(rgba(14, 31, 28, 0.66), #97aeab);
+  /* Light: deep enough for 4.5:1 on white and on their own tints. */
+  --danger: light-dark(#c42f41, #f0606e);
+  --success: light-dark(#1a7f41, #4ade80);
+  /* The two kinds of segment, in the timeline, its legend and the tables. */
+  --constant: light-dark(#12a593, #2fcf9c);
+  --drift: light-dark(#d97a0b, #f59e0b);
+  /* The same colors for text: darker in the light theme, where small text
+     on a background tinted with its own color must keep 4.5:1. The fills,
+     borders and lines use the ones above. */
+  --accent-text: light-dark(#0a6f62, #5fe0b5);
+  --success-text: light-dark(#126433, #4ade80);
+  --drift-text: light-dark(#874700, #f59e0b);
+  /* Bobine Subs: anything to double-check. */
+  --warn: light-dark(#9a5200, #f59e0b);
+  --warn-soft: light-dark(rgba(217, 122, 11, 0.16), rgba(245, 158, 11, 0.2));
+  --band-a: light-dark(#f5f9f8, #0f1a1c);
+  --band-b: light-dark(#e8f1ef, #142225);
+  --border-strong: light-dark(rgba(8, 40, 34, 0.26), rgba(255, 255, 255, 0.22));
+  --radius: 14px;
+  /* The top bar's height (it's also the window's title bar): the settings
+     drawer opens right under it. */
+  --top-bar-height: 52px;
+  --radius-sm: 10px;
+  --shadow-color: light-dark(rgba(8, 40, 34, 0.08), rgba(0, 0, 0, 0.3));
+  --shadow: 0 1px 3px var(--shadow-color), 0 1px 2px var(--shadow-color);
   /* What floats over the rest: menus, dropdown lists, dialogs. */
-  --shadow-popup: 0 6px 20px rgba(0, 0, 0, 0.25);
+  --shadow-popup: 0 12px 32px light-dark(rgba(8, 40, 34, 0.18), rgba(0, 0, 0, 0.5));
   /* Dims the app behind a dialog. */
   --backdrop: rgba(0, 0, 0, 0.55);
   --scrollbar-thumb: light-dark(rgba(15, 15, 15, 0.22), rgba(255, 255, 255, 0.2));
@@ -45,12 +66,14 @@
   /* Inter, bundled (main.tsx), for the whole Bobine suite: a system stack
      read as Segoe UI on Windows but as the desktop's font on Linux. The
      rest is only a fallback. */
-  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-sans:
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, "SF Mono", Menlo, monospace;
 
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 400;
 
   color: var(--text);
@@ -129,8 +152,21 @@ body,
   margin: 0;
 }
 
+/* No pinch zoom on a touch screen: the app sizes itself (Paramètres). */
+html {
+  touch-action: pan-x pan-y;
+}
+
 body {
   background: var(--bg);
+  /* An app, not a page: no text gets selected by a click-drag or a double
+     click. What's there to be typed or copied opts back in. */
+  user-select: none;
+  cursor: default;
+}
+
+input {
+  user-select: text;
 }
 
 .container {
@@ -161,30 +197,53 @@ body {
   }
 }
 
-/* The engine's startup, top right (EngineStatus.tsx). */
+/* The engine's state, top right (EngineStatus.tsx): a pill, tinted by
+   what it says. */
 .engine-status {
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
-  margin-right: 0.4em;
-  font-size: 0.9em;
+  gap: 8px;
+  /* Slimmer than the buttons beside it: a state, not a control (the
+     user's choice). */
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  margin-right: 4px;
+  border-radius: 999px;
+  font-size: 12px;
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
   white-space: nowrap;
 }
 
+.engine-status-ready {
+  color: var(--success-text);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.engine-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .engine-status-error {
-  color: var(--error);
+  padding-right: 3px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.engine-status-error .small-button {
+  height: 22px;
+  padding-block: 0;
+  border-radius: 999px;
 }
 
 .spinner-small {
   width: 14px;
   height: 14px;
   border-width: 2px;
-}
-
-.file-open-button {
-  flex: 0 0 auto;
-  width: 100%;
 }
 
 /* The mode switch on the left; update and Options icons on the far right. */
@@ -196,13 +255,87 @@ body {
   padding: 0.7em 1em 0;
 }
 
-.mode-switch {
-  display: flex;
-  gap: 0.5em;
+/* The two modes (PillSwitch, below), bigger than a switch inside a panel:
+   the window's navigation. */
+.pill-switch.mode-switch {
+  --pill-inset: 4px;
+  margin-left: 8px;
 }
 
-.mode-switch button {
-  padding: 0.4em 1em;
+.pill-switch.mode-switch button {
+  height: 30px;
+  padding: 0 1.1em;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* A choice between a few options, all visible, a selection pill sliding
+   under the picked one (PillSwitch.tsx): a sunken track, smaller buttons.
+   The pill sits `--pill-inset` inside the track on every side, its corners
+   rounded as much less (the track's radius, less its border and the
+   inset): two rounded corners one inside the other look parallel only
+   then. */
+.pill-switch {
+  --pill-inset: 3px;
+  --pill-radius: calc(var(--radius-sm) - 1px - var(--pill-inset));
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--pill-inset);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Whole pixels high: the track and its pill land on the same pixels (a
+   fractional height snapped them apart, 3px of gap on one side, 5px on
+   the other). */
+.pill-switch button {
+  position: relative;
+  z-index: 1;
+  height: 24px;
+  padding: 0 0.8em;
+  font-size: 0.85em;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--pill-radius);
+}
+
+.pill-switch button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.pill-switch button.active {
+  color: var(--accent-text);
+}
+
+.pill-switch button:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.pill-switch-pill {
+  position: absolute;
+  top: var(--pill-inset);
+  bottom: var(--pill-inset);
+  border-radius: var(--pill-radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.pill-switch-pill.placed {
+  transition:
+    left 220ms cubic-bezier(0.2, 0, 0, 1),
+    width 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill-switch-pill.placed {
+    transition: none;
+  }
 }
 
 .top-actions {
@@ -212,10 +345,11 @@ body {
   gap: 0.4em;
 }
 
+/* Whole pixels, an even difference with the icon (see .icon-small-button). */
 .icon-button {
   position: relative;
-  width: 2.3em;
-  height: 2.3em;
+  width: 32px;
+  height: 32px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -223,8 +357,8 @@ body {
 }
 
 .icon-button svg {
-  width: 1.2em;
-  height: 1.2em;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -238,11 +372,11 @@ body {
 }
 
 .update-button {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .update-button-failed {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .update-button-busy svg {
@@ -296,60 +430,12 @@ body {
   color: var(--text-muted);
 }
 
-/* Nothing in the app scrolls but lists: the window is split into regions
-   that shrink and grow with it, and a list that outgrows its region (tracks,
-   analyzed tracks) scrolls inside its own frame (.list-scroll). Left, the
-   file: tracks, analyzed tracks and the export. Right, what's looked at and
-   listened to: the chart and the waveforms. `min-height: 0` on every grid/
-   flex level is load-bearing: items default to `min-height: auto`, which
-   lets content push past its region instead of shrinking into it. */
-.app-main {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 1em;
-  display: grid;
-  /* Follows the window's width instead of keeping a fixed one. */
-  grid-template-columns: clamp(290px, 24vw, 420px) minmax(0, 1fr);
-  gap: 1em;
-  overflow: hidden;
-}
-
-.left-column {
-  grid-column: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8em;
-}
-
-/* Keeps its natural height (the analyzed tracks below give way first), up
-   to a point where a file with many tracks scrolls its table instead. */
-.left-column .field-tracks {
-  flex: 0 0 auto;
-  max-height: 55%;
-  display: flex;
-  flex-direction: column;
-}
-
-.left-column .field-results {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-}
-
 /* A list that may hold more than its region can show: it scrolls in its own
    frame, the only kind of scrolling in the app. */
 .list-scroll {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-.field-analysis {
-  grid-column: 2;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 
 .panel {
@@ -359,7 +445,11 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  /* A sharp line under it, not --shadow's blur: the same look, but a blur
+     this size is redrawn on every frame the panels resize (the list
+     folding), which WebKit's CPU drawing (WebKitGTK, Linux) paid 70ms a
+     frame for. */
+  box-shadow: 0 1px 0 var(--shadow-color);
   padding: 1em 1.1em;
   /* Clips to the rounded corners. */
   overflow: hidden;
@@ -390,17 +480,22 @@ body {
 }
 
 input,
-select,
 button {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  padding: 0.55em 1.1em;
+  /* In whole pixels, line height included (a button's own is "normal",
+     the font's): 34px tall, its text and icons on whole pixels. */
+  padding: 6px 15px;
   font-size: 1em;
+  line-height: 20px;
   font-weight: 500;
   font-family: inherit;
   color: var(--text);
   background-color: var(--surface);
-  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    color 0.15s;
 }
 
 button {
@@ -411,7 +506,7 @@ button:hover {
   border-color: var(--accent);
 }
 button:active {
-  background-color: var(--surface-sunken);
+  background-color: var(--surface-alt);
 }
 button:disabled {
   cursor: default;
@@ -419,88 +514,12 @@ button:disabled {
   border-color: var(--border);
 }
 
-/* Native <select>s otherwise keep the OS's own default look (a
-   plain-text-with-no-border on some platforms, a chunky bevelled box on
-   others) regardless of the rules above, since browsers special-case form
-   control "appearance" -- appearance: none opts back into normal box
-   styling, and the custom chevron replaces the native dropdown arrow that
-   comes with it. */
-select {
-  appearance: none;
-  padding-right: 2.3em;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23888888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4,6 8,10 12,6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75em center;
-  background-size: 0.8em;
-  cursor: pointer;
-}
-
-select:hover {
-  border-color: var(--accent);
-}
-
-/* The open list itself, styled like the rest of the app instead of the
-   system's square popup (customizable select, WebView2/Chromium 135+; older
-   runtimes keep the system one). Rounded on every corner and detached from
-   the field by a small gap: it opens upward when there's no room below, so
-   no single side is always the free one. */
-@supports (appearance: base-select) {
-  select,
-  ::picker(select) {
-    appearance: base-select;
-  }
-
-  /* The chevron is already drawn as the field's background image. */
-  select::picker-icon {
-    display: none;
-  }
-
-  /* Below the field, flipping above only when it doesn't fit there: the
-     default opens on whichever side has more room, i.e. above any field in
-     the lower half of the window. Capped so it can't just shrink to fit
-     below instead of flipping; a long list scrolls inside. */
-  ::picker(select) {
-    position-try-order: normal;
-    max-block-size: 60vh;
-    margin-block: 4px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow-popup);
-  }
-
-  option {
-    padding: 0.35em 0.8em;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  option::checkmark {
-    display: none;
-  }
-
-  option:checked {
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  option:hover,
-  option:focus-visible {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    outline: none;
-  }
-}
-
 input,
-select,
 button {
   outline: none;
 }
 
 input:focus-visible,
-select:focus-visible,
 button:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
@@ -512,32 +531,22 @@ button:focus-visible {
 .primary-button {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-fg);
 }
 .primary-button:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
 .primary-button:disabled {
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   color: var(--text-muted);
-}
-
-.file-path {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  color: var(--text-muted);
-  max-width: 100%;
-  margin: 0 0 0.6em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
 }
 
 .small-button {
-  padding: 0.3em 0.75em;
+  /* 24px tall, as the icon ones (BatchView.css). */
+  padding: 3px 9px;
   font-size: 0.85em;
+  line-height: 16px;
 }
 
 /* A unit in an uppercase table header: "(ms)" must not become "(MS)". */
@@ -545,104 +554,92 @@ button:focus-visible {
   text-transform: none;
 }
 
-.tracks-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5em;
-  margin-top: 1em;
-}
-
-/* One row per analyzed track (App.tsx): select it to show it on the right,
-   tick it to export it. A left bar gives its state at a glance. */
-/* The export of the whole file, at the bottom of the analyzed tracks. */
-.export-box {
-  flex: 0 0 auto;
-  margin-top: auto;
-  padding-top: 0.7em;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-}
-
-.export-button {
-  width: 100%;
-}
-
-/* While exporting: the progress, and the way out if it was started too early. */
-.export-running {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-}
-
-.export-running-label {
-  flex: 1 1 auto;
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .export-cancel {
   flex: 0 0 auto;
-  border-color: var(--error);
-  color: var(--error);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
-.export-cancelled {
-  margin: 0;
-  font-size: 0.85em;
-  color: var(--text-muted);
-}
-
-.analysis-header {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1em;
-  margin-bottom: 0.7em;
-}
-
-.analysis-header h2 {
+/* An empty region's invitation (DropZone.tsx): a dashed zone with the
+   film icon, filling what it's in; a click opens the matching dialog. */
+.drop-zone-empty {
   flex: 1 1 auto;
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  width: 100%;
+  min-height: 12em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 2em;
+  color: var(--text-muted);
+  font-weight: 400;
+  background-color: transparent;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.drop-zone-empty:hover:not(:disabled) {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.drop-zone-empty:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.drop-zone-empty svg {
+  width: 3em;
+  height: 3em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+
+.drop-zone-empty-title {
+  font-size: 1.05em;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.drop-zone-empty-hint {
+  max-width: 30em;
+  font-size: 0.9em;
+  text-align: center;
+}
+
+/* Segments / Écoute, when the panel is too low for both at once. */
+.view-switch {
+  flex: 0 0 auto;
+}
+
+.view-hidden {
+  display: none;
+}
+
+.segments-result {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .error {
-  color: var(--error);
-}
-
-.export-summary {
-  margin: 0;
-  font-size: 0.85em;
-  color: var(--text-muted);
-}
-
-.export-written {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6em;
+  color: var(--danger);
 }
 
 .render-success {
   margin-top: 0;
 }
 
-/* Bottom right, closing the panel like a dialog's main action. */
-.export-button {
-  flex: 0 0 auto;
-}
-
 .render-success {
   margin-top: 0.6em;
   font-size: 0.85em;
-  color: var(--success);
+  color: var(--success-text);
 }
 
 .tracks-table-wrap {
@@ -650,47 +647,349 @@ button:focus-visible {
   border-radius: var(--radius-sm);
 }
 
-/* Headers stay in view when the table scrolls (.list-scroll). */
-.field-tracks th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+/* In a row of controls: centered with them (the folder icon beside it). */
+.preview-extra .log-button,
+.detail-export .log-button {
+  align-self: center;
 }
 
-.field-tracks table {
+/* Selectable, unlike the rest of the app: it's there to be copied. */
+.log {
+  margin: 0;
+  padding: 0.8em;
+  height: min(60vh, 32em);
+  user-select: text;
+  cursor: text;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+/* A theme forced in Options (see theme.ts); none: Windows' own. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Airier tables, the same for every table of the app (tracks, editor,
+   "Vérifier toutes les pistes"), as in Bobine Subs: the
+   column rules kept (they help read a row across), every other row faintly
+   tinted, a little more room in the cells. The wrappers make these win over
+   the tables' own rules (BatchView.css, SegmentEditor.css). */
+.batch-tracks-side .batch-tracks-table th,
+.batch-tracks-side .batch-tracks-table td {
+  border: 1px solid var(--border);
+}
+
+.batch-tracks-side .batch-tracks-table td {
+  padding: 0.6em 0.5em;
+}
+
+/* Not wider than before: the editor's number fields would cut their values
+   ("1136.46") in a 1280px window. */
+.editor-table-wrap .editor-table td {
+  padding: 0.45em 0.5em;
+}
+
+.editor-table-wrap .editor-table tbody tr:nth-child(even),
+.batch-tracks-side .batch-tracks-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--surface-alt) 60%, transparent);
+}
+
+/* The dialogs' track tables in a frame, as the others: its outer edges are
+   the frame's. */
+.batch-tracks-side .tracks-table-wrap {
+  overflow: hidden;
+}
+
+.batch-tracks-side .batch-tracks-table {
   border-collapse: collapse;
-  width: 100%;
-  font-size: 0.85em;
+  border-style: hidden;
 }
 
-/* No cell breaks mid-word ("truehd") in the narrow column of a small
-   window; a header may wrap at a space ("TO CORRECT"), never inside a word. */
-.field-tracks td {
+/* An unreliable segment keeps its tint over the alternate rows. */
+.editor-table-wrap .editor-table tbody tr.editor-row-low-confidence {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+/* A segment's confidence (ConfidenceGauge.tsx), as in Bobine Subs: a thin
+   bar filled to it, green when reliable, red when it's to check, the
+   percentage after. */
+.confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.confidence-bar {
+  width: 3.5em;
+  height: 0.4em;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-alt);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.confidence-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+}
+
+.confidence-weak .confidence-fill {
+  background: var(--danger);
+}
+
+.confidence-weak .confidence-value,
+.confidence-weak .confidence-flag {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Right-aligned values line up on the bar. */
+.confidence-value {
+  min-width: 3em;
+  text-align: right;
+}
+
+.confidence-flag {
+  width: 1em;
+  margin-left: -0.2em;
+}
+
+/* The redesign's look (2026-10, mockups on the design canvas): a soft light
+   at the top of a deep blue window, panels a shade above it, charts and
+   waveforms a shade below, and the main action in the logo's blue-to-violet
+   gradient. */
+body {
+  background: radial-gradient(1200px 700px at 70% -10%, var(--bg-glow), var(--bg) 60%) fixed;
+}
+
+.top-bar {
+  height: var(--top-bar-height);
+  box-sizing: border-box;
+  gap: 16px;
+  padding: 0 16px 0 20px;
+}
+
+/* With the window's buttons at its right end, closer to the edge. */
+.top-bar:has(.window-controls) {
+  padding-right: 8px;
+}
+
+.top-bar {
+  /* Drawn, not a border: the bar's inside stays 52px high, an even
+     number -- its buttons sit on whole pixels. */
+  box-shadow: inset 0 -1px 0 var(--border);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 8px;
+  font-size: 15px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.field-tracks th {
-  padding: 0.4em 0.3em;
-  text-align: center;
-  font-size: 0.75em;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.app-brand img {
+  width: 28px;
+  height: 28px;
+  /* The name drags the window: not the logo in it (see App.tsx). */
+  pointer-events: none;
+}
+
+/* Réduire, agrandir, fermer (WindowControls), after a thin separator. */
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.window-button {
+  width: 40px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--text-muted);
+  box-shadow: none;
+}
+
+/* Maximized, the buttons are clicked from the screen's edges, as in other
+   apps: each one's click area grows up to the bar's top and bottom and over
+   the gaps between them, the close button's up to the right edge -- the
+   buttons look the same. */
+.window-controls-maximized .window-button {
+  position: relative;
+}
+
+.window-controls-maximized .window-button::after {
+  content: "";
+  position: absolute;
+  inset: -10px -1px;
+}
+
+.window-controls-maximized .window-close::after {
+  right: -8px;
+}
+
+.window-button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.window-close:hover:not(:disabled) {
+  background: #e81123;
+  color: #fff;
+}
+
+.window-button svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.panel {
+  background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 82%, var(--bg)));
+}
+
+button {
+  background-color: var(--surface-alt);
+}
+
+input {
+  background-color: var(--surface-sunken);
+}
+
+.primary-button {
+  background: var(--gradient-action);
+  /* From the outer edge: else the gradient repeats under the transparent
+     border, its light end as a one-pixel line down the left side. */
+  background-origin: border-box;
+  border-color: transparent;
+  color: var(--accent-fg);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-2) 30%, transparent);
+}
+
+/* Deeper on hover, not lighter: the white text keeps its contrast. */
+.primary-button:hover:not(:disabled) {
+  background: var(--gradient-action);
+  background-origin: border-box;
+  border-color: transparent;
+  filter: brightness(0.92);
+}
+
+.primary-button:disabled {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.segment-chart,
+.waveform,
+.waveform-navigator-svg {
   background: var(--surface-sunken);
-  border: 1px solid var(--border);
 }
 
-.field-tracks td {
-  padding: 0.5em 0.3em;
-  text-align: center;
-  border: 1px solid var(--border);
+/* The sliding pill: tinted with the gradient, its option in full text. */
+.pill-switch-pill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-strong) 32%, var(--surface)),
+    color-mix(in srgb, var(--accent-2) 26%, var(--surface))
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.field-tracks tbody tr:hover {
-  background: var(--surface-sunken);
+.pill-switch button.active {
+  color: var(--text);
 }
 
+/* An icon button whose panel is open (the gear while Paramètres shows). */
+.icon-button-on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent-strong) 20%, var(--surface-alt));
+}
+
+/* A PillSwitch across its container, its options sharing the width. */
+.pill-switch-wide {
+  display: flex;
+}
+
+.pill-switch-wide button {
+  flex: 1 1 0;
+}
+
+/* A theme change cross-fades the whole window (theme.ts's crossFade):
+   the old picture out, the new one in, everything at the same pace. The
+   controls' hover transitions are paused meanwhile (.theme-switching). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: ease;
+}
+
+.theme-switching,
+.theme-switching * {
+  transition: none !important;
+}
+
+/* With the 14px base, what was sized as a share of the text came out too
+   small (table headers under 9px): fixed floors, as in the mockups. Later in
+   the cascade than BatchView.css and SegmentEditor.css, same selectors. */
+.batch-tracks-table th,
+.editor-table th {
+  font-size: 11px;
+}
+
+.small-button {
+  font-size: 12px;
+}
+
+.log {
+  font-size: 12px;
+}
+
+/* The drawn warning sign (icons.tsx), in its text's color. */
+.warning-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  vertical-align: -2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- Bobine Subs only. ---- */
+
+/* The run's log, folded under what it's about. */
 .log-panel {
   text-align: left;
   font-size: 0.85em;
@@ -710,50 +1009,12 @@ button:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
-  font-size: 0.9em;
-  background: var(--surface-sunken);
+  font-size: 12px;
+  background: var(--surface-alt);
   border-radius: var(--radius-sm);
 }
 
-/* A theme forced in Options (see theme.ts); none: Windows' own. */
-:root[data-theme="light"] {
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
-
-/* ---- Bobine Subs only (what Bobine Audio has no equivalent of). ---- */
-
-/* Each view's root is a grid/flex box: its own display rule would beat
-   the `hidden` attribute's (a user-agent style). */
-.app-main[hidden],
-.batch-main[hidden] {
-  display: none;
-}
-
-/* Fichiers multipistes / Paires de fichiers (Bobine Audio's view tabs). */
-.view-tabs {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 0.3em;
-}
-
-.view-tabs button {
-  padding: 0.3em 0.9em;
-  font-size: 0.85em;
-}
-
-.view-tabs button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-
-.muted {
-  color: var(--text-muted);
-}
-
+/* Anything to double-check. */
 .warning {
   margin: 0;
   color: var(--warn);
@@ -764,19 +1025,7 @@ button:focus-visible {
   color: var(--warn);
 }
 
-.tracks-actions {
-  flex-direction: row;
-  justify-content: center;
-}
-
-/* The analysis panel: its header stays, the result scrolls under it. */
-.field-analysis .analysis-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
+/* What an analysis found, over its chart and under the loupe. */
 .analysis-content {
   display: flex;
   flex-direction: column;
@@ -792,6 +1041,21 @@ button:focus-visible {
 
 .analysis-found {
   font-weight: 600;
+}
+
+/* What the export's cleanup will fix. */
+.analysis-cleanup {
+  margin: 0.3em 0 0;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+/* With this file's own choice: its drop-down on the line. */
+div.analysis-cleanup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
 }
 
 .analysis-counts {
@@ -829,7 +1093,7 @@ button:focus-visible {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
   border: 1px solid var(--border);
 }
 
@@ -839,43 +1103,21 @@ button:focus-visible {
   border: 1px solid var(--border);
 }
 
+.segments-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--surface-alt) 60%, transparent);
+}
+
 /* An unreliable segment: its row faintly red, as in the editor. */
-.analysis-content .tracks-table-wrap .segments-table tbody tr.weak {
-  background: color-mix(in srgb, var(--error) 8%, transparent);
+.segments-table tbody tr.weak {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
-/* A drift's offsets (start -> end), in the drift orange. */
+/* A drift's offsets (start -> end), in the drift orange (its text shade). */
 .drift-text {
-  color: var(--drift);
+  color: var(--drift-text);
 }
 
-/* The export panel: what's written, above the export box. */
-.export-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6em;
-}
-
-.export-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-  font-size: 0.9em;
-}
-
-.export-fields label {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-
-.export-fields select,
-.export-fields input:not([type="checkbox"]) {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/* The timeline's toolbars, as Bobine Audio's preview toolbar. */
+/* The loupe's toolbars, as Bobine Audio's preview toolbar. */
 .toolbar-label {
   color: var(--text-muted);
   font-size: 0.9em;
@@ -887,441 +1129,90 @@ button:focus-visible {
   font-size: 0.85em;
 }
 
-.batch-config input:not([type="checkbox"]) {
-  width: 9em;
-}
-
-/* Batch and its sub-modes: a drawer, tinted with the accent, that unrolls
-   to the right from under Batch (tucked under its rounded corners) when
-   it's picked. Only the drawer's width moves (a grid column, 0fr -> 1fr),
-   clipped at its edges: nothing is drawn over Batch, and nothing left of
-   it moves. Smaller buttons than the modes: a level below them. */
-.mode-switch {
-  align-items: center;
-}
-
-.batch-group {
-  display: flex;
-  align-items: stretch;
-}
-
-/* Above the drawer tucked under it. */
-.batch-main-button {
-  position: relative;
-  z-index: 1;
-}
-
-.batch-drawer {
-  display: grid;
-  grid-template-columns: 0fr;
-  margin-left: calc(-1 * var(--radius-sm));
-  transition: grid-template-columns 240ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-/* The column's width, whatever the sub-modes' own: what clips them. */
-.batch-drawer-clip {
-  min-width: 0;
-  display: flex;
-  overflow: hidden;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.batch-group.open .batch-drawer {
-  grid-template-columns: 1fr;
-}
-
-/* The drawer's look on the shared switch (PillSwitch, below): tinted with
-   the accent, the part under Batch's corners, its own inset. */
-.pill-switch.batch-submodes {
-  flex: 0 0 auto;
-  align-self: stretch;
-  padding: 3px 4px 3px calc(var(--radius-sm) + 4px);
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-left: none;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-/* A choice between a few options, all visible, a selection pill sliding
-   under the picked one (PillSwitch.tsx): a sunken track, smaller buttons. */
-.pill-switch {
-  position: relative;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
+.timeline {
   background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
 }
 
-.pill-switch button {
-  position: relative;
-  z-index: 1;
-  padding: 0.25em 0.8em;
-  font-size: 0.85em;
-  white-space: nowrap;
-  color: var(--text-muted);
-  background: transparent;
+/* A count that opens its list ("3 seront retirées"): text, underlined. */
+.link-button {
+  padding: 0;
+  height: auto;
   border: none;
-  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 
-.pill-switch button:hover:not(:disabled) {
-  color: var(--text);
+.link-button:hover:not(:disabled) {
+  background: none;
+  text-decoration-thickness: 2px;
 }
 
-.pill-switch button.active {
-  color: var(--accent);
+/* The lines left out of the export, and those kept by hand. */
+.lines-panel {
+  max-width: 820px;
 }
 
-.pill-switch button:focus-visible {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+.lines-table-wrap {
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
-.pill-switch-pill {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  border-radius: 6px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
+.lines-table td.line-text {
+  text-align: left;
 }
 
-.pill-switch-pill.placed {
-  transition:
-    left 220ms cubic-bezier(0.2, 0, 0, 1),
-    width 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-/* The whole width, options sharing it (the single-file export). */
-.pill-switch-wide {
-  display: flex;
-}
-
-.pill-switch-wide button {
-  flex: 1 1 0;
-}
-
-.batch-config-field {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  font-size: 0.9em;
-}
-
-.batch-config-field .pill-switch {
-  font-size: 1.05em;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .batch-drawer,
-  .pill-switch-pill.placed {
-    transition: none;
-  }
-}
-
-/* An empty region's invitation (DropZone.tsx): a dashed zone with the
-   film icon, filling what it's in; a click opens the matching dialog. */
-.drop-zone-empty {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 12em;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5em;
-  padding: 2em;
-  color: var(--text-muted);
-  font-weight: 400;
-  background: transparent;
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-}
-
-.drop-zone-empty:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
-}
-
-.drop-zone-empty:active:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-}
-
-.drop-zone-empty svg {
-  width: 3em;
-  height: 3em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.8;
-}
-
-.drop-zone-empty-title {
-  font-size: 1.05em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.drop-zone-empty-hint {
-  max-width: 30em;
-  font-size: 0.9em;
-  text-align: center;
-}
-
-/* In the analysis panel: the whole height under its title. */
-.field-analysis .analysis-scroll:has(> .drop-zone-empty) {
-  display: flex;
-}
-
-/* In the batch table: a cell of its own, the zone inset in it. */
-.batch-table-wrap td.batch-empty {
-  padding: 0.8em;
-  background: var(--surface);
-}
-
-/* Pairs: the track picked in a video to correct, under its name. */
-.batch-target-track {
-  margin-top: 0.15em;
-  font-size: 0.85em;
+.lines-table tr.line-kept td {
   color: var(--text-muted);
 }
 
-.batch-file-inner .batch-track-status {
-  flex: 0 0 auto;
-  white-space: nowrap;
+/* The cleanup's list: what each fix takes out (struck) and puts in. */
+/* A little room each side: a changed space must show. */
+.diff-removed,
+.diff-added {
+  padding: 0 2px;
+  border-radius: 3px;
 }
 
-/* Single file: what's to correct is still to add -- the panel's next step. */
-.tracks-add-main {
-  width: 100%;
-  margin-top: 0.7em;
+.diff-removed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  text-decoration: line-through;
 }
 
-/* Batch: a row's result on the left, its buttons on the right. */
-.batch-analysis-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
+.diff-added {
+  color: var(--success-text);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
 }
 
-.batch-analysis-text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.batch-analysis-text .batch-issues {
-  display: block;
-}
-
-.batch-row-buttons {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.3em;
-}
-
-/* A small button holding an icon only (Réanalyser). */
-.icon-small-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.25em 0.45em;
-}
-
-.icon-small-button svg {
-  width: 1.05em;
-  height: 1.05em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Single file: a forced subtitle track, "(F)" after its language. */
-.track-forced {
-  color: var(--text-muted);
-  font-size: 0.85em;
-}
-
-/* Batch: the written file's folder, an icon centered in its narrow column. */
-.batch-table-wrap col.batch-col-folder {
-  width: 3.2em;
-}
-
-.batch-table-wrap td.batch-row-actions {
-  padding: 0.45em 0.3em;
-  text-align: center;
-  vertical-align: middle;
-}
-
-.batch-table-wrap td.batch-row-actions button {
-  margin: 0;
-}
-
-/* "Choisir": the reference's and the target's tables, each under its file. */
-.batch-choice-heading {
-  margin: 1em 0 0.5em;
-  font-size: 0.8em;
+/* A no-break space, drawn: it looks like any other space. */
+.diff-nbsp {
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+}
+
+.line-duration {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.lines-table tr.line-refused td {
   color: var(--text-muted);
 }
 
-.batch-choice-heading:first-of-type {
-  margin-top: 0;
+.lines-table tr.line-refused mark {
+  color: inherit;
+  background: none;
+  text-decoration: none;
 }
 
-.batch-choice-title {
-  max-width: 14em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.cleanup-panel {
+  max-width: 980px;
 }
 
-/* Pairs: the tracks used and "Choisir", under the file to correct. */
-.batch-target-track.batch-tracks-line {
-  margin-top: 0.3em;
-}
-
-/* Airier tables, the same for every table of the app (tracks, segments,
-   editor, batch, "Choisir"): the column rules kept (they help read a row
-   across), every other row faintly tinted, a little more room in the
-   cells. The wrappers make these win over the tables' own rules
-   (BatchView.css, SegmentEditor.css load after this file). */
-.batch-choice-panel .batch-tracks-table th,
-.batch-choice-panel .batch-tracks-table td {
-  border: 1px solid var(--border);
-}
-
-.field-tracks .tracks-table-wrap td,
-.analysis-content .tracks-table-wrap td,
-.batch-choice-panel .batch-tracks-table td {
-  padding: 0.6em 0.5em;
-}
-
-.editor-table-wrap .editor-table td {
-  padding: 0.45em 0.6em;
-}
-
-.batch-table-wrap table td {
-  padding: 0.6em 0.6em;
-}
-
-.field-tracks .tracks-table-wrap tbody tr:nth-child(even),
-.analysis-content .tracks-table-wrap tbody tr:nth-child(even),
-.editor-table-wrap .editor-table tbody tr:nth-child(even),
-.batch-choice-panel .batch-tracks-table tbody tr:nth-child(even),
-.batch-table-wrap table tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
-}
-
-/* The "Choisir" tables in a frame, as the others: its outer edges are the
-   frame's. */
-.batch-choice-panel .tracks-table-wrap {
-  overflow: hidden;
-}
-
-.batch-choice-panel .batch-tracks-table {
-  border-collapse: collapse;
-  border-style: hidden;
-}
-
-/* An unreliable segment keeps its tint over the alternate rows. */
-.editor-table-wrap .editor-table tbody tr.editor-row-low-confidence {
-  background: color-mix(in srgb, var(--error) 8%, transparent);
-}
-
-/* A segment's confidence (ConfidenceGauge.tsx): a thin bar filled to it,
-   green when reliable, orange when it's to check, the percentage after. */
-.confidence {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.confidence-bar {
-  width: 3.5em;
-  height: 0.4em;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--border);
-}
-
-.confidence-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--success);
-}
-
-.confidence-weak .confidence-fill {
-  background: var(--error);
-}
-
-.confidence-weak .confidence-value,
-.confidence-weak .confidence-flag {
-  color: var(--error);
-  font-weight: 600;
-}
-
-/* Right-aligned values line up on the bar. */
-.confidence-value {
-  min-width: 3em;
-  text-align: right;
-}
-
-.confidence-flag {
-  width: 1em;
-  margin-left: -0.2em;
-}
-
-/* Batch: where each row stands, a bar at its left (as Bobine Audio's
-   analyzed tracks): running blue, waiting pale blue, analyzed pale green,
-   exported green, failed red. */
-.batch-table-wrap tbody tr > td:first-child {
-  box-shadow: inset 3px 0 0 var(--row-state, transparent);
-}
-
-.batch-row-state-running {
-  --row-state: var(--accent);
-}
-
-.batch-row-state-queued {
-  --row-state: color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-.batch-row-state-analyzed {
-  --row-state: color-mix(in srgb, var(--success) 45%, transparent);
-}
-
-.batch-row-state-exported {
-  --row-state: var(--success);
-}
-
-.batch-row-state-error {
-  --row-state: var(--error);
-}
-
-/* The "?" by a card title: the title is all capitals, the circle sits on
-   the baseline (InfoTip.css) and hung ~1.6px below them (as Bobine
-   Audio's fix). */
-.panel h2 .info-tip {
-  vertical-align: 0.14em;
-}
-
-/* Table headers break between words, never inside one ("PIST|E"): the
-   panel's overflow-wrap: anywhere (for long paths) is inherited. */
-.panel th {
-  overflow-wrap: normal;
+/* "Valider" (a file checked by hand): its tick, and once checked, the accent. */
+.validate-button.validated {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }

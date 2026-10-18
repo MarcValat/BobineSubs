@@ -2,18 +2,21 @@
 
 # Guide d'utilisation
 
-Ce guide explique comment utiliser Bobine Subs, de l'ouverture d'une vidéo à l'export, pour un fichier comme pour une série entière. Pour l'installation, voir le [README](../README.fr.md#installation).
+Ce guide explique comment utiliser Bobine Subs, de l'ajout des fichiers à l'export, pour un épisode comme pour une saison entière. Pour l'installation, voir le [README](../README.fr.md#installation).
 
 ## Sommaire
 
 1. [Les mots à connaître](#les-mots-à-connaître)
-2. [Un fichier à la fois](#un-fichier-à-la-fois)
-3. [Lire le résultat](#lire-le-résultat)
-4. [Corriger les segments à la main](#corriger-les-segments-à-la-main)
-5. [Exporter](#exporter)
-6. [Une série entière](#une-série-entière)
-7. [Options](#options)
-8. [Questions fréquentes](#questions-fréquentes)
+2. [La fenêtre](#la-fenêtre)
+3. [Fichiers multipistes, pas à pas](#fichiers-multipistes-pas-à-pas)
+4. [Lire le résultat](#lire-le-résultat)
+5. [Corriger les segments à la main](#corriger-les-segments-à-la-main)
+6. [Les répliques retirées](#les-répliques-retirées)
+7. [Le nettoyage](#le-nettoyage)
+8. [Exporter](#exporter)
+9. [Paires de fichiers](#paires-de-fichiers)
+10. [Paramètres](#paramètres)
+11. [Questions fréquentes](#questions-fréquentes)
 
 ## Les mots à connaître
 
@@ -25,98 +28,199 @@ Ce guide explique comment utiliser Bobine Subs, de l'ouverture d'une vidéo à l
   - *constant* : le décalage reste le même sur tout le segment ;
   - *dérive* : il grandit peu à peu, parce que les sous-titres ont été faits pour une autre cadence d'images (25 i/s au lieu de 23,976, par exemple) ;
   - *saut* : il change d'un coup entre deux segments.
-- **Confiance** : la part des répliques d'un segment qui tombent bien en face de répliques de la référence, de 0 à 100 %. En dessous de 80 %, le segment est signalé **⚠** : à vérifier.
+- **Confiance** : la part des répliques d'un segment qui tombent bien en face de répliques de la référence, de 0 à 100 %. En dessous de 80 %, le segment est signalé **peu fiable** : à vérifier.
 
-## Un fichier à la fois
+## La fenêtre
 
-C'est le mode **Fichier unique**, en haut à gauche.
+La barre du haut choisit l'un des deux **modes**, selon l'organisation de tes fichiers :
 
-1. **Ouvre la vidéo** avec « Ouvrir un fichier », ou dépose-la sur la fenêtre. Le panneau **Pistes** liste ses pistes de sous-titres (survole une ligne pour voir son titre ; **(F)** signale des sous-titres forcés). Une référence peut aussi être un fichier SRT/ASS bien calé, si tu n'as que celui-là.
-2. **Coche la référence** dans la colonne **Réf.** : une piste est cochée d'office (une piste complète plutôt que forcée, en texte plutôt qu'en image). Les sous-titres image (Blu-ray, DVD) peuvent servir de référence.
-3. **Coche les sous-titres à corriger** dans la colonne **À corriger** : une autre piste de la même vidéo (cochée d'office quand la vidéo en contient deux), ou un fichier à part, ajouté avec « **+ Ajouter des sous-titres** » (un SRT/ASS, ou une autre vidéo dont on prendra une piste). Déposer un SRT/ASS sur la fenêtre fait la même chose.
-4. **Analyser** : quelques secondes. Le **Journal** montre où en est l'analyse, et « Annuler » l'arrête.
+| Tes fichiers… | Mode |
+| --- | --- |
+| Chaque vidéo contient déjà les sous-titres bien calés et ceux à corriger (un MKV avec une piste anglaise et une française, par exemple) | **Fichiers multipistes** |
+| Les sous-titres à corriger sont à part : des fichiers SRT ou ASS, ou les pistes d'autres vidéos | **Paires de fichiers** |
+
+Un seul fichier marche aussi bien qu'une saison entière : les deux modes en prennent un ou plusieurs. Chaque mode garde ses fichiers quand tu passes à l'autre ; le dernier mode utilisé est repris au lancement suivant.
+
+À droite de la barre : l'**état du moteur** (« Moteur prêt » une fois le moteur d'analyse démarré), l'icône de **mise à jour** quand une nouvelle version est sortie, et **⚙ Paramètres**.
+
+En dessous, l'espace de travail :
+
+- en haut, la **barre de réglages** : les pistes à utiliser et le nettoyage, pour tous les fichiers à la fois ;
+- à gauche, la **liste** des fichiers. Clique sur un fichier pour l'afficher ; **↑ / ↓** passent au précédent ou au suivant. Au survol d'une ligne, ✕ la retire ; **Tout retirer** vide la liste (après confirmation, si des analyses ou des modifications seraient perdues). Le bouton **«** replie la liste en une colonne étroite, pour gagner de la place sur un petit écran ;
+- à droite, le **détail** du fichier choisi ;
+- en bas, le résumé des options d'**export**, l'avancement, et les boutons pour tous les fichiers à la fois.
+
+Un seul bouton est mis en avant (en couleur) : l'étape suivante, « Analyser tout » puis « Exporter tout » (ou, avec un seul fichier, « Analyser » puis « Exporter ce fichier »).
+
+## Fichiers multipistes, pas à pas
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/main-fr-dark.png">
+  <img src="screenshots/main-fr-light.png" alt="Le mode fichiers multipistes : trois épisodes analysés à gauche ; à droite, les pistes, la courbe des décalages, la loupe sur les répliques et le tableau des segments du premier">
+</picture>
+
+1. **Ajoute les vidéos** (MKV, MP4) : dépose-les sur la fenêtre, ou clique sur la zone vide. Déposer un **dossier** ajoute ses vidéos dans l'ordre des noms (« Épisode 2 » avant « Épisode 10 »). Leurs pistes sont lues aussitôt, avec le nombre de répliques de chacune.
+2. **Choisis les pistes** dans la barre de réglages, pour tous les fichiers à la fois :
+   - **Référence** : **Automatique (la plus complète)**, ou une piste choisie par **numéro**, **langue** ou **nom de piste**. L'automatique prend la piste qui a le plus de répliques, en laissant de côté les pistes forcées ;
+   - **À corriger** : une ou plusieurs pistes, choisies de la même façon (le compteur « 1 / 6 » dit combien sont cochées).
+3. **Vérifie la liste** : sous chaque nom, `Réf. auto @0 eng → @1 fre` résume ce qui sera fait (« la piste 1 recalée sur la piste 0 »). Dans le détail, le **tableau des pistes** fixe les pistes d'un fichier à la main (colonnes **Réf.** et **Corr.**) ; « Par langue » revient au choix de la barre. Une piste image (PGS des Blu-ray, VobSub des DVD) peut servir de référence, pas être recalée.
+4. **Des sous-titres à part ?** « **+ Ajouter des sous-titres** », sous le tableau, ajoute un fichier SRT ou ASS comme piste à corriger de cette vidéo. Sous le tableau, « À l'export » dit ce qu'il deviendra : il **remplace** la piste de même langue de la vidéo (souvent une mauvaise), ou il est **ajouté** à côté ; la liste permet de choisir.
+5. **Analyse** : « Analyser tout » analyse toutes les vidéos, l'une après l'autre ; celles qui attendent leur tour sont « En attente ». Ensuite, le bouton n'analyse que ce qui manque (nouveaux fichiers, échecs) sans perdre tes corrections ; « Tout réanalyser » recommence tout. Dans le détail d'un fichier, **⟳** réanalyse ce fichier seul.
+6. **Vérifie le résultat** de chaque fichier (voir [Lire le résultat](#lire-le-résultat)), et corrige-le à la main si besoin (« Modifier les segments »).
+7. **Exporte** : « Exporter tout », ou « Exporter ce fichier » dans un détail (voir [Exporter](#exporter)).
+
+Une barre de couleur à gauche de chaque ligne et son badge disent où elle en est : à analyser, en attente, analysée, **À vérifier**, exportée, en échec. Un fichier est **À vérifier** quand un segment est peu fiable ou que des répliques seront retirées à l'export.
 
 ## Lire le résultat
 
-À droite, le panneau d'analyse a pour titre la piste corrigée et sa référence (« Piste @1 (fre) · référence @0 (eng) »).
+Le détail d'un fichier montre, sous son nom, un bouton par **piste corrigée** (`@1 fre`) : s'il y en a plusieurs, il choisit celle affichée.
 
-- **En haut**, le résumé : « Décalage constant de −1,060 s » ou « 6 segments · 5 sauts », une éventuelle **dérive** (« Dérive : 23,976 -> 25 i/s »), et le nombre de répliques.
-- **La courbe** montre le décalage le long de la vidéo, un trait par segment : **bleu** pour un décalage constant, **orange** pour une dérive, **en pointillés** (sur fond rougeâtre) pour un segment peu fiable. La légende est sous la courbe. Les tirets en dessous montrent où sont les répliques : celles de la référence au-dessus, celles corrigées en dessous.
-- **La loupe**, sous la courbe, montre 10 s à 2 min de la vidéo sur trois lignes :
-  - **Référence** : les répliques de la référence, avec leur texte ;
-  - **Avant** : les sous-titres à corriger, tels qu'ils sont ;
-  - **Après** : les mêmes une fois corrigés.
+Dans une grande fenêtre, la courbe et la loupe s'affichent l'une sous l'autre ; dans une plus petite, les onglets **Segments** et **Loupe** passent de l'une à l'autre.
 
-  Si tout va bien, chaque réplique de la ligne « Après » tombe en face de la réplique de référence qui dit la même chose. Clique sur la courbe pour déplacer la loupe, ou utilise « Aller à : Saut précédent / suivant » pour aller voir chaque saut. Passe la souris sur une réplique pour lire son texte complet et ses horaires.
-- **Le tableau des segments** donne, pour chacun, son début et sa fin, son décalage (en orange pour une dérive, du début à la fin du segment), son nombre de répliques et sa **confiance**, en jauge : verte si le segment est fiable, rouge avec ⚠ s'il est à vérifier.
-- « **sans équivalent** » compte les répliques qui n'ont pas de réplique en face dans la référence : une ligne ajoutée par le traducteur, une mention comme `[FRENCH]`, une réplique non dialoguée (`[Musique]`, paroles…). Elles sont recalées quand même, avec leur segment.
+### Le résumé et la courbe
+
+En tête de **Segments** : « Décalage constant de +1.200 s », ou « 3 segments · 2 sauts », une éventuelle **dérive** (« Dérive : cible accélérée (23,976 -> 25 i/s, PAL) »), et le nombre de répliques de chaque côté.
+
+La courbe montre le décalage (verticalement) tout au long de la vidéo (horizontalement). La ligne pointillée « 0 s » correspond à la référence.
+
+- Chaque segment est un trait : **vert** s'il est constant, **orange** s'il dérive.
+- Un trait **en pointillés** est peu fiable : à vérifier dans la loupe.
+- Un changement de hauteur entre deux traits est un **saut**.
+- Sous la courbe, les tirets montrent où sont les répliques : celles de la référence et celles corrigées.
+- Le cadre montre la partie affichée dans la loupe : clique ou glisse sur la courbe pour l'y amener.
+
+### La loupe
+
+Trois lignes de répliques, sur la même échelle de temps, avec leur texte :
+
+- **Référence** : les répliques de la référence, qui ne bougent pas ;
+- **Avant** : les sous-titres à corriger, tels qu'ils sont ;
+- **Après** : les mêmes une fois corrigés.
+
+Si tout va bien, chaque réplique de la ligne « Après » tombe en face de la réplique de référence qui dit la même chose. Passe la souris sur une réplique pour lire son texte complet et ses horaires. Une réplique **rouge** dans « Avant » sera retirée à l'export ; une réplique **en pointillés** sera modifiée par le nettoyage.
+
+Pour se déplacer :
+
+- la **molette** zoome ou dézoome sous le curseur ; **+** / **−** et « Piste entière » font de même avec des boutons ;
+- **glisser** les répliques déplace la loupe dans le temps ;
+- « **Aller à** : ← Saut précédent / Saut suivant → » amène la loupe sur chaque saut, le plus sûr pour vérifier les changements de segment.
+
+### Le tableau des segments
+
+Pour chaque segment : son début et sa fin, son décalage (du début à la fin pour une dérive), son nombre de répliques et sa **confiance**, en jauge : verte si le segment est fiable, rouge s'il est à vérifier.
+
+### Valider un fichier
+
+Un fichier **À vérifier** a un bouton **Valider** dans l'en-tête de son détail : une fois vérifié à l'œil, clique dessus. Il passe à **Validé** dans la liste ; un nouveau clic, ou une nouvelle analyse, l'annule.
 
 ## Corriger les segments à la main
 
-« Modifier les segments » ouvre l'éditeur (« Corriger manuellement les segments »), quand la détection s'est trompée quelque part. Tout ce que tu y fais se voit aussitôt dans la loupe.
+La détection compare le rythme des répliques. Là où il ressemble à un autre passage, ou quand les deux versions diffèrent trop, elle peut se tromper. « Modifier les segments » ouvre l'éditeur pour corriger ça.
 
-- **Glisser un segment** vers le haut ou le bas change son décalage.
-- **Glisser une poignée ●** déplace la frontière entre deux segments.
-- **Couper** : double-clique sur la courbe, ou « ✂ Couper ici » pour couper au centre de la loupe.
-- **Aligner** : le plus rapide quand on voit qu'un passage est décalé. Dans la loupe, clique une réplique de la ligne « Après », puis la réplique de référence qui dit la même chose : tout son segment se décale pour qu'elles commencent ensemble.
-- **Le tableau** permet de saisir une frontière (`10:02.82`) ou un décalage en millisecondes, au début (« Décal. début ») et à la fin (« Décal. fin ») du segment : deux valeurs différentes en font une dérive.
-- **Retirer** supprime un segment (une fausse détection) : son voisin s'étend sur sa durée, avec son propre décalage. « Retirer les segments peu fiables », en bas, le fait pour chaque segment ⚠.
-- **Défaire / Refaire** (Ctrl+Z / Ctrl+Y) et **Réinitialiser** (revenir aux segments de l'ouverture), en bas à gauche.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/editor-fr-dark.png">
+  <img src="screenshots/editor-fr-light.png" alt="L'éditeur de segments : la courbe des décalages avec ses frontières déplaçables, la loupe sur les répliques avec une réplique choisie pour l'aligner, le tableau des segments">
+</picture>
 
-« Enregistrer » garde tes segments : le résultat porte alors « Modifié à la main », et l'export les applique tels quels, sans rien redétecter. « Annuler » ou Échap ferme l'éditeur, en demandant d'abord si tu as fait des modifications.
+Dans la courbe :
+
+- **Glisse un segment** vers le haut ou le bas pour changer son décalage.
+- **Glisse une poignée ●** pour déplacer la frontière entre deux segments.
+- **Double-clique** pour couper un segment en deux à cet endroit ; « ✂ Couper ici » coupe au milieu de la loupe.
+- La **molette** zoome, en même temps que la loupe ; **glisse le fond** pour te déplacer dans le temps. La barre sous la loupe montre tout l'épisode : glisse son cadre, ou clique pour y amener la vue.
+
+Dans la loupe, sur une réplique de la ligne « Après » :
+
+- **Aligner** : le plus rapide quand on voit qu'un passage est décalé. Clique la réplique, puis la réplique de référence qui dit la même chose : tout son segment se décale pour qu'elles commencent ensemble.
+- **Changer son horaire seule** : une fois choisie, glisse ses bords pour changer son début ou sa fin, ou la réplique elle-même pour la déplacer. Elle se cale sur les répliques de référence proches ; garde **Alt** enfoncé pour ne pas caler.
+- **La retirer** : « Retirer cette réplique », ou la touche **Suppr**.
+
+Dans le tableau, chaque frontière (`6:49.19`) et chaque décalage peut aussi être tapé au clavier, en millisecondes, au début (« Décal. début ») et à la fin (« Décal. fin ») du segment : deux valeurs différentes en font une dérive.
+
+- **Retirer** supprime un segment, typiquement une fausse détection : son voisin s'étend sur sa durée, avec son propre décalage. Au survol, le résultat est prévisualisé en pointillés verts sur la courbe.
+- **Retirer les segments peu fiables** fait la même chose pour tous les segments peu fiables d'un coup.
+- **Défaire / Refaire** (Ctrl+Z / Ctrl+Y) et **Réinitialiser** (retour à l'état d'ouverture de l'éditeur).
+- **Enregistrer** garde les modifications : le résultat porte alors « Modifié à la main », et l'export les applique telles quelles. **Annuler** (ou Échap) les abandonne, après confirmation s'il y en a.
+
+## Les répliques retirées
+
+Certaines répliques ne sont pas exportées :
+
+- celles d'un **passage que la référence n'a pas** (entre deux segments : une scène en plus dans cette version) ;
+- celles qui tomberaient **avant le début de la vidéo** ;
+- celles **retirées à la main** dans l'éditeur.
+
+Dans le résumé, « N seront retirées » ouvre leur liste (début, texte, pourquoi). **Garder** en rattache une au segment le plus proche ; **Tout garder** les rattache toutes. Les répliques dont l'horaire a été changé à la main y figurent aussi : « Horaire d'origine » le leur rend.
+
+Aux sauts, deux répliques qui se suivaient de près pourraient se chevaucher une fois recalées : elles se partagent alors le temps, chacune restant assez longue pour être lue, et toujours dans leur ordre d'origine.
+
+## Le nettoyage
+
+Les SRT récupérés ont souvent de petits défauts. À l'export, le **nettoyage** corrige les plus évidents :
+
+- **Espaces** en trop ; **Tirets** de dialogue collés ; **Phrases collées** (« fini.Alors ») ;
+- **Ponctuation** : en français, une espace insécable avant ? ! : ; (les autres langues ne sont pas touchées) ;
+- **Apostrophes** droites et courbes mélangées ;
+- **Publicité** : les lignes de pub d'un site de sous-titres sont retirées (le crédit du traducteur reste) ;
+- **Chevauchement** : une réplique qui empiète sur la suivante ; **Trop courte** pour être lue ; **Fin avant le début**.
+
+**Nettoyage**, dans la barre de réglages, l'active ou non pour tous les fichiers, et choisit quelles corrections il fait ; ce choix est retenu. Dans le résumé d'un fichier, « Nettoyage : Comme le lot / Oui / Non » en décide autrement pour ce fichier, suivi de ce qu'il corrigera (« 2 lignes trop courtes ») : un clic ouvre la liste des répliques modifiées, avant et après, la différence surlignée ; décoche une ligne pour la laisser telle quelle.
+
+Seuls les SRT sont nettoyés : en ASS, styles, positions et effets sont gardés tels quels, et seuls les horaires changent.
 
 ## Exporter
 
-Le panneau **Export**, sous les pistes, choisit ce qui est écrit :
+**Export**, en bas à gauche, résume les options d'export ; « Modifier… » les ouvre :
 
-- **Nouveau MKV** : une copie de la vidéo, rien n'est réencodé.
-  - Quand la piste à corriger vient de la vidéo, la piste corrigée **remplace** l'originale, à la même place, avec la même langue et le même titre.
-  - Quand elle vient d'un fichier à part, elle est **ajoutée**. Sa langue est celle du fichier (devinée d'après son nom : `Film.fr.srt`, `episode-VF.srt` → français), ou choisie dans la liste ; tu peux lui donner un titre et en faire la piste par défaut.
-- **Sous-titres seuls** : le fichier SRT/ASS corrigé. En ASS, styles, positions et effets sont gardés tels quels : seuls les horaires changent.
+- **Dossier de sortie** : **à côté des originaux** (par défaut), avec le suffixe « .synced » (`Film.mkv` donne `Film.synced.mkv`), ou **un autre dossier** (« Choisir un dossier… »), où chaque export garde le nom de son original, sauf si ce nom y est déjà pris.
+- **Contenu** : **Nouveaux MKV** (la vidéo copiée telle quelle, sans réencodage, avec les pistes corrigées), ou **Sous-titres seuls** (un fichier SRT ou ASS par piste corrigée, sans toucher aux vidéos).
+- **Pistes corrigées**, dans les nouveaux MKV : leur **Nom** (vide : chacune garde le sien), et si elles sont **Par défaut** ou **Forcées** : *Inchangé* garde les réglages de la piste remplacée (aucun pour une piste ajoutée), *Oui* ou *Non* les fixe.
 
-« **Exporter le fichier synchronisé** » ouvre la fenêtre d'enregistrement, avec un nom proposé à côté de l'original (`Film.synced.mkv`) : valide-le, ou choisis un autre dossier ou un autre nom. « Contenu de l'export (?) » rappelle ce que contiendra le fichier.
+Ces options sont retenues. Le fichier d'origine n'est jamais modifié.
 
-- Le fichier d'origine n'est jamais modifié. Un export annulé ne laisse aucun fichier à moitié écrit.
-- Une fois l'export fini, « Ouvrir le dossier » montre le fichier écrit, et les répliques retirées (tombées avant le début de la vidéo, ou dans une scène qu'elle n'a pas) sont listées.
+Dans un nouveau MKV, une piste corrigée **remplace** la piste qu'elle corrige, à la même place, avec la même langue et le même titre. Des sous-titres ajoutés à part remplacent la piste de même langue, ou s'ajoutent, selon le choix fait dans le détail.
 
-## Une série entière
+« Exporter tout » écrit un fichier par vidéo ; « Exporter ce fichier » n'écrit que celui affiché. « Annuler l'export » arrête celui en cours et ne lance pas les suivants : aucun fichier à moitié écrit ne reste sur le disque. Une fois un fichier écrit, l'icône de dossier dans son détail ouvre son dossier.
 
-Le mode **Batch**, en haut à gauche, traite plusieurs épisodes d'un coup. Un clic dessus déroule ses deux façons de faire (la dernière utilisée est retenue) :
-
-- **Fichiers multipistes** : des vidéos contenant chacune la référence et la piste à corriger. Choisis dans la barre de réglages la **langue de la piste à corriger** (« À corriger : »).
-- **Paires de fichiers** : d'un côté les vidéos de référence, de l'autre ce qu'il faut corriger, un par épisode : des fichiers SRT/ASS, ou des vidéos dont on prendra une piste (choisie par langue, comme ci-dessus). Chaque fichier est associé à son épisode d'après le **numéro dans son nom** (`S01E03`, `1x03`, `E03`, `Episode 3`…), même si les noms sont différents. Ceux sans numéro commun sont associés dans l'ordre, signalés « ordre » ; les flèches ↑ ↓ corrigent l'ordre de la colonne « À corriger ».
-
-Ajoute les fichiers avec « + Ajouter » en tête de colonne, ou dépose-les sur la fenêtre, dossiers compris (en paires : sur la moitié gauche pour les références, sur la droite pour ce qu'il faut corriger).
-
-Dans la barre de réglages :
-
-- **Référence** : « Automatique (la plus complète) », ou la langue de la piste de référence, pour tous les fichiers ;
-- **Export** : « Nouveaux MKV » ou « Sous-titres seuls », et en paires la langue et le titre de la piste ajoutée.
-
-« **Choisir** », sur une ligne, fixe à la main la référence et la piste à corriger de ce fichier, quand la règle par langue ne convient pas ; la ligne porte alors « (manuel) », et « Par langue » revient à la règle.
-
-Puis :
-
-1. **Analyser tout** : un épisode après l'autre ; ceux qui attendent leur tour sont « En attente ». Chaque ligne affiche son résumé, avec « ⚠ à vérifier » si un segment est peu fiable ou si des répliques seront retirées. **Modifier** ouvre l'éditeur de cet épisode, même pendant que les autres s'analysent ; l'icône ↻ réanalyse cette ligne seule.
-2. **Exporter tout**, selon la **Sortie** choisie en bas (« à côté des originaux », ou « Choisir un dossier… ») :
-   - dans un autre dossier, chaque copie garde le nom de l'original (`Ma.Serie.S01E03.mkv`), sauf si ce nom est déjà pris ;
-   - à côté des originaux, c'est `Ma.Serie.S01E03.synced.mkv` ;
-   - en « Sous-titres seuls », un fichier à part garde son nom, et une piste extraite d'une vidéo devient `Film.fre.srt`, que les lecteurs chargent tout seuls.
-
-   L'icône de dossier, au bout de la ligne, ouvre le dossier du fichier écrit.
-
-Une barre de couleur à gauche de chaque ligne dit où elle en est : bleue en cours, bleu pâle en attente, vert pâle analysée, verte exportée, rouge en erreur. Une fois tout analysé, le bouton devient « Tout réanalyser » (qui perd les modifications faites avec « Modifier »).
+## Paires de fichiers
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/batch-dark.png">
-  <img src="screenshots/batch-light.png" alt="Le mode Batch : le tiroir Fichiers multipistes / Paires de fichiers, la barre de réglages, le tableau des épisodes analysés">
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/pairs-fr-dark.png">
+  <img src="screenshots/pairs-fr-light.png" alt="Le mode paires de fichiers : trois paires associées par numéro d'épisode à gauche ; à droite, les pistes des deux fichiers, la langue et l'export de la piste corrigée, la courbe et la loupe de la première paire">
 </picture>
 
-## Options
+Chaque ligne de la liste est une **paire** : en haut la **vidéo de référence** (Réf., avec ses sous-titres bien calés), en dessous ce qu'il faut **corriger** (Corr.) : un fichier SRT ou ASS, ou une autre vidéo qui contient la piste à corriger. La piste corrigée va dans la vidéo de référence.
 
-Le bouton ⚙, en haut à droite, règle le **thème** (celui du système, clair ou sombre) et la **vérification des mises à jour** au démarrage.
+Tout le reste marche comme en [fichiers multipistes](#fichiers-multipistes-pas-à-pas), à ces différences près :
+
+- **Ajouter** : « + Références » et « + À corriger » sous la liste. En déposant des fichiers, la **moitié gauche** de la fenêtre les ajoute aux références et la **moitié droite** à ce qu'il faut corriger.
+- **Association** : chaque fichier rejoint son épisode d'après le **numéro dans son nom** (`S01E03`, `1x03`, `E03`, `Episode 3`…), même si les noms sont différents ; la ligne l'indique (`S01E03`). Ceux sans numéro commun sont associés dans l'ordre et signalés « ordre » (**À vérifier**). Les ↑ ↓ d'un fichier l'échangent avec celui de la paire voisine ; un fichier sans son pendant est signalé **Sans paire**.
+- **Pistes** : **Référence** dans la barre, pour toutes les paires, et **À corriger** quand ce qu'il faut corriger est une vidéo. Dans le détail d'une paire, le tableau des pistes réunit celles des deux fichiers (colonne Fichier : Réf. ou Corr.) : changer un choix fixe les pistes de cette paire seulement, « Par défaut » revient à celles de la barre.
+- **Langue** de la piste corrigée : devinée d'après le nom du fichier (`Film.fr.srt`, `episode-VF.srt` → français), ou celle de la piste d'une vidéo ; le détail permet d'en choisir une autre. Elle choisit aussi la typographie du nettoyage. **Titre** : le nom de la piste dans le MKV.
+- **Export** : la piste corrigée **remplace** la piste de même langue de la vidéo de référence (souvent une mauvaise) ou s'ajoute à côté. Dans les options d'export, **Piste ajoutée** règle la langue et **Piste de même langue** (Remplacer / Garder) pour toutes les paires ; le détail d'une paire en décide autrement.
+- En **Sous-titres seuls**, un fichier à part garde son nom (dans un autre dossier), et une piste extraite d'une vidéo prend le nom de la vidéo et sa langue (`Film.fre.srt`), que les lecteurs chargent tout seuls.
+
+## Paramètres
+
+Le bouton **⚙** en haut à droite ouvre les Paramètres :
+
+- **Thème** : Système (suit le thème clair ou sombre du système), Clair ou Sombre.
+- **Langue** : Système (français si le système est en français, anglais sinon), Français ou English.
+- **Taille de l'interface** : 90, 100, 110 ou 125 % : textes, boutons et répliques s'agrandissent ou rapetissent ensemble. Sur un écran sans la place pour la taille choisie (un petit portable avec une grande mise à l'échelle de Windows, par exemple), l'interface est réduite pour tenir, et les Paramètres l'indiquent.
+- **Mises à jour** : vérifier ou non au démarrage si une nouvelle version existe.
+
+Quand une mise à jour est disponible, une icône apparaît à côté du ⚙ : « Installer et redémarrer » la télécharge, l'installe et relance l'application. Une analyse ou un export en cours est alors interrompu.
 
 ## Questions fréquentes
+
+**Windows affiche « Windows a protégé votre ordinateur » à l'installation.**
+L'installateur n'est pas signé par un certificat payant. Clique sur « Informations complémentaires », puis « Exécuter quand même ».
+
+**« Démarrage du moteur… » s'affiche en haut à droite.**
+Le moteur d'analyse démarre en arrière-plan, en général en une seconde ou deux. On peut déjà ajouter des fichiers : leurs pistes s'affichent dès qu'il est prêt.
+
+**« Le moteur ne répond pas ».**
+Clique sur « Réessayer ». Si ça ne suffit pas, ferme et relance l'application. Si le problème revient, un antivirus bloque peut-être le moteur (sous Windows, `syncsubtitles-engine.exe` dans le dossier d'installation).
 
 **L'analyse ne trouve rien de bon / la confiance est basse partout.**
 La référence et les sous-titres à corriger ne contiennent sans doute pas les mêmes répliques : piste forcée choisie comme référence, sous-titres d'un autre épisode, ou d'une version très différente. Vérifie dans la loupe que les répliques se ressemblent.
@@ -128,7 +232,16 @@ Ouvre l'éditeur : déplace la frontière, retire le segment, ou utilise « Alig
 C'est la dérive : elle est détectée et corrigée d'office pour les cadences classiques (23,976, 24, 25 i/s), et indiquée dans le résumé.
 
 **Puis-je recaler des sous-titres PGS (Blu-ray) ou VobSub (DVD) ?**
-Pas encore : ils servent de référence, mais seuls les sous-titres texte (SRT, ASS) peuvent être recalés.
+Non : ils peuvent servir de référence, mais seuls les sous-titres texte (SRT, ASS) peuvent être recalés.
 
 **Où est passée telle réplique ?**
-Elle est peut-être tombée avant le début de la vidéo, ou dans une scène que la vidéo n'a pas : l'export liste chaque réplique retirée, avec son heure.
+Elle est peut-être tombée avant le début de la vidéo, ou dans une scène que la vidéo n'a pas : la liste des répliques retirées, dans le résumé, la montre avec son heure, et « Garder » la remet (voir [Les répliques retirées](#les-répliques-retirées)).
+
+**Une réplique non dialoguée (`[Musique]`, des paroles de chanson) n'a rien en face.**
+Normal : ces répliques sont ignorées pour le calage, mais recalées avec leur segment.
+
+**La fenêtre ne tient pas sur mon écran, ou tout est trop petit / trop grand.**
+Change la **Taille de l'interface** dans les Paramètres. Sur un petit écran, Bobine Subs s'ouvre déjà en plein écran et réduit l'interface pour qu'elle tienne.
+
+**Mon fichier d'origine est-il modifié ?**
+Non, jamais. L'export écrit toujours un nouveau fichier.

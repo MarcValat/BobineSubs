@@ -1,27 +1,8 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import { loadSetting, saveSetting } from "./util";
 
-// Settings remembered across sessions (from Bobine Audio). Browser storage
-// can be unavailable or throw: the setting then just isn't remembered.
-
-export function loadSetting(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-/** Stores `value` under `key`; null forgets it. */
-export function saveSetting(key: string, value: string | null): void {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    // not remembered this time
-  }
-}
-
-// A view using a setting follows a change made in Options right away.
+// Options' settings, remembered across sessions; a view using one follows
+// a change made in Options right away. From Bobine Audio.
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void): () => void {
@@ -29,18 +10,91 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+function changed(): void {
+  listeners.forEach((listener) => listener());
+}
+
 const CHECK_UPDATES_KEY = "syncsubtitles.checkUpdates";
 
 /** Whether the app looks for an update on GitHub at startup (the default). */
-export function loadCheckUpdates(): boolean {
+function loadCheckUpdates(): boolean {
   return loadSetting(CHECK_UPDATES_KEY) !== "0";
 }
 
 export function saveCheckUpdates(check: boolean): void {
   saveSetting(CHECK_UPDATES_KEY, check ? null : "0");
-  listeners.forEach((listener) => listener());
+  changed();
 }
 
 export function useCheckUpdates(): boolean {
   return useSyncExternalStore(subscribe, loadCheckUpdates);
+}
+
+const LIST_COLLAPSED_KEY = "syncsubtitles.listCollapsed";
+
+/** Whether the file list is folded to a narrow column (both modes). */
+function loadListCollapsed(): boolean {
+  return loadSetting(LIST_COLLAPSED_KEY) === "1";
+}
+
+export function saveListCollapsed(collapsed: boolean): void {
+  saveSetting(LIST_COLLAPSED_KEY, collapsed ? "1" : null);
+  changed();
+}
+
+export function useListCollapsed(): boolean {
+  return useSyncExternalStore(subscribe, loadListCollapsed);
+}
+
+const CLEAN_SUBTITLES_KEY = "syncsubtitles.cleanSubtitles";
+
+/** Whether an export fixes the corrected SRT files' obvious faults too
+ * (the engine's cleanup: the default). */
+function loadCleanSubtitles(): boolean {
+  return loadSetting(CLEAN_SUBTITLES_KEY) !== "0";
+}
+
+export function saveCleanSubtitles(clean: boolean): void {
+  saveSetting(CLEAN_SUBTITLES_KEY, clean ? null : "0");
+  changed();
+}
+
+export function useCleanSubtitles(): boolean {
+  return useSyncExternalStore(subscribe, loadCleanSubtitles);
+}
+
+/** Every kind of fix the cleanup makes (the engine's cleanup.KINDS). */
+export const CLEAN_KINDS = ["spaces", "dashes", "glued", "punctuation", "apostrophes", "ads", "overlaps", "short", "inverted"] as const;
+export type CleanKind = (typeof CLEAN_KINDS)[number];
+
+const CLEAN_KINDS_OFF_KEY = "syncsubtitles.cleanKindsOff";
+
+/** The kinds of fix the cleanup makes, of every file: all but those left
+ * out (kept as such, so a kind added later is on). */
+export function saveCleanKinds(kinds: readonly CleanKind[]): void {
+  const off = CLEAN_KINDS.filter((k) => !kinds.includes(k));
+  saveSetting(CLEAN_KINDS_OFF_KEY, off.length ? off.join(",") : null);
+  changed();
+}
+
+export function useCleanKinds(): CleanKind[] {
+  const off = useSyncExternalStore(subscribe, () => loadSetting(CLEAN_KINDS_OFF_KEY) ?? "");
+  return useMemo(() => CLEAN_KINDS.filter((k) => !off.split(",").includes(k)), [off]);
+}
+
+const SUBS_ONLY_KEY = "syncsubtitles.subsOnly";
+
+/** What an export writes, in both modes: new MKVs holding the corrected
+ * tracks (the default), or the corrected subtitle files alone. */
+function loadSubsOnly(): boolean {
+  return loadSetting(SUBS_ONLY_KEY) === "1";
+}
+
+export function saveSubsOnly(subsOnly: boolean): void {
+  saveSetting(SUBS_ONLY_KEY, subsOnly ? "1" : null);
+  changed();
+}
+
+export function useSubsOnly(): boolean {
+  return useSyncExternalStore(subscribe, loadSubsOnly);
 }

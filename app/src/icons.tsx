@@ -35,6 +35,15 @@ export function FilmDropIcon() {
   );
 }
 
+/** A cross: close a panel. */
+export function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 /** A circular arrow: do it again. */
 export function RedoIcon() {
   return (
@@ -50,6 +59,138 @@ export function FolderIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
+/** Stacked layers: files that each hold every track (multitrack mode). */
+export function LayersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3l9 5-9 5-9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </svg>
+  );
+}
+
+/** Two chain links: the tracks come from two files (pairs mode). */
+export function LinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+    </svg>
+  );
+}
+
+/** Two chevrons to the left: fold a column away (turned around to unfold). */
+export function FoldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M11 17l-5-5 5-5" />
+      <path d="M18 17l-5-5 5-5" />
+    </svg>
+  );
+}
+
+/** An arrow up: move a row up the list. */
+export function ArrowUpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 19V5" />
+      <path d="M6 11l6-6 6 6" />
+    </svg>
+  );
+}
+
+/** An arrow down: move a row down the list. */
+export function ArrowDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M6 13l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** A hooked arrow back: undo the last edit. */
+export function UndoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
+  );
+}
+
+/** A hooked arrow forward: redo what was undone. */
+export function RedoEditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 14l5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </svg>
+  );
+}
+
+/** Scissors: cut a segment in two ("Couper ici"). */
+export function PlusIcon() {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M6 1.5v9M1.5 6h9" />
+    </svg>
+  );
+}
+
+export function MinusIcon() {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M1.5 6h9" />
+    </svg>
+  );
+}
+
+export function ScissorsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M20 4L8.12 15.88" />
+      <path d="M14.47 14.48L20 20" />
+      <path d="M8.12 8.12L12 12" />
+    </svg>
+  );
+}
+
+/** A tick: checked by hand (Valider). */
+export function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.5 12.5l5 5L19.5 7" />
+    </svg>
+  );
+}
+
+/** A line onto lines: align a cue onto a reference one (Aligner). */
+export function AlignIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 9h14" />
+      <path d="M8 15h8" />
+    </svg>
+  );
+}
+
+/** A triangle with "!": something to check (a flagged file, a weak
+ * segment, an engine that doesn't answer). Drawn in place of a typed
+ * "⚠", which each font -- and Windows' emoji -- draws its own way. */
+export function WarningIcon() {
+  return (
+    <svg className="warning-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9.5v4.5" />
+      <path d="M12 17.2h.01" />
     </svg>
   );
 }

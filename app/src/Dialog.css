@@ -1,8 +1,11 @@
-/* Every dialog (see Dialog.tsx): a dimmed backdrop over the whole app, the
-   window centered on it. */
+/* Every dialog (see Dialog.tsx): a dimmed backdrop over the app under the
+   top bar, the window centered on it. The top bar is the window's title
+   bar: it stays above, so the window can still be moved, minimized or
+   closed; its own controls wait (below). */
 .dialog-overlay {
   position: fixed;
   inset: 0;
+  top: var(--top-bar-height);
   z-index: 50;
   display: flex;
   align-items: center;
@@ -47,7 +50,98 @@
   margin-bottom: 0.8em;
 }
 
+/* The title on one line, a long one cut short (all of it on hover, see
+   DialogHeader's titleTooltip): two lines pushed the buttons around. */
 .dialog-header h2 {
   margin: 0 auto 0 0;
   font-size: 1.1em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Its buttons keep their size whatever the title's length (the close
+   button was squeezed out of square). */
+.dialog-header > :not(h2) {
+  flex-shrink: 0;
+}
+
+.dialog-header .dialog-close {
+  margin-left: auto;
+}
+
+/* While a dialog other than the settings drawer is open, the top bar's own
+   controls are dimmed and wait, like the rest of the app; the bar still
+   drags the window, its window buttons still work. */
+body:has(.dialog-overlay:not(.dialog-overlay-side)) .top-bar > :not(.window-controls) {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* A drawer from the right, under the top bar (which stays usable): the
+   workspace stays in sight behind it, dimmed a little. */
+.dialog-overlay-side {
+  padding: 0;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--backdrop) 60%, transparent);
+}
+
+.dialog-panel-side {
+  width: 420px;
+  max-width: 100%;
+  max-height: none;
+  border-radius: 0;
+  border-left: 1px solid var(--border);
+  padding: 18px 24px;
+  animation: dialog-slide-in 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* A movement only, no fade: the whole drawer comes in from the window's
+   right edge, and goes back out of it. */
+@keyframes dialog-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+/* Its way out: the drawer slides back right, the dimming fades. */
+.dialog-overlay-side.dialog-closing {
+  animation: dialog-fade-out 220ms ease-in forwards;
+}
+
+.dialog-closing .dialog-panel-side {
+  animation: dialog-slide-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes dialog-slide-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes dialog-fade-out {
+  to {
+    background-color: transparent;
+  }
+}
+
+.dialog-overlay-side {
+  animation: dialog-fade-in 200ms ease-out;
+}
+
+@keyframes dialog-fade-in {
+  from {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-overlay-side,
+  .dialog-panel-side,
+  .dialog-overlay-side.dialog-closing,
+  .dialog-closing .dialog-panel-side {
+    animation: none;
+  }
 }

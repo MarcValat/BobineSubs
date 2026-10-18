@@ -43,6 +43,47 @@ def estimate_offset(
     Lags are searched within ``max_offset_s`` (default: anything with the
     two signals still overlapping by half the shorter one).
     """
+    lags, norm = _correlation(reference, target, frame_rate, max_offset_s)
+    peak = int(np.argmax(norm))
+    delta = _parabolic_refine(norm, peak)
+    return OffsetEstimate(
+        offset_seconds=(lags[peak] + delta) / frame_rate,
+        score=float(norm[peak]),
+        ambiguous=_has_competing_peak(norm, peak, frame_rate),
+    )
+
+
+def offset_peaks(
+    reference: np.ndarray,
+    target: np.ndarray,
+    frame_rate: float,
+    max_offset_s: float,
+    count: int,
+    min_score: float,
+    min_distance_s: float,
+) -> list[float]:
+    """The ``count`` best offsets (seconds) of ``target`` against
+    ``reference``, ``min_distance_s`` apart, each scoring at least
+    ``min_score``: every place the two could line up, not just the best one
+    (a short window often has several as good)."""
+    lags, norm = _correlation(reference, target, frame_rate, max_offset_s)
+    norm = norm.copy()
+    reach = max(1, int(min_distance_s * frame_rate))
+    found = []
+    for _ in range(count):
+        peak = int(np.argmax(norm))
+        if not np.isfinite(norm[peak]) or norm[peak] < min_score:
+            break
+        found.append(float(lags[peak]) / frame_rate)
+        norm[max(0, peak - reach) : peak + reach + 1] = -np.inf
+    return found
+
+
+def _correlation(
+    reference: np.ndarray, target: np.ndarray, frame_rate: float, max_offset_s: float | None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Every lag (frames, ascending) and the normalized correlation there;
+    -inf where it isn't searched."""
     ref, tgt = _standardize(reference), _standardize(target)
     n_ref, n_tgt = len(ref), len(tgt)
     size = 1 << int(np.ceil(np.log2(n_ref + n_tgt - 1)))
@@ -59,14 +100,7 @@ def estimate_offset(
     norm = np.where(allowed, norm, -np.inf)
 
     order = np.argsort(lags)
-    lags, norm = lags[order], norm[order]
-    peak = int(np.argmax(norm))
-    delta = _parabolic_refine(norm, peak)
-    return OffsetEstimate(
-        offset_seconds=(lags[peak] + delta) / frame_rate,
-        score=float(norm[peak]),
-        ambiguous=_has_competing_peak(norm, peak, frame_rate),
-    )
+    return lags[order], norm[order]
 
 
 def _parabolic_refine(curve: np.ndarray, peak: int) -> float:

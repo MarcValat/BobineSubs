@@ -12,6 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from syncsubtitles.i18n import tr
+
 SRT = "srt"
 ASS = "ass"
 # Image subtitles: only their timing is read, to serve as a reference.
@@ -38,7 +40,7 @@ def format_for_path(path: str | Path, text: str | None = None) -> str:
         return ASS
     if text is not None and _SRT_TIMING.search(text):
         return SRT
-    raise ValueError(f"Unrecognized subtitle format: {path}")
+    raise ValueError(tr("Format de sous-titres non reconnu : {path}", path=path))
 
 
 def decode_subtitle_bytes(data: bytes) -> str:
@@ -85,7 +87,12 @@ class SubtitleDocument:
         straddling 0 is cut to start at 0.
         """
         if not self.is_text:
-            raise ValueError(f"{self.fmt} subtitles are images: they can't be retimed, only used as a reference.")
+            raise ValueError(
+                tr(
+                    "Les sous-titres {fmt} sont des images : ils ne peuvent pas être recalés, seulement servir de référence.",
+                    fmt=self.fmt,
+                )
+            )
         if self.fmt == SRT:
             cues = []
             for cue in self.cues:
@@ -146,7 +153,11 @@ def read_file(path: str | Path) -> SubtitleDocument:
 
 # --- SRT -------------------------------------------------------------------
 
-_SRT_TIME = r"(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})"
+# The milliseconds after "," -- or "." or ":", seen in files written by hand.
+_SRT_TIME = r"(\d+):(\d{1,2}):(\d{1,2})[,.:](\d{1,3})"
+# ASS's line break and hard space typed into an SRT: what they mean.
+_ASS_BREAK = re.compile(r"\\[Nn]")
+_ASS_HARD_SPACE = re.compile(r"\\h")
 _SRT_TIMING = re.compile(_SRT_TIME + r"\s*-->\s*" + _SRT_TIME)
 _BLANK_LINES = re.compile(r"\n[ \t]*\n")
 
@@ -178,7 +189,14 @@ def _parse_srt(text: str) -> SubtitleDocument:
             continue
         g = _SRT_TIMING.search(lines[timing_at]).groups()  # type: ignore[union-attr]
         start, end = _srt_seconds(*g[:4]), _srt_seconds(*g[4:])
-        cues.append(Cue(start, end, "\n".join(lines[timing_at + 1 :]).strip("\n")))
+        cue_text = "\n".join(lines[timing_at + 1 :]).strip("\n")
+        cue_text = _ASS_HARD_SPACE.sub(" ", _ASS_BREAK.sub("\n", cue_text))
+        # "\N - Pourquoi ?": the break's own spaces go with it.
+        cue_text = "\n".join(line.strip(" ") for line in cue_text.split("\n"))
+        if not cue_text.strip():
+            # Nothing to show (a leftover of an edit): not a line.
+            continue
+        cues.append(Cue(start, end, cue_text))
     return SubtitleDocument(SRT, cues)
 
 

@@ -42,4 +42,3 @@ def parse_sup(data: bytes) -> list[Cue]:
     if shown_at is not None:
         cues.append(Cue(shown_at, shown_at + _DEFAULT_DURATION_S, ""))
     return cues
-

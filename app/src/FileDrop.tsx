@@ -19,11 +19,7 @@ export interface FileDrag {
  * files, a folder standing for its media files in name order (see the
  * engine's /paths/expand). While `blocked`, the overlay says why and a drop
  * does nothing. Returns the drag in progress, for DropOverlay. */
-export function useFileDrop(
-  enabled: boolean,
-  blocked: string | null,
-  onDrop: (files: string[], side: DropSide) => void,
-): FileDrag | null {
+export function useFileDrop(enabled: boolean, blocked: string | null, onDrop: (files: string[], side: DropSide) => void): FileDrag | null {
   const [drag, setDrag] = useState<FileDrag | null>(null);
   // The latest of each, without resubscribing on every render.
   const latest = useRef({ blocked, onDrop });

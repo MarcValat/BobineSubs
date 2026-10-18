@@ -1,10 +1,6 @@
-/* Not just .app-main plus overrides: relying on cascade order between two
-   same-specificity classes from two different stylesheets is fragile (it
-   silently depends on CSS import/bundling order) -- .batch-main instead
-   defines everything it needs on its own. Fits the window like the
-   single-file view: settings on top, the pairs table taking the height
-   left (and scrolling in its own frame when long), actions at the bottom.
-   Nothing else scrolls. */
+/* A mode's workspace fits the window: settings on top, the list and the
+   detail (Workspace.css) taking the height left, actions at the bottom.
+   Only the list scrolls. */
 .batch-main {
   flex: 1 1 auto;
   min-height: 0;
@@ -19,46 +15,15 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 1.2em;
+  gap: 0.6em 0.9em;
   flex-wrap: wrap;
 }
 
-.batch-config label {
+.batch-config .config-field {
   display: flex;
   align-items: center;
   gap: 0.5em;
   font-size: 0.9em;
-}
-
-.batch-config input[type="number"] {
-  width: 4em;
-  padding: 0.35em 0.5em;
-}
-
-/* "Vérifier toutes les pistes" at the far right. */
-.batch-config > button:last-child {
-  margin-left: auto;
-}
-
-.batch-jobs {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.batch-jobs-header {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  margin-bottom: 0.7em;
-}
-
-/* More specific than App.css's `.panel h2`, whose bottom margin would
-   otherwise push the title above the buttons' center line. */
-.panel .batch-jobs-header h2 {
-  margin: 0;
 }
 
 .batch-footer {
@@ -76,187 +41,20 @@
   font-size: 0.9em;
 }
 
-.batch-table-wrap {
-  flex: 0 1 auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-/* table-layout: fixed makes the filename column (the only one below with
-   no explicit width) claim every pixel the # and actions columns don't
-   need, instead of auto layout's shrink-to-fit sizing -- that previously
-   left the filename truncating well before the panel's actual edge. */
-.batch-table-wrap table {
-  border-collapse: collapse;
-  table-layout: fixed;
-  width: 100%;
-  font-size: 0.85em;
-}
-
-/* Headers stay in view when the table scrolls (.list-scroll). */
-.batch-table-wrap th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0.4em;
-  text-align: left;
-  font-size: 0.75em;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  background: var(--surface-sunken);
-  border-bottom: 1px solid var(--border);
-}
-
-.batch-table-wrap td {
-  padding: 0.45em 0.5em;
-  border-bottom: 1px solid var(--border);
-}
-
-/* Vertical rules between columns, for reading a wide row across. */
-.batch-table-wrap th + th,
-.batch-table-wrap td + td {
-  border-left: 1px solid var(--border);
-}
-
-.batch-table-wrap tr:last-child td {
-  border-bottom: none;
-}
-
-.batch-table-wrap tbody tr:nth-child(even) {
-  background: var(--surface-sunken);
-}
-
-.batch-col-index {
-  width: 2.5em;
-}
-
-.batch-col-status {
-  width: 20%;
-}
-
-.batch-col-actions {
-  width: 10.5em;
-}
-
-.batch-table-wrap td {
-  vertical-align: top;
-}
-
-/* A file of a pair: its name (cut short with "…" when needed, the full
-   path on hover) and the buttons that move it within its column. */
-.batch-file-inner {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-  min-width: 0;
-}
-
-.batch-file-inner .batch-filename {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.batch-file-actions {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 0.15em;
-}
-
-.batch-file-actions button {
-  padding: 0.1em 0.4em;
-}
-
-/* A column's name with its "+ Ajouter" button. */
-.batch-th-add {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-}
-
-.batch-th-add button {
-  padding: 0.15em 0.6em;
-  font-size: 1.15em;
-  letter-spacing: normal;
-  text-transform: none;
-}
-
-.batch-file-missing {
-  color: var(--text-muted);
-}
-
-/* A row one column has no file for: nothing to pair it with yet. */
-.batch-row-unpaired td.batch-status {
-  color: var(--error);
-}
-
-.batch-index {
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-td.batch-index {
-  color: var(--text-muted);
-}
-
-/* .batch-table-wrap th's own text-align: left would otherwise outrank
-   .batch-index's (one extra class in the selector beats one). */
-.batch-table-wrap th.batch-index {
-  text-align: center;
-}
-
-.batch-filename {
-  font-family: var(--font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.batch-row-actions {
-  white-space: nowrap;
-  text-align: right;
-}
-
-/* .batch-table-wrap td's own padding shorthand would otherwise outrank
-   this single-class rule (one extra class in the selector beats one). */
-.batch-table-wrap td.batch-row-actions {
-  padding-right: 1em;
-}
-
-.batch-row-actions button {
-  padding: 0.15em 0.5em;
-  margin-left: 0.2em;
-}
-
-.batch-track-status {
-  font-size: 0.8em;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.batch-track-status-error {
-  color: var(--error);
-}
-
-.batch-status {
-  font-size: 0.9em;
-}
-
 .batch-status-pending {
   color: var(--text-muted);
 }
 
 .batch-status-running {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .batch-status-done {
-  color: var(--success);
+  color: var(--success-text);
 }
 
 .batch-status-error {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .batch-status-cancelled {
@@ -336,7 +134,7 @@ td.batch-index {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: var(--surface-alt);
 }
 
 .batch-tracks-table td {
@@ -344,77 +142,17 @@ td.batch-index {
   border-bottom: 1px solid var(--border);
 }
 
-/* Radio buttons and checkboxes centered under their header, as in the
-   single-file tracks table. */
+/* A table's radio buttons and checkboxes without the browser's margins
+   (uneven: 5px left, 3px right), exactly under their column's title. */
+td > input[type="radio"],
+td > input[type="checkbox"] {
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* Radio buttons and checkboxes centered under their header. */
 .batch-tracks-table .track-pick {
   text-align: center;
-}
-
-/* Fichiers multipistes / Paires de fichiers, first in the settings bar. */
-.batch-mode {
-  margin-right: 0.6em;
-}
-
-/* The languages to correct, one checkbox each. */
-.batch-languages {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.3em 0.9em;
-  font-size: 0.9em;
-}
-
-.batch-languages label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-}
-
-.batch-col-tracks {
-  width: 24%;
-}
-
-.batch-col-folder {
-  width: 6.5em;
-}
-
-/* A file's tracks: which are used, what's off (⚠), and "Choisir". */
-.batch-tracks-cell {
-  font-size: 0.95em;
-}
-
-/* The tracks used, with "Choisir" at the right of the same line. */
-.batch-tracks-line {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-
-.batch-tracks-summary {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.batch-issues {
-  display: block;
-  color: var(--error);
-  font-size: 0.9em;
-}
-
-.batch-tracks-actions {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 0.3em;
-}
-
-.batch-tracks-actions button,
-.batch-target button {
-  padding: 0.1em 0.5em;
-}
-
-/* One line per corrected track of a file. */
-.batch-target + .batch-target {
-  margin-top: 0.3em;
 }
 
 .batch-target-name {
@@ -422,12 +160,30 @@ td.batch-index {
   color: var(--text);
 }
 
-.batch-target button {
-  margin-left: 0.4em;
+/* A button showing an icon only: the icon at its exact center. Whole-pixel
+   sizes, the button's and the icon's differing by an even number: the icon
+   lands on the same pixels as the button (a half-pixel offset blurs it to
+   one side once drawn). */
+.icon-small-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.batch-row-flagged td.batch-index {
-  color: var(--error);
+.small-button.icon-small-button {
+  height: 24px;
+  min-width: 28px;
+  padding: 0;
+}
+
+.icon-small-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Where the exports go, left of the progress line. */
@@ -459,25 +215,64 @@ td.batch-index {
 
 .batch-output button {
   flex: 0 0 auto;
-  padding: 0.25em 0.7em;
+}
+
+/* "· Opus · noms automatiques": what the export options say, after the folder. */
+.batch-output-format {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* The export options (exportOptions.tsx): the folder, the codec, the names. */
+.export-options-panel {
+  max-width: 520px;
+}
+
+.export-options-folder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.export-options-folder .batch-output-dir {
+  flex: 1 1 100%;
+  max-width: none;
+}
+
+/* A custom name per language: its name, then the field. */
+.export-options-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+}
+
+.export-options-name span {
+  flex: 0 0 auto;
+  min-width: 9em;
+}
+
+.export-options-name input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .batch-footer {
   flex-wrap: wrap;
 }
 
-/* "Choisir": a file's tracks, picked by hand. */
+/* "Changer": a multitrack file's retimed subtitles, ticked by hand. */
 .batch-choice-panel {
   max-width: 640px;
 }
 
-.batch-choice-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 1em;
-}
-
-/* "Choisir": the subtitle tracks retimed with each corrected track. */
+/* The subtitle tracks retimed with each corrected track. */
 .batch-choice-subs {
   margin-top: 1em;
 }
@@ -507,4 +302,48 @@ td.batch-index {
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
+}
+
+/* ---- Bobine Subs only. ---- */
+
+/* A checkbox of the export options ("Par défaut", the cleanup). */
+.export-options-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+/* A list or a switch of the export options, after its name. */
+.export-options-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+}
+
+.export-options-choice > span:first-child {
+  flex: 0 0 auto;
+  min-width: 9em;
+}
+
+/* Bobine Subs: the footer on one line, its export summary and progress cut
+   short ("…") on a small window instead of the buttons going to a second
+   line. */
+.batch-footer {
+  flex-wrap: nowrap;
+}
+
+.batch-footer button,
+.batch-output-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.batch-progress {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

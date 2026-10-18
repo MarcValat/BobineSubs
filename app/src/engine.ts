@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { currentLanguage, t } from "./i18n";
+import { devParam } from "./util";
 
 /** The engine's usual port, `syncsubtitles serve`'s default: where a plain
  * browser on the dev server finds it. The app starts it there when it's
@@ -9,13 +11,34 @@ const DEFAULT_PORT = 8757;
 let engineUrl: string | null = null;
 
 /** The engine sidecar's local address, asked once to the app (see
- * src-tauri/src/lib.rs's free_port). */
+ * src-tauri/src/lib.rs's free_port). In a plain browser, `?enginePort=`
+ * points the dev server at another engine (one started for tests while
+ * the app's own runs). */
 export async function getEngineUrl(): Promise<string> {
   if (engineUrl === null) {
-    const port = isTauri() ? await invoke<number>("engine_port") : DEFAULT_PORT;
+    const port = isTauri() ? await invoke<number>("engine_port") : Number(devParam("enginePort")) || DEFAULT_PORT;
     engineUrl = `http://127.0.0.1:${port}`;
   }
   return engineUrl;
+}
+
+/** The dev builds' token (src-tauri/src/lib.rs's DEV_TOKEN): what a plain
+ * browser on the dev server sends to the engine that `tauri dev` (or the
+ * end-to-end tests) started. */
+const DEV_TOKEN = "bobine-dev";
+
+let engineToken: string | null = null;
+
+/** The secret the engine asks of every request (see lib.rs's new_token),
+ * asked once to the app. */
+export async function getEngineToken(): Promise<string> {
+  if (engineToken === null) engineToken = isTauri() ? await invoke<string>("engine_token") : DEV_TOKEN;
+  return engineToken;
+}
+
+/** What a request to the engine carries for it to answer. */
+export async function engineHeaders(): Promise<Record<string, string>> {
+  return { "X-Bobine-Token": await getEngineToken() };
 }
 
 const HEALTH_POLL_INTERVAL_MS = 100;
@@ -41,17 +64,25 @@ async function healthy(): Promise<boolean> {
   }
 }
 
+/** Waits for the engine to answer, then tells it the UI's language before
+ * anything else reaches it (a job's first log lines would otherwise come
+ * out in its default French). */
 function waitForEngine(): Promise<void> {
   setStatus("starting");
   const attempt = new Promise<void>((resolve, reject) => {
     let attempts = 0;
     const poll = async () => {
       if (await healthy()) {
+        await fetch(`${await getEngineUrl()}/language`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await engineHeaders()) },
+          body: JSON.stringify({ language: currentLanguage() }),
+        }).catch(() => {});
         setStatus("ready");
         resolve();
       } else if (++attempts >= HEALTH_POLL_ATTEMPTS) {
         setStatus("unreachable");
-        reject(new Error("Le moteur ne répond pas."));
+        reject(new Error(t().startup.unreachable));
       } else {
         setTimeout(poll, HEALTH_POLL_INTERVAL_MS);
       }

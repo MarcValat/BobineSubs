@@ -4,14 +4,14 @@ from synthetic import dialogue_cues, edited, translated
 
 from syncsubtitles.retime import retime
 from syncsubtitles.segments import STANDARD_RATIOS, detect_segments
-from syncsubtitles.subformats import SRT, SubtitleDocument
+from syncsubtitles.subformats import SRT, Cue, SubtitleDocument
 
 PAL = STANDARD_RATIOS[2]  # 23.976 film played at 25 fps: the target runs fast
 
 
-def _check(jumps=(), ratio=1.0, offset=0.0, duration=2400.0):
+def _check(jumps=(), ratio=1.0, offset=0.0, duration=2400.0, ref_cues=None):
     """Detect, correct, and compare every corrected line to where it belongs."""
-    ref_cues = dialogue_cues(duration)
+    ref_cues = ref_cues or dialogue_cues(duration)
     target = edited(translated(ref_cues, offset), list(jumps), ratio)
     detection = detect_segments(SubtitleDocument(SRT, ref_cues), SubtitleDocument(SRT, target))
     corrected = retime(SubtitleDocument(SRT, target), detection.segments)
@@ -68,3 +68,72 @@ def test_scene_only_in_the_target_has_its_lines_dropped():
     extra = sum(c.text == "extra" for c in target)
     assert extra > 10
     assert sum(c.text == "extra" for c in corrected.cues) <= 1
+
+
+def test_a_teaser_before_credits_the_target_lacks_is_its_own_segment():
+    # Seen on a real episode: a 45 s teaser, then a minute of opening
+    # credits (no dialogue) the target's version doesn't have, at PAL speed.
+    # Its stretch is shorter than the long windows: they all see the rest.
+    ref_cues = [c for c in dialogue_cues(2400.0) if c.end < 45.0 or c.start >= 105.0]
+    detection = _check(jumps=[(46.0, -55.0)], ratio=PAL, ref_cues=ref_cues)
+    assert len(detection.segments) == 2
+
+
+@pytest.mark.parametrize("seed", [2, 8, 10, 11])
+def test_a_previously_only_the_target_has_is_dropped_not_put_on_the_first_scene(seed):
+    """Seen on real episodes: the target opens on 45 s of "previously"
+    (lines of other episodes, packed), then the episode itself 52 s later
+    than the video. It used to land by chance on the first scene, whose
+    own lines were then dropped."""
+    rng = np.random.default_rng(seed + 100)
+    recap, t = [], 1.0
+    while t < 45.0:
+        length = rng.uniform(1.0, 3.0)
+        recap.append(Cue(t, t + length, "extra"))
+        t += length + rng.uniform(0.1, 0.6)
+    ref_cues = dialogue_cues(1800.0, seed=seed)
+    target = recap + translated(ref_cues, 52.0)
+    detection = detect_segments(SubtitleDocument(SRT, ref_cues), SubtitleDocument(SRT, target))
+    corrected = retime(SubtitleDocument(SRT, target), detection.segments)
+    assert {c.text for c in target} - {c.text for c in corrected.cues} <= {"extra"}
+    assert not any(c.text == "extra" for c in corrected.cues)
+
+
+def test_names_are_capitalized_words_not_starting_a_sentence():
+    from syncsubtitles.segments import _names
+
+    assert _names("Bah, Joe Namath portera des bas. Toujours") == {"joe", "namath"}
+    assert _names("- Lane?\n- C'est moi, Rory") == {"rory"}
+    assert _names("C'était quand on a eu la Jeep") == {"jeep"}
+    # An all-caps line: every word may be one.
+    assert _names("ÉTÉ À CHILTON") == {"ete", "chilton"}
+
+
+def test_a_line_straddling_a_small_jump_joins_a_neighbour_a_scene_does_not():
+    """At an ad break one edit has a second more of black: a dub line
+    merging the reference's two lines each side of it straddles the jump,
+    left out by the Viterbi; it's a real line. Lines of a 30 s scene only
+    the target has are not."""
+    from syncsubtitles.activity import FRAME_RATE, activity_signal
+    from syncsubtitles.segments import _cue_frames, _reference, _with_jump_orphans
+
+    ref = [Cue(10.0 + 3 * i, 12.0 + 3 * i, f"line {i}") for i in range(8)]
+    reference = _reference(ref, activity_signal(ref, 200.0))
+    jump = int(1.0 * FRAME_RATE)
+    # Lines 0-2 as the reference's, then one merging 3 and 4, then 5-7 a second later.
+    target = [*ref[:3], Cue(19.0, 24.5 + 1.0, "merged"), *(Cue(c.start + 1.0, c.end + 1.0, c.text) for c in ref[5:])]
+    frames = _cue_frames(target)
+    kept = np.array([True, True, True, False, True, True, True])
+    groups = [(np.array([0, 1, 2]), 0), (np.array([4, 5, 6]), jump)]
+    out = _with_jump_orphans(groups, kept, reference, ref, target, frames)
+    assert kept.all()
+    assert sorted(np.concatenate([m for m, _ in out]).tolist()) == list(range(7))
+
+    # A 30 s scene only the target has: its lines land on the next ones' stretch.
+    scene = [Cue(19.0 + 3 * i, 21.0 + 3 * i, "extra") for i in range(10)]
+    target = [*ref[:3], *scene, *(Cue(c.start + 30.0, c.end + 30.0, c.text) for c in ref[3:])]
+    frames = _cue_frames(target)
+    kept = np.array([True] * 3 + [False] * 10 + [True] * 5)
+    groups = [(np.array([0, 1, 2]), 0), (np.arange(13, 18), int(30.0 * FRAME_RATE))]
+    _with_jump_orphans(groups, kept, reference, ref, target, frames)
+    assert not kept[3:13].any()

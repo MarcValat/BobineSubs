@@ -49,6 +49,16 @@
   Pop $1
 !macroend
 
+; The exe keeps its path from one version to the next, and Explorer's icon
+; cache is keyed by path: after an icon change (the suite's new icon, from
+; 1.1.0), the taskbar went on showing the old one -- through a reboot, an
+; uninstall and reinstall (found in Bobine Style). Telling Explorer that
+; icons changed refreshes it (SHCNE_ASSOCCHANGED, SHCNF_FLUSH). Runs after a
+; fresh install and after each in-app update.
+!macro NSIS_HOOK_POSTINSTALL
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0x1000, p 0, p 0)'
+!macroend
+
 !macro NSIS_HOOK_PREUNINSTALL
   nsExec::Exec 'taskkill /F /T /IM syncsubtitles-engine.exe'
   Pop $0

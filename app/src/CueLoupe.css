@@ -1,0 +1,313 @@
+/* The cue loupe (CueLoupe.tsx): where Bobine Audio shows its waveforms. */
+.loupe {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* "+" / "−" (from Bobine Audio's): drawn, not typed -- the font's glyphs sit
+   at lowercase height, never quite centered. Same height as the neighbouring
+   buttons. */
+.zoom-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+}
+
+.zoom-button svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* One row: the jumps, the stretch shown, the zoom. */
+.loupe-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.loupe-toolbar .button-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.loupe-window {
+  flex: 1 1 auto;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.loupe-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.loupe-row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.loupe-label {
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.loupe-row-reference .loupe-label {
+  color: var(--accent-text);
+}
+
+.loupe-row-after .loupe-label {
+  color: light-dark(#3f7a17, #c8f0a0);
+}
+
+.loupe-lane {
+  position: relative;
+  height: 36px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.cue {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 26px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  min-width: 2px;
+  color: var(--text);
+}
+
+/* Room for its text: inset a little. A narrower line keeps its own width. */
+.cue.labelled {
+  padding: 0 5px;
+}
+
+/* Lines too narrow to read and close together (zoomed out), as one. */
+.cue.merged {
+  opacity: 0.8;
+}
+
+.cue.ref {
+  background: color-mix(in srgb, var(--constant) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--constant) 35%, transparent);
+}
+
+.cue.before {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+}
+
+.cue.after {
+  background: color-mix(in srgb, var(--accent-2) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+/* A line with no counterpart in the reference: kept as the segment moves it. */
+.cue.after.orphan {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+/* A segment's boundary, across the three rows. */
+.loupe-boundary {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed var(--accent);
+  opacity: 0.7;
+}
+
+/* The segment editor's Aligner: a cue of "Après", then a reference one. */
+.loupe-lanes.clickable .cue {
+  cursor: pointer;
+}
+
+/* Above the lines it overlaps: its edges and itself dragged first. */
+.cue.picked {
+  z-index: 2;
+  outline: 2px solid var(--warn);
+  outline-offset: 1px;
+}
+
+.cue.aim:hover {
+  outline: 2px solid var(--warn);
+}
+
+/* The segment editor's Aligner: what to click, then the line picked. */
+.align-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  min-height: 34px;
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.align-banner.picked {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.align-banner > span {
+  flex: 1 1 auto;
+}
+
+/* Its buttons each on one line: the text beside them wraps instead. */
+.align-banner > button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.align-banner svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* A drag moving the view (timeView.ts's useDragPan). */
+.timeline-panning,
+.timeline-panning * {
+  cursor: grabbing !important;
+}
+
+/* The whole episode under the loupe (CueNavigator.tsx), as Bobine Audio's
+   waveform navigator: the lines' density, the stretch in view framed. */
+.cue-navigator {
+  flex: 0 0 auto;
+  margin-left: 84px;
+}
+
+.cue-navigator-svg {
+  width: 100%;
+  height: 26px;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.cue-navigator-reference {
+  fill: var(--constant);
+  opacity: 0.55;
+}
+
+.cue-navigator-corrected {
+  fill: var(--accent-2);
+  opacity: 0.6;
+}
+
+/* The part in view. */
+.cue-navigator-window {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 60%, transparent);
+  stroke-width: 1;
+  cursor: grab;
+  user-select: none;
+}
+
+.cue-navigator-window:active {
+  cursor: grabbing;
+}
+
+/* A line left out of the export (a stretch the reference lacks, taken out
+   by hand): framed in red, struck through; in the editor, a click on it
+   offers to keep it or put it back. */
+.cue.before.out {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--danger) 70%, transparent);
+  outline-offset: -1px;
+  text-decoration: line-through;
+}
+
+/* A line the export's cleanup changes: a dot at its corner. */
+.cue.after.cleaned::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* A line whose times were set by hand in the editor: framed in the accent. */
+.cue.after.timed {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* The line picked in the editor: dragged to move it, its edges (the
+   handles) to change its start or end. */
+.loupe-lanes.clickable .cue.after.picked {
+  cursor: grab;
+  touch-action: none;
+}
+
+.cue-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  background: color-mix(in srgb, var(--warn) 75%, transparent);
+}
+
+.cue-handle.start {
+  left: 0;
+}
+
+.cue-handle.end {
+  right: 0;
+}
+
+.line-moving,
+.line-moving * {
+  cursor: grabbing !important;
+}
+
+.line-resizing,
+.line-resizing * {
+  cursor: ew-resize !important;
+}
