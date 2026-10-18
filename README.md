@@ -23,8 +23,8 @@
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/main-dark.png">
-  <img src="docs/screenshots/main-light.png" alt="Bobine Subs: offset over time, then the reference's lines and the subtitles' before and after correction">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/main-en-dark.png">
+  <img src="docs/screenshots/main-en-light.png" alt="Bobine Subs: a season's episodes on the left; on the right, the offset over time, then the reference's lines and the subtitles' before and after correction">
 </picture>
 
 ## Why
@@ -33,18 +33,17 @@ Subtitles found separately rarely line up with the video: a few tenths of a seco
 
 But the video often already holds well-timed subtitles, in another language. What they share with the ones to fix isn't the text but the **rhythm**: the same lines appear at the same moments, with the same pauses in between. Bobine Subs compares that rhythm and retimes every line.
 
-The interface is in French for now.
-
 ## Features
 
 - 🎯 **Finds all three kinds of desync**: constant offset, drift (the usual frame rates: 23.976, 24, 25 fps), jumps, each segment with a confidence score.
 - 🌍 **Across languages**: English original against a French dub's subtitles, Japanese against English… only when lines appear matters.
 - 💿 **Any reference**: SRT and ASS, but also Blu-ray (PGS) and DVD (VobSub) image subtitles, of which only the timing is read.
-- 👀 **Check before exporting**: the offset curve, and a close-up showing the reference's lines next to the ones to fix, before and after, with their text.
-- ✏️ **Correct by hand if needed**: drag a segment or a boundary, split, remove a false detection, **align** a line on the right one in one click, undo / redo.
-- 📦 **A clean export**: a new MKV where the corrected track replaces the original or is added, nothing re-encoded, or the subtitle file alone. The original file is never changed.
-- 🗂️ **A whole series in one pass**: videos and the subtitles to fix (SRT/ASS files or other videos), matched by episode number (`S01E03`, `1x03`…), or videos that each hold both tracks; tracks picked by language, or by hand file by file.
-- 🖱️ **Drag and drop** files or whole folders, light or dark theme, automatic updates.
+- 👀 **Check before exporting**: the offset curve, and a loupe showing the reference's lines next to the ones to fix, before and after, with their text; the files worth a look flagged "To check".
+- ✏️ **Correct by hand if needed**: drag a segment or a boundary, split, remove a false detection, **align** a line on the right one in one click, change one line's times or take it out, undo / redo.
+- 🧹 **A cleanup of the usual faults**: extra spaces, stuck dashes, French punctuation, mixed apostrophes, subtitle sites' ads, overlapping or too short lines; each fix shown before and after, to keep or refuse.
+- 📦 **A clean export**: a new MKV where the corrected track replaces the original or is added, nothing re-encoded, its name and flags as you choose, or the subtitle file alone. The original file is never changed.
+- 🗂️ **A whole season in one pass**: videos that each hold both tracks, or videos and the subtitles to fix (SRT/ASS files or other videos) matched by episode number (`S01E03`, `1x03`…); tracks picked by number, language or name, or by hand file by file.
+- 🖱️ **Drag and drop** files or whole folders, French or English, light or dark theme, adjustable interface size, automatic updates.
 
 ## Install
 
@@ -62,22 +61,22 @@ Nothing else to install: the analysis engine and ffmpeg come with the app. When 
 
 ## How it works
 
-1. **Open the video** (or drop it on the window): in its tracks table, tick the **reference** (its well-timed subtitles) and the subtitles **to fix**: another track of the same video, or a separate SRT/ASS file, added with "+ Ajouter des sous-titres".
-2. **Analyze**: the curve shows the segments found. Check in the close-up that lines fall in front of the right ones, and adjust the segments by hand if something's off.
-3. **Export**: a new MKV (suggested next to the original: `Film.synced.mkv`), or the subtitles alone.
+1. **Add the videos** (or drop them, or a folder, on the window), in one of two modes: **Multitrack files** when each video holds both the well-timed subtitles and those to fix, **File pairs** when the subtitles to fix are separate (SRT/ASS files, or other videos). Pick the **reference** and the tracks **to correct** once for every file.
+2. **Analyze**: the curve shows the segments found. Check in the loupe that lines fall in front of the right ones, and adjust the segments by hand if something's off.
+3. **Export**: new MKVs (next to the originals: `Film.synced.mkv`, or in a folder of your choice), or the subtitles alone.
 
-📖 The [user guide](docs/guide.md) covers everything in detail: reading the result, the segment editor, series mode, FAQ.
+📖 The [user guide](docs/guide.md) covers everything in detail: reading the result, the segment editor, the cleanup, file pairs, FAQ.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png">
-  <img src="docs/screenshots/editor-light.png" alt="The segment editor: offset chart with draggable boundaries, close-up on the lines, segment table">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-en-dark.png">
+  <img src="docs/screenshots/editor-en-light.png" alt="The segment editor: offset chart with draggable boundaries, loupe on the lines with one picked to align, segment table">
 </picture>
 
 ## Good to know
 
 - The reference must hold **the same lines** as the subtitles to fix. A "forced" track (only signs and foreign-language passages) has too few: the app leaves it out when it picks the reference, and warns if you force it.
 - Lines that aren't dialogue (`[Music]`, `(laughs)`, song lyrics, ASS signs and karaoke) are ignored for syncing, but retimed like the others.
-- When the subtitles hold a scene the video doesn't have (an extended cut's, say), its lines are removed; one to three lines at that scene's edges may be decided wrong: the export lists every line it removed.
+- When the subtitles hold a scene the video doesn't have (an extended cut's, say), its lines are left out; one to three lines at that scene's edges may be decided wrong: the summary lists every line left out, and "Keep" puts one back.
 - The subtitles to fix must be text (SRT, ASS): image subtitles can be a reference, not be retimed.
 
 ## For developers

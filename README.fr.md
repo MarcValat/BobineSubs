@@ -22,8 +22,8 @@
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/main-dark.png">
-  <img src="docs/screenshots/main-light.png" alt="Bobine Subs : décalage en fonction du temps, puis les répliques de la référence, des sous-titres avant et après correction">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/main-fr-dark.png">
+  <img src="docs/screenshots/main-fr-light.png" alt="Bobine Subs : les épisodes d'une saison à gauche ; à droite, le décalage en fonction du temps, puis les répliques de la référence, des sous-titres avant et après correction">
 </picture>
 
 ## Pourquoi
@@ -37,11 +37,12 @@ Or la vidéo contient souvent déjà des sous-titres bien calés, dans une autre
 - 🎯 **Trouve les trois types de décalage** : constant, dérive (les cadences classiques : 23,976, 24, 25 i/s), sauts, chaque segment avec un score de confiance.
 - 🌍 **D'une langue à l'autre** : VO anglaise contre VF, japonaise contre anglaise… seul le moment où les répliques s'affichent compte.
 - 💿 **Toutes les références** : SRT et ASS, mais aussi les sous-titres image des Blu-ray (PGS) et des DVD (VobSub), dont seul l'horaire est lu.
-- 👀 **Vérifier avant d'exporter** : la courbe des décalages, et une loupe qui montre côte à côte les répliques de la référence et celles à corriger, avant et après, avec leur texte.
-- ✏️ **Corriger à la main si besoin** : glisser un segment ou une frontière, couper, retirer une fausse détection, **aligner** une réplique sur la bonne d'un clic, défaire / refaire.
-- 📦 **Un export propre** : un nouveau MKV où la piste corrigée remplace l'originale ou s'ajoute, sans rien réencoder, ou le fichier de sous-titres seul. Le fichier d'origine n'est jamais modifié.
-- 🗂️ **Une série entière en une passe** : des vidéos et leurs sous-titres à corriger (fichiers SRT/ASS ou autres vidéos), associés d'après le numéro d'épisode (`S01E03`, `1x03`…), ou des vidéos contenant chacune les deux pistes ; pistes choisies par langue, ou à la main fichier par fichier.
-- 🖱️ **Glisser-déposer** de fichiers ou de dossiers entiers, thème clair ou sombre, mises à jour automatiques.
+- 👀 **Vérifier avant d'exporter** : la courbe des décalages, et une loupe qui montre côte à côte les répliques de la référence et celles à corriger, avant et après, avec leur texte ; les fichiers à regarder de près signalés « À vérifier ».
+- ✏️ **Corriger à la main si besoin** : glisser un segment ou une frontière, couper, retirer une fausse détection, **aligner** une réplique sur la bonne d'un clic, changer l'horaire d'une réplique ou la retirer, défaire / refaire.
+- 🧹 **Un nettoyage des défauts courants** : espaces en trop, tirets collés, ponctuation française, apostrophes mélangées, pubs des sites de sous-titres, répliques qui se chevauchent ou trop courtes ; chaque correction montrée avant et après, à garder ou refuser.
+- 📦 **Un export propre** : un nouveau MKV où la piste corrigée remplace l'originale ou s'ajoute, sans rien réencoder, avec le nom et les drapeaux de ton choix, ou le fichier de sous-titres seul. Le fichier d'origine n'est jamais modifié.
+- 🗂️ **Une saison entière en une passe** : des vidéos contenant chacune les deux pistes, ou des vidéos et leurs sous-titres à corriger (fichiers SRT/ASS ou autres vidéos) associés d'après le numéro d'épisode (`S01E03`, `1x03`…) ; pistes choisies par numéro, langue ou nom, ou à la main fichier par fichier.
+- 🖱️ **Glisser-déposer** de fichiers ou de dossiers entiers, en français ou en anglais, thème clair ou sombre, taille de l'interface réglable, mises à jour automatiques.
 
 ## Installation
 
@@ -59,22 +60,22 @@ Rien d'autre à installer : le moteur d'analyse et ffmpeg sont fournis avec l'ap
 
 ## Comment ça marche
 
-1. **Ouvre la vidéo** (ou dépose-la sur la fenêtre) : dans le tableau de ses pistes, coche la **référence** (ses sous-titres bien calés) et les sous-titres **à corriger** : une autre piste de la même vidéo, ou un fichier SRT/ASS à part, ajouté avec « + Ajouter des sous-titres ».
+1. **Ajoute les vidéos** (ou dépose-les, ou un dossier, sur la fenêtre), dans l'un des deux modes : **Fichiers multipistes** quand chaque vidéo contient les sous-titres bien calés et ceux à corriger, **Paires de fichiers** quand les sous-titres à corriger sont à part (fichiers SRT/ASS, ou autres vidéos). Choisis la **référence** et les pistes **à corriger** une fois pour tous les fichiers.
 2. **Analyse** : la courbe montre les segments trouvés. Vérifie dans la loupe que les répliques tombent en face des bonnes, et ajuste les segments à la main si quelque chose cloche.
-3. **Exporte** : un nouveau MKV (proposé à côté de l'original : `Film.synced.mkv`), ou les sous-titres seuls.
+3. **Exporte** : de nouveaux MKV (à côté des originaux : `Film.synced.mkv`, ou dans le dossier de ton choix), ou les sous-titres seuls.
 
-📖 Le [guide d'utilisation](docs/guide.fr.md) détaille tout : lire le résultat, l'éditeur de segments, le mode série, les questions fréquentes.
+📖 Le [guide d'utilisation](docs/guide.fr.md) détaille tout : lire le résultat, l'éditeur de segments, le nettoyage, les paires de fichiers, les questions fréquentes.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png">
-  <img src="docs/screenshots/editor-light.png" alt="L'éditeur de segments : graphe des décalages avec frontières déplaçables, loupe sur les répliques, tableau des segments">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-fr-dark.png">
+  <img src="docs/screenshots/editor-fr-light.png" alt="L'éditeur de segments : graphe des décalages avec frontières déplaçables, loupe sur les répliques avec une réplique choisie pour l'aligner, tableau des segments">
 </picture>
 
 ## Bon à savoir
 
 - La référence doit contenir **les mêmes répliques** que les sous-titres à corriger. Une piste « forcée » (seulement les panneaux et les passages en langue étrangère) n'a pas assez de répliques : l'application la laisse de côté quand elle choisit la référence, et prévient si tu l'imposes.
 - Les répliques qui ne sont pas du dialogue (`[Musique]`, `(rires)`, paroles de chansons, panneaux et karaoké en ASS) sont ignorées pour le calage, mais recalées comme les autres.
-- Quand les sous-titres contiennent une scène absente de la vidéo (ceux d'une version longue, par exemple), ses répliques sont retirées ; une à trois répliques au bord de cette scène peuvent être mal tranchées : l'export liste chaque réplique retirée.
+- Quand les sous-titres contiennent une scène absente de la vidéo (ceux d'une version longue, par exemple), ses répliques sont retirées ; une à trois répliques au bord de cette scène peuvent être mal tranchées : le résumé liste chaque réplique retirée, et « Garder » la remet.
 - Les sous-titres à corriger doivent être du texte (SRT, ASS) : des sous-titres image peuvent servir de référence, pas être recalés.
 
 ## Pour les développeurs
