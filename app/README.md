@@ -81,4 +81,4 @@ Secrets requis (Settings > Secrets and variables > Actions) :
 - `TAURI_SIGNING_PRIVATE_KEY` : le contenu de `app/.tauri-keys/syncsubtitles.key` (jamais commité) ;
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` : vide (clé générée sans mot de passe).
 
-Pour une nouvelle version : changer la version dans `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et `../engine/pyproject.toml`, merger, pousser le tag `vX.Y.Z`, relire puis publier le brouillon.
+Pour une nouvelle version : changer la version dans `package.json` (et `package-lock.json`), `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` (et `Cargo.lock`) et `../engine/pyproject.toml` (puis `uv lock`), passer `npm run check -- --full` et `npm run test:e2e`, merger, pousser le tag `vX.Y.Z`, relire puis publier le brouillon.
